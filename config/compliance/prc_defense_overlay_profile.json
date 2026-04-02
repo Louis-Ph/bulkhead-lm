@@ -1,0 +1,40 @@
+{
+  "profile_id": "prc_defense_overlay",
+  "last_reviewed_date": "2026-04-02",
+  "scope": {
+    "deployment_target": "Chinese defense or military-information environment",
+    "certification_claim": "blocked_without_sponsor_profile",
+    "evidence_model": "Sponsor-provided GJB or secrecy-system overlays required"
+  },
+  "publicly_observable_constraints": [
+    "Internet military information rules may apply when military information is published or transmitted online",
+    "Military-data protection measures are not fully determined by public civilian-only standards",
+    "Defense work may require additional GJB quality and security controls plus secrecy qualifications"
+  ],
+  "current_alignment": {
+    "implemented_controls": [
+      "Modular architecture",
+      "Explicit routing",
+      "Persistent audit trail",
+      "Externalized security policy"
+    ],
+    "missing_controls": [
+      "Sponsor-specific GJB mapping",
+      "Defense-grade identity and operator vetting workflow",
+      "Secrecy-system boundary definition",
+      "Approved hosting and assessor path",
+      "Military-information handling restrictions"
+    ]
+  },
+  "required_next_step": "Do not claim Chinese military compliance without sponsor-provided standards mapping, local counsel, and accredited assessment path.",
+  "sources": [
+    {
+      "title": "Internet Military Information Dissemination Management Measures notice",
+      "url": "https://www.mod.gov.cn/gfbw/qwfb/16368422.html"
+    },
+    {
+      "title": "Data Security Law reference noting Central Military Commission handling of military-data protection",
+      "url": "https://www.ja.gov.cn/group2/M00/2C/1B/wKgSGmQhXk2AIxWAAAMEoHG7yU4725.pdf"
+    }
+  ]
+}

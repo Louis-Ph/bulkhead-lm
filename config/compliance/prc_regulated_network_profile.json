@@ -1,0 +1,56 @@
+{
+  "profile_id": "prc_regulated_network",
+  "last_reviewed_date": "2026-04-02",
+  "scope": {
+    "deployment_target": "PRC domestic or regulated-network deployment",
+    "certification_claim": "none",
+    "evidence_model": "Domestic hosting, local evidence, and assessor-specific MLPS work expected"
+  },
+  "authoritative_sources": [
+    {
+      "title": "PRC Cybersecurity Law",
+      "url": "https://www.cac.gov.cn/2025-12/29/c_1768735112911946.htm"
+    },
+    {
+      "title": "PRC Cybersecurity Law amendment notice",
+      "url": "https://www.npc.gov.cn/npc/c1773/c1848/c21114/wlaqfxz/wlaqfxz002/202511/t20251103_449242.html"
+    },
+    {
+      "title": "CAC cross-border data security Q&A",
+      "url": "https://www.cac.gov.cn/2025-05/30/c_1750315283722063.htm"
+    },
+    {
+      "title": "National Network Identity Authentication Public Service Measures",
+      "url": "https://www.cac.gov.cn/2025-05/23/c_1749711107837215.htm"
+    }
+  ],
+  "current_alignment": {
+    "implemented_controls": [
+      "Explicit egress policy",
+      "Persistent audit trail",
+      "Configuration externalization",
+      "Secret redaction"
+    ],
+    "partial_controls": [
+      "Operator accountability",
+      "Traffic minimization",
+      "Route-level policy separation"
+    ],
+    "missing_controls": [
+      "Domestic-only deployment mode",
+      "Cross-border routing guardrails",
+      "Personal-information inventory and retention controls",
+      "Important-data identification workflow",
+      "MLPS-oriented hardening and evidence",
+      "Local identity verification options",
+      "Chinese-language operational documentation"
+    ]
+  },
+  "prioritized_actions": [
+    "Add domestic-only provider and routing profile",
+    "Add data-sovereignty and export-control flags",
+    "Add retention and deletion workflows for logs and request data",
+    "Prepare MLPS-oriented deployment and evidence templates",
+    "Integrate higher-assurance identity controls when required by the operator"
+  ]
+}

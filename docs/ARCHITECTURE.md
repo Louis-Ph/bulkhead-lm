@@ -1,50 +1,48 @@
 # Architecture
 
-## Couches
+## Layers
 
-- `config/`: politiques hiérarchisées et configuration d’instance.
-- `src/domain/`: types métier, parsing JSON OpenAI-compatible, erreurs métier.
-- `src/security/`: auth, redaction, politique d’egress.
-- `src/runtime/`: état en mémoire, budget ledger, rate limiting, routage.
-- `src/providers/`: adaptateurs upstream par famille de fournisseur.
-- `src/http/`: exposition des endpoints HTTP.
-- `src/domain/responses_api.ml`: adaptation minimale de l’API OpenAI `responses`.
-- `src/http/sse_stream.ml`: sérialisation SSE normalisée pour `chat/completions` et `responses`.
-- `src/persistence/persistent_store.ml`: persistance SQLite des clés, budgets et audits.
-- `test/`: invariants de sécurité et de comportement.
+- `config/`: hierarchical instance configuration and default policy catalogs
+- `src/domain/`: business types, OpenAI-compatible JSON parsing, normalized errors
+- `src/security/`: authentication, secret redaction, egress policy
+- `src/runtime/`: in-memory state, budget ledger, rate limiting, routing
+- `src/providers/`: upstream adapters by provider family
+- `src/http/`: HTTP handlers and SSE serialization
+- `src/persistence/`: SQLite-backed persistence for keys, budgets, and audit events
+- `test/`: behavior, security, and concurrency invariants
 
-## Flux `chat/completions`
+## Request flow for `/v1/chat/completions`
 
-1. Le handler HTTP parse la requête OpenAI-compatible.
-2. `Auth` vérifie une clé virtuelle par hash SHA-256.
-3. `Rate_limiter` applique une limite par minute.
-4. `Router` contrôle l’accès à la route publique demandée.
-5. `Egress_policy` bloque les destinations locales/privées.
-6. Le provider sélectionné traduit la requête vers l’API upstream.
-7. `Budget_ledger` débite le coût tokenisé après réponse.
-8. La réponse revient au client au format OpenAI-compatible.
+1. The HTTP layer parses the OpenAI-compatible request body.
+2. `Auth` resolves the presented virtual key from its hashed form.
+3. `Rate_limiter` enforces a per-minute ceiling.
+4. `Router` resolves the public model to an explicit backend list.
+5. `Egress_policy` blocks loopback and private destinations before any upstream call.
+6. The selected provider adapter rewrites the request for the upstream API.
+7. `Budget_ledger` debits token usage after a successful response.
+8. The response is returned in OpenAI-compatible shape.
 
 ## SSE
 
-- si `stream=true`, la gateway normalise d’abord la réponse provider
-- elle émet ensuite un flux `text/event-stream` homogène côté client
-- cette version ne dépend donc pas encore des protocoles de streaming spécifiques à chaque provider
+- when `stream=true`, the gateway first normalizes the upstream response
+- it then emits a consistent `text/event-stream` format to the client
+- this keeps the external contract stable even though provider-native streaming is not yet wired per backend
 
-## Concurrence
+## Concurrency model
 
-- les compteurs `budget_usage` et `request_windows` sont protégés par `Mutex`
-- les principals sont chargés dans une map immuable à l’initialisation
-- un test `Domain.spawn` valide qu’un budget journalier n’est pas dépassé sous charge concurrente
+- mutable request windows and budget counters are protected with `Mutex`
+- principals are loaded into an immutable map at initialization time
+- the test suite uses `Domain.spawn` to verify that concurrent budget debits do not overspend the daily cap
 
-## Persistance
+## Persistence model
 
-- `virtual_keys` stocke les clés hashées, budgets, RPM et routes autorisées
-- `budget_usage` garde les consommations journalières persistées entre redémarrages
-- `audit_log` enregistre les appels métier et leurs statuts
+- `virtual_keys` stores hashed virtual keys, budgets, request ceilings, and route allowlists
+- `budget_usage` persists daily consumption across restarts
+- `audit_log` persists security-relevant gateway events and statuses
 
-## Différenciation volontaire
+## Intentional design choices
 
-- configuration JSON hiérarchisée plutôt qu’accumulation de littéraux dispersés
-- séparation nette entre politique de sécurité, runtime et adaptateurs de fournisseurs
-- egress fail-closed par défaut
-- aucune propagation implicite de headers secrets vers les providers
+- hierarchical JSON configuration instead of scattered literals
+- explicit separation between security policy, runtime state, and provider adapters
+- fail-closed egress defaults
+- no implicit propagation of client secrets to upstream providers

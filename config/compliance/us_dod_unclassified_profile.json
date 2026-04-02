@@ -1,0 +1,71 @@
+{
+  "profile_id": "us_dod_unclassified",
+  "last_reviewed_date": "2026-04-02",
+  "scope": {
+    "deployment_target": "Defense contractor or DoD-unclassified environment",
+    "certification_claim": "none",
+    "evidence_model": "Separate SSP, POA&M, and assessor-ready package required"
+  },
+  "authoritative_sources": [
+    {
+      "title": "NIST SP 800-171 Rev. 3",
+      "url": "https://csrc.nist.gov/pubs/sp/800/171/r3/final"
+    },
+    {
+      "title": "NIST SP 800-172",
+      "url": "https://csrc.nist.gov/pubs/sp/800/172/final"
+    },
+    {
+      "title": "NIST SP 800-53 Rev. 5",
+      "url": "https://csrc.nist.gov/pubs/sp/800/53/r5/upd1/final"
+    },
+    {
+      "title": "NIST SP 800-218 SSDF",
+      "url": "https://csrc.nist.gov/pubs/sp/800/218/final"
+    },
+    {
+      "title": "FIPS 140-3",
+      "url": "https://csrc.nist.gov/pubs/fips/140-3/final"
+    },
+    {
+      "title": "DoD CMMC program",
+      "url": "https://www.acq.osd.mil/asda/dpc/cp/cyber/cmmc.html"
+    },
+    {
+      "title": "DFARS 204.7302",
+      "url": "https://www.acquisition.gov/dfars/204.7302-policy."
+    }
+  ],
+  "current_alignment": {
+    "implemented_controls": [
+      "Explicit route allowlists",
+      "Fail-closed egress filtering",
+      "Persistent audit events",
+      "Virtual key authentication",
+      "Rate limiting and token budgeting",
+      "Tested fallback behavior"
+    ],
+    "partial_controls": [
+      "Secure software development practices",
+      "Auditability",
+      "Least-function gateway surface"
+    ],
+    "missing_controls": [
+      "SSP and POA&M artifacts",
+      "Enterprise IAM integration",
+      "Tamper-evident logging",
+      "Signed release and SBOM pipeline",
+      "FIPS-validated crypto deployment",
+      "Incident response and recovery evidence",
+      "STIG-oriented deployment baseline"
+    ]
+  },
+  "prioritized_actions": [
+    "Generate SBOMs and signed release artifacts",
+    "Add provenance attestation and vulnerability management workflow",
+    "Add OIDC or mTLS operator access controls",
+    "Add structured audit export and integrity protection",
+    "Define CUI handling boundaries and retention policy",
+    "Prepare RMF and CMMC evidence pack"
+  ]
+}
