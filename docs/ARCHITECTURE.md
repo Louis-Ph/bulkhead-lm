@@ -8,6 +8,7 @@
 - `src/runtime/`: état en mémoire, budget ledger, rate limiting, routage.
 - `src/providers/`: adaptateurs upstream par famille de fournisseur.
 - `src/http/`: exposition des endpoints HTTP.
+- `src/domain/responses_api.ml`: adaptation minimale de l’API OpenAI `responses`.
 - `test/`: invariants de sécurité et de comportement.
 
 ## Flux `chat/completions`

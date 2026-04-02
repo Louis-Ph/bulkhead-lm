@@ -9,7 +9,21 @@ license: "Proprietary"
 homepage: "https://github.com/placeholder/aegis-lm"
 bug-reports: "https://github.com/placeholder/aegis-lm/issues"
 depends: [
+  "ocaml"
   "dune" {>= "3.21"}
+  "lwt"
+  "yojson"
+  "uri"
+  "cohttp-lwt-unix"
+  "tls-lwt"
+  "cmdliner"
+  "logs"
+  "fmt"
+  "digestif"
+  "uuidm"
+  "base64"
+  "alcotest" {with-test}
+  "alcotest-lwt" {with-test}
   "odoc" {with-doc}
 ]
 build: [

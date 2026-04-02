@@ -15,6 +15,15 @@ let consume_budget_if_possible store ~principal usage =
   Budget_ledger.consume store ~principal ~tokens:usage.Openai_types.total_tokens
 ;;
 
+let protect_upstream ~provider_id call =
+  Lwt.catch call (fun exn ->
+    Lwt.return
+      (Error
+         (Domain_error.upstream
+            ~provider_id
+            ("Unhandled provider exception: " ^ Printexc.to_string exn))))
+;;
+
 let rec try_backends store principal (request : Openai_types.chat_request) failures
   = function
   | [] ->
@@ -33,9 +42,10 @@ let rec try_backends store principal (request : Openai_types.chat_request) failu
      | Error err -> try_backends store principal request (err :: failures) rest
      | Ok () ->
        let provider = store.Runtime_state.provider_factory backend in
-       provider.Provider_client.invoke_chat
-         backend
-         { request with model = backend.Config.upstream_model }
+       protect_upstream ~provider_id:backend.Config.provider_id (fun () ->
+         provider.Provider_client.invoke_chat
+           backend
+           { request with model = backend.Config.upstream_model })
        >>= (function
         | Ok response ->
           (match
@@ -95,9 +105,10 @@ let dispatch_embeddings store ~authorization (request : Openai_types.embeddings_
                  | Error err -> Lwt.return (Error err)
                  | Ok () ->
                    let provider = store.Runtime_state.provider_factory backend in
-                   provider.Provider_client.invoke_embeddings
-                     backend
-                     { request with model = backend.Config.upstream_model }
+                   protect_upstream ~provider_id:backend.Config.provider_id (fun () ->
+                     provider.Provider_client.invoke_embeddings
+                       backend
+                       { request with model = backend.Config.upstream_model })
                    >>= (function
                     | Ok response ->
                       (match

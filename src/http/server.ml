@@ -70,7 +70,26 @@ let callback store _connection req body =
           Json_response.respond_json (Openai_types.embeddings_response_to_yojson response)
         | Error error -> Json_response.respond_error error))
   | `POST, "/v1/responses" ->
-    Json_response.respond_error (Domain_error.unsupported_feature "responses API")
+    read_json_body body
+    >>= fun json ->
+    (match Responses_api.request_of_yojson json with
+     | Error field ->
+       Json_response.respond_error
+         (Domain_error.upstream ("Invalid responses request field: " ^ field))
+     | Ok request when request.Responses_api.stream ->
+       Json_response.respond_error
+         (Domain_error.unsupported_feature "streaming responses API")
+     | Ok request ->
+       let chat_request = Responses_api.to_chat_request request in
+       Router.dispatch_chat
+         store
+         ~authorization:(authorization_header store req)
+         chat_request
+       >>= (function
+        | Ok response ->
+          let response = Responses_api.of_chat_response response in
+          Json_response.respond_json (Responses_api.response_to_yojson response)
+        | Error error -> Json_response.respond_error error))
   | _ ->
     Json_response.respond_error
       (Domain_error.route_not_found (Uri.path (Cohttp.Request.uri req)))

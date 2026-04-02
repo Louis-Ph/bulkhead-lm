@@ -4,7 +4,7 @@ AegisLM est une passerelle LLM écrite en OCaml, conçue comme une réinterprét
 
 ## Objectif
 
-- exposer des endpoints compatibles OpenAI pour `chat/completions`, `embeddings`, `models`
+- exposer des endpoints compatibles OpenAI pour `chat/completions`, `responses`, `embeddings`, `models`
 - router vers plusieurs fournisseurs avec fallback ordonné
 - appliquer des clés virtuelles, budgets et rate limits
 - bloquer par défaut les destinations d'egress sensibles
@@ -23,10 +23,13 @@ AegisLM est une passerelle LLM écrite en OCaml, conçue comme une réinterprét
 opam install . --deps-only --with-test
 dune runtest
 dune exec aegislm -- --config config/example.gateway.json
+./scripts/smoke_openai.sh
 ```
+
+Le script de smoke choisit automatiquement `claude-sonnet` si `ANTHROPIC_API_KEY` est disponible, sinon `gpt-5-mini` si `OPENAI_API_KEY` est disponible.
 
 ## Limites actuelles
 
-- MVP centré sur `chat/completions`, `embeddings`, `models`
+- MVP centré sur `chat/completions`, `responses`, `embeddings`, `models`
 - providers implémentés: `openai_compat`, `anthropic`
 - stockage des budgets en mémoire pour le runtime courant

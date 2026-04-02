@@ -20,6 +20,7 @@
 - pas de forwarding implicite de `x-api-key` ou `authorization` du client vers les providers
 - pas de découverte automatique d’URLs upstream
 - pas de télémetrie imposée
+- les smoke tests lisent les secrets via l’environnement local, jamais depuis le dépôt
 
 ## Limites actuelles
 
