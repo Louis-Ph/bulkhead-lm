@@ -6,13 +6,14 @@ let current_day () =
 let usage_key principal = principal.Runtime_state.name ^ ":" ^ current_day ()
 
 let consume store ~principal ~tokens =
-  let key = usage_key principal in
-  let consumed =
-    Hashtbl.find_opt store.Runtime_state.budget_usage key |> Option.value ~default:0
-  in
-  if consumed + tokens > principal.Runtime_state.daily_token_budget
-  then Error (Domain_error.budget_exceeded ())
-  else (
-    Hashtbl.replace store.Runtime_state.budget_usage key (consumed + tokens);
-    Ok ())
+  Runtime_state.with_lock store.Runtime_state.budget_usage_lock (fun () ->
+    let key = usage_key principal in
+    let consumed =
+      Hashtbl.find_opt store.Runtime_state.budget_usage key |> Option.value ~default:0
+    in
+    if consumed + tokens > principal.Runtime_state.daily_token_budget
+    then Error (Domain_error.budget_exceeded ())
+    else (
+      Hashtbl.replace store.Runtime_state.budget_usage key (consumed + tokens);
+      Ok ()))
 ;;

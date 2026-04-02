@@ -152,6 +152,52 @@ let egress_blocks_localhost_test _switch () =
   Lwt.return_unit
 ;;
 
+let budget_is_domain_safe_test _switch () =
+  let max_tokens = 16 in
+  let worker_count = 32 in
+  let cfg =
+    Aegis_lm.Config_test_support.sample_config
+      ~virtual_keys:
+        [ Aegis_lm.Config_test_support.virtual_key
+            ~token_plaintext:"sk-domain"
+            ~name:"domain"
+            ~daily_token_budget:max_tokens
+            ()
+        ]
+      ()
+  in
+  let store = Aegis_lm.Runtime_state.create cfg in
+  let principal =
+    match Aegis_lm.Auth.authenticate store ~authorization:"Bearer sk-domain" with
+    | Ok principal -> principal
+    | Error _ -> failwith "expected auth success"
+  in
+  let started = Atomic.make false in
+  let success_count = Atomic.make 0 in
+  let error_count = Atomic.make 0 in
+  let workers =
+    List.init worker_count (fun _ ->
+      Domain.spawn (fun () ->
+        while not (Atomic.get started) do
+          Domain.cpu_relax ()
+        done;
+        match Aegis_lm.Budget_ledger.consume store ~principal ~tokens:1 with
+        | Ok () -> ignore (Atomic.fetch_and_add success_count 1)
+        | Error _ -> ignore (Atomic.fetch_and_add error_count 1)))
+  in
+  Atomic.set started true;
+  List.iter Domain.join workers;
+  Alcotest.(check int)
+    "successful budget debits"
+    max_tokens
+    (Atomic.get success_count);
+  Alcotest.(check int)
+    "rejected concurrent debits"
+    (worker_count - max_tokens)
+    (Atomic.get error_count);
+  Lwt.return_unit
+;;
+
 let routing_falls_back_after_provider_exception_test _switch () =
   let cfg =
     Aegis_lm.Config_test_support.sample_config
@@ -259,6 +305,7 @@ let tests =
       `Quick
       routing_uses_fallback_after_failure_test
   ; Alcotest_lwt.test_case "blocks localhost egress" `Quick egress_blocks_localhost_test
+  ; Alcotest_lwt.test_case "budget ledger is domain-safe" `Quick budget_is_domain_safe_test
   ; Alcotest_lwt.test_case
       "falls back after provider exception"
       `Quick

@@ -17,7 +17,7 @@ let authenticate store ~authorization =
   | None -> Error (Domain_error.invalid_api_key ())
   | Some token ->
     let token_hash = Runtime_state.hash_token token in
-    (match Hashtbl.find_opt store.Runtime_state.principals token_hash with
+    (match Runtime_state.find_principal store token_hash with
      | Some principal -> Ok principal
      | None -> Error (Domain_error.invalid_api_key ()))
 ;;

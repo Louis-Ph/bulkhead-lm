@@ -16,6 +16,7 @@ AegisLM est une passerelle LLM écrite en OCaml, conçue comme une réinterprét
 - configuration externalisée et versionnée en JSON hiérarchisé
 - auth fail-closed, egress allowlist/denylist, et absence de forwarding implicite de headers sensibles
 - couverture de tests intégration et unités avant extension fonctionnelle
+- compteurs en mémoire protégés pour l’accès concurrent, avec test multicœur
 
 ## Démarrage
 

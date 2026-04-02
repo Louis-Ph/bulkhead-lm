@@ -22,6 +22,12 @@
 7. `Budget_ledger` débite le coût tokenisé après réponse.
 8. La réponse revient au client au format OpenAI-compatible.
 
+## Concurrence
+
+- les compteurs `budget_usage` et `request_windows` sont protégés par `Mutex`
+- les principals sont chargés dans une map immuable à l’initialisation
+- un test `Domain.spawn` valide qu’un budget journalier n’est pas dépassé sous charge concurrente
+
 ## Différenciation volontaire
 
 - configuration JSON hiérarchisée plutôt qu’accumulation de littéraux dispersés
