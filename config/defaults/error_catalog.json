@@ -1,0 +1,32 @@
+{
+  "invalid_api_key": {
+    "status": 401,
+    "type": "invalid_request_error",
+    "message": "Invalid or missing API key."
+  },
+  "budget_exceeded": {
+    "status": 429,
+    "type": "rate_limit_error",
+    "message": "Daily token budget exceeded."
+  },
+  "rate_limited": {
+    "status": 429,
+    "type": "rate_limit_error",
+    "message": "Rate limit exceeded."
+  },
+  "route_not_found": {
+    "status": 404,
+    "type": "invalid_request_error",
+    "message": "Requested model route is not configured."
+  },
+  "provider_denied": {
+    "status": 403,
+    "type": "permission_error",
+    "message": "Provider endpoint blocked by egress policy."
+  },
+  "upstream_failure": {
+    "status": 502,
+    "type": "api_error",
+    "message": "All upstream providers failed."
+  }
+}

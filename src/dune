@@ -1,0 +1,18 @@
+(include_subdirs unqualified)
+
+(library
+ (name aegis_lm)
+ (public_name aegis_lm)
+ (wrapped true)
+ (libraries
+  lwt
+  lwt.unix
+  yojson
+  uri
+  cohttp-lwt-unix
+  cmdliner
+  logs
+  fmt
+  digestif
+  uuidm
+  base64))

@@ -1,0 +1,14 @@
+{
+  "supported_provider_kinds": [
+    "openai_compat",
+    "anthropic"
+  ],
+  "supported_operations": [
+    "chat_completions",
+    "embeddings"
+  ],
+  "provider_capabilities": {
+    "openai_compat": ["chat_completions", "embeddings"],
+    "anthropic": ["chat_completions"]
+  }
+}

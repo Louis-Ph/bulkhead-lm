@@ -1,0 +1,11 @@
+(test
+ (name aegis_lm_test)
+ (modules aegis_lm_test)
+ (libraries
+  aegis_lm
+  alcotest
+  alcotest-lwt
+  lwt.unix
+  cohttp-lwt-unix
+  yojson
+  uri))

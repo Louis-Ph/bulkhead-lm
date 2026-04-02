@@ -1,0 +1,9 @@
+_build/
+.DS_Store
+*.install
+*.merlin
+*.a
+*.cm*
+*.o
+*.opam.locked
+dist/
