@@ -14,6 +14,7 @@
 - redaction récursive des champs sensibles dans le JSON
 - fallback ordonné uniquement entre backends explicitement déclarés
 - budgets journaliers et rate limit par minute côté passerelle
+- audit log persistant des appels métier et de leurs statuts
 
 ## Choix de sûreté
 
@@ -25,5 +26,5 @@
 ## Limites actuelles
 
 - budgets en mémoire seulement, non persistés
-- pas encore de streaming SSE bout-en-bout
-- pas encore de store durable, d’admin UI ni d’audit log append-only
+- le streaming SSE est normalisé côté gateway, pas encore branché en natif upstream provider par provider
+- pas encore d’admin UI ni de gestion de clés à chaud

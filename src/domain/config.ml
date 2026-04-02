@@ -3,6 +3,12 @@ let ( >>= ) = Result.bind
 type provider_kind =
   | Openai_compat
   | Anthropic
+  | Google_openai
+
+type persistence =
+  { sqlite_path : string option
+  ; busy_timeout_ms : int
+  }
 
 type backend =
   { provider_id : string
@@ -28,6 +34,7 @@ type virtual_key =
 
 type t =
   { security_policy : Security_policy.t
+  ; persistence : persistence
   ; error_catalog : Yojson.Safe.t
   ; providers_schema : Yojson.Safe.t
   ; routes : route list
@@ -37,6 +44,7 @@ type t =
 let provider_kind_of_string = function
   | "openai_compat" -> Ok Openai_compat
   | "anthropic" -> Ok Anthropic
+  | "google_openai" -> Ok Google_openai
   | value -> Error (Fmt.str "Unsupported provider kind: %s" value)
 ;;
 
@@ -162,6 +170,7 @@ let load_aux_file json ~base_dir ~field =
 let load path =
   let json = Yojson.Safe.from_file path in
   let base_dir = Filename.dirname path in
+  let persistence_json = object_member "persistence" json in
   let security_policy =
     match string_member "security_policy_file" json with
     | Ok security_policy_file ->
@@ -185,5 +194,23 @@ let load path =
     (match parse_all (parse_virtual_key security_policy) [] virtual_key_values with
      | Error err -> Error err
      | Ok virtual_keys ->
-       Ok { security_policy; error_catalog; providers_schema; routes; virtual_keys })
+       let sqlite_path =
+         match object_member "sqlite_path" persistence_json with
+         | `String relative_path -> Some (resolve_path ~base_dir relative_path)
+         | _ -> None
+       in
+       let persistence =
+         { sqlite_path
+         ; busy_timeout_ms =
+             int_member_with_default "busy_timeout_ms" persistence_json ~default:5000
+         }
+       in
+       Ok
+         { security_policy
+         ; persistence
+         ; error_catalog
+         ; providers_schema
+         ; routes
+         ; virtual_keys
+         })
 ;;

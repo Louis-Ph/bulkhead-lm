@@ -23,9 +23,10 @@
   dune
   lwt
   yojson
-  uri
+ uri
   cohttp-lwt-unix
   tls-lwt
+  sqlite3
   cmdliner
   logs
   fmt

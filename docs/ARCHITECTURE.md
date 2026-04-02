@@ -9,6 +9,8 @@
 - `src/providers/`: adaptateurs upstream par famille de fournisseur.
 - `src/http/`: exposition des endpoints HTTP.
 - `src/domain/responses_api.ml`: adaptation minimale de l’API OpenAI `responses`.
+- `src/http/sse_stream.ml`: sérialisation SSE normalisée pour `chat/completions` et `responses`.
+- `src/persistence/persistent_store.ml`: persistance SQLite des clés, budgets et audits.
 - `test/`: invariants de sécurité et de comportement.
 
 ## Flux `chat/completions`
@@ -22,11 +24,23 @@
 7. `Budget_ledger` débite le coût tokenisé après réponse.
 8. La réponse revient au client au format OpenAI-compatible.
 
+## SSE
+
+- si `stream=true`, la gateway normalise d’abord la réponse provider
+- elle émet ensuite un flux `text/event-stream` homogène côté client
+- cette version ne dépend donc pas encore des protocoles de streaming spécifiques à chaque provider
+
 ## Concurrence
 
 - les compteurs `budget_usage` et `request_windows` sont protégés par `Mutex`
 - les principals sont chargés dans une map immuable à l’initialisation
 - un test `Domain.spawn` valide qu’un budget journalier n’est pas dépassé sous charge concurrente
+
+## Persistance
+
+- `virtual_keys` stocke les clés hashées, budgets, RPM et routes autorisées
+- `budget_usage` garde les consommations journalières persistées entre redémarrages
+- `audit_log` enregistre les appels métier et leurs statuts
 
 ## Différenciation volontaire
 

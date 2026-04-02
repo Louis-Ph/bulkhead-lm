@@ -31,8 +31,11 @@ let run config_path port =
     prerr_endline ("Configuration error: " ^ err);
     exit 1
   | Ok config ->
-    let store = Aegis_lm.Runtime_state.create (override_port config port) in
-    Lwt_main.run (Aegis_lm.Server.start store)
+    (match Aegis_lm.Runtime_state.create_result (override_port config port) with
+     | Error err ->
+       prerr_endline ("Runtime initialization error: " ^ err);
+       exit 1
+     | Ok store -> Lwt_main.run (Aegis_lm.Server.start store))
 ;;
 
 let cmd =

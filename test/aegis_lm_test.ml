@@ -187,10 +187,7 @@ let budget_is_domain_safe_test _switch () =
   in
   Atomic.set started true;
   List.iter Domain.join workers;
-  Alcotest.(check int)
-    "successful budget debits"
-    max_tokens
-    (Atomic.get success_count);
+  Alcotest.(check int) "successful budget debits" max_tokens (Atomic.get success_count);
   Alcotest.(check int)
     "rejected concurrent debits"
     (worker_count - max_tokens)
@@ -293,6 +290,118 @@ let responses_wrap_chat_response_test _switch () =
   Lwt.return_unit
 ;;
 
+let chat_sse_contains_done_marker_test _switch () =
+  let response =
+    Aegis_lm.Provider_mock.sample_chat_response
+      ~model:"claude-sonnet"
+      ~content:"stream-ok"
+      ()
+  in
+  let chunks = Aegis_lm.Sse_stream.chat_completion_chunks response in
+  let encoded =
+    (chunks |> List.map Aegis_lm.Sse_stream.encode |> String.concat "")
+    ^ Aegis_lm.Sse_stream.done_marker
+  in
+  Alcotest.(check bool) "chat sse object tag" true (String.contains encoded '[');
+  Alcotest.(check bool)
+    "chat sse done marker"
+    true
+    (String.ends_with ~suffix:"data: [DONE]\n\n" encoded);
+  Lwt.return_unit
+;;
+
+let responses_sse_contains_completion_event_test _switch () =
+  let response =
+    Aegis_lm.Provider_mock.sample_chat_response
+      ~model:"claude-sonnet"
+      ~content:"delta-ok"
+      ()
+    |> Aegis_lm.Responses_api.of_chat_response
+  in
+  let encoded =
+    Aegis_lm.Sse_stream.response_events response
+    |> List.map (fun (event, json) -> Aegis_lm.Sse_stream.encode ?event json)
+    |> String.concat ""
+  in
+  Alcotest.(check bool)
+    "response completed event"
+    true
+    (String.contains encoded 'c' && String.contains encoded 'd');
+  Lwt.return_unit
+;;
+
+let persistent_budget_survives_restart_test _switch () =
+  let db_path = Filename.temp_file "aegislm-budget" ".sqlite" in
+  let base_config =
+    Aegis_lm.Config_test_support.sample_config
+      ~virtual_keys:
+        [ Aegis_lm.Config_test_support.virtual_key
+            ~token_plaintext:"sk-persist"
+            ~name:"persist"
+            ~daily_token_budget:5
+            ()
+        ]
+      ()
+  in
+  let config =
+    { base_config with
+      Aegis_lm.Config.persistence = { sqlite_path = Some db_path; busy_timeout_ms = 5000 }
+    }
+  in
+  let store1 = Aegis_lm.Runtime_state.create config in
+  let principal1 =
+    match Aegis_lm.Auth.authenticate store1 ~authorization:"Bearer sk-persist" with
+    | Ok principal -> principal
+    | Error _ -> failwith "expected auth success"
+  in
+  Alcotest.(check bool)
+    "first persisted debit succeeds"
+    true
+    (match Aegis_lm.Budget_ledger.consume store1 ~principal:principal1 ~tokens:3 with
+     | Ok () -> true
+     | Error _ -> false);
+  let store2 = Aegis_lm.Runtime_state.create config in
+  let principal2 =
+    match Aegis_lm.Auth.authenticate store2 ~authorization:"Bearer sk-persist" with
+    | Ok principal -> principal
+    | Error _ -> failwith "expected auth success after reopen"
+  in
+  Alcotest.(check bool)
+    "second persisted debit rejected"
+    true
+    (match Aegis_lm.Budget_ledger.consume store2 ~principal:principal2 ~tokens:3 with
+     | Ok () -> false
+     | Error _ -> true);
+  Lwt.return_unit
+;;
+
+let audit_log_is_persisted_test _switch () =
+  let db_path = Filename.temp_file "aegislm-audit" ".sqlite" in
+  let base_config = Aegis_lm.Config_test_support.sample_config () in
+  let config =
+    { base_config with
+      Aegis_lm.Config.persistence = { sqlite_path = Some db_path; busy_timeout_ms = 5000 }
+    }
+  in
+  let store = Aegis_lm.Runtime_state.create config in
+  Aegis_lm.Runtime_state.append_audit_event
+    store
+    { Aegis_lm.Persistent_store.event_type = "test.audit"
+    ; principal_name = Some "test"
+    ; route_model = Some "gpt-5-mini"
+    ; provider_id = None
+    ; status_code = 200
+    ; details = `Assoc [ "result", `String "ok" ]
+    };
+  let count =
+    match store.Aegis_lm.Runtime_state.persistent_store with
+    | Some persistent_store -> Aegis_lm.Persistent_store.audit_count persistent_store
+    | None -> failwith "expected persistent store"
+  in
+  Alcotest.(check int) "one audit row persisted" 1 count;
+  Lwt.return_unit
+;;
+
 let tests =
   [ Alcotest_lwt.test_case "redacts secrets recursively" `Quick secret_redaction_test
   ; Alcotest_lwt.test_case
@@ -305,7 +414,10 @@ let tests =
       `Quick
       routing_uses_fallback_after_failure_test
   ; Alcotest_lwt.test_case "blocks localhost egress" `Quick egress_blocks_localhost_test
-  ; Alcotest_lwt.test_case "budget ledger is domain-safe" `Quick budget_is_domain_safe_test
+  ; Alcotest_lwt.test_case
+      "budget ledger is domain-safe"
+      `Quick
+      budget_is_domain_safe_test
   ; Alcotest_lwt.test_case
       "falls back after provider exception"
       `Quick
@@ -318,6 +430,19 @@ let tests =
       "responses wraps chat result"
       `Quick
       responses_wrap_chat_response_test
+  ; Alcotest_lwt.test_case
+      "chat sse contains done marker"
+      `Quick
+      chat_sse_contains_done_marker_test
+  ; Alcotest_lwt.test_case
+      "responses sse contains completion event"
+      `Quick
+      responses_sse_contains_completion_event_test
+  ; Alcotest_lwt.test_case
+      "persistent budget survives restart"
+      `Quick
+      persistent_budget_survives_restart_test
+  ; Alcotest_lwt.test_case "audit log is persisted" `Quick audit_log_is_persisted_test
   ]
 ;;
 

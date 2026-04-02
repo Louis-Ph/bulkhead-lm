@@ -13,6 +13,7 @@ type provider_factory = Config.backend -> Provider_client.t
 type t =
   { config : Config.t
   ; principals : principal String_map.t
+  ; persistent_store : Persistent_store.t option
   ; budget_usage : (string, int) Hashtbl.t
   ; budget_usage_lock : Mutex.t
   ; request_windows : (string, int) Hashtbl.t
@@ -40,6 +41,15 @@ let principal_of_virtual_key virtual_key security_policy =
   }
 ;;
 
+let principal_of_stored_principal (stored_principal : Persistent_store.stored_principal) =
+  { name = stored_principal.name
+  ; token_hash = stored_principal.token_hash
+  ; daily_token_budget = stored_principal.daily_token_budget
+  ; requests_per_minute = stored_principal.requests_per_minute
+  ; allowed_routes = stored_principal.allowed_routes
+  }
+;;
+
 let with_lock lock f =
   Mutex.lock lock;
   match f () with
@@ -53,24 +63,51 @@ let with_lock lock f =
 
 let find_principal store token_hash = String_map.find_opt token_hash store.principals
 
-let create ?provider_factory config =
-  let principals =
-    List.fold_left
-      (fun acc virtual_key ->
-        let principal =
-          principal_of_virtual_key virtual_key config.Config.security_policy
-        in
-        String_map.add principal.token_hash principal acc)
-      String_map.empty
-      config.Config.virtual_keys
-  in
+let append_audit_event store event =
+  match store.persistent_store with
+  | None -> ()
+  | Some persistent_store -> Persistent_store.append_audit_event persistent_store event
+;;
+
+let create_result ?provider_factory config =
   let default_provider_factory backend = Provider_registry.make backend in
-  { config
-  ; principals
-  ; budget_usage = Hashtbl.create 32
-  ; budget_usage_lock = Mutex.create ()
-  ; request_windows = Hashtbl.create 32
-  ; request_windows_lock = Mutex.create ()
-  ; provider_factory = Option.value provider_factory ~default:default_provider_factory
-  }
+  let provider_factory =
+    Option.value provider_factory ~default:default_provider_factory
+  in
+  match Persistent_store.open_or_bootstrap config with
+  | Error err -> Error err
+  | Ok persistent ->
+    let persistent_store, principal_list =
+      match persistent with
+      | None ->
+        ( None
+        , List.map
+            (fun virtual_key ->
+              principal_of_virtual_key virtual_key config.Config.security_policy)
+            config.Config.virtual_keys )
+      | Some (store, principals) ->
+        Some store, List.map principal_of_stored_principal principals
+    in
+    let principals =
+      List.fold_left
+        (fun acc principal -> String_map.add principal.token_hash principal acc)
+        String_map.empty
+        principal_list
+    in
+    Ok
+      { config
+      ; principals
+      ; persistent_store
+      ; budget_usage = Hashtbl.create 32
+      ; budget_usage_lock = Mutex.create ()
+      ; request_windows = Hashtbl.create 32
+      ; request_windows_lock = Mutex.create ()
+      ; provider_factory
+      }
+;;
+
+let create ?provider_factory config =
+  match create_result ?provider_factory config with
+  | Ok store -> store
+  | Error err -> failwith err
 ;;

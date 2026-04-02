@@ -7,3 +7,5 @@ _build/
 *.o
 *.opam.locked
 dist/
+var/
+config/var/

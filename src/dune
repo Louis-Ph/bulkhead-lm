@@ -10,6 +10,7 @@
   yojson
   uri
   cohttp-lwt-unix
+  sqlite3
   cmdliner
   logs
   fmt

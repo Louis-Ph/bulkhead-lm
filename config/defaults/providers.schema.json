@@ -1,7 +1,8 @@
 {
   "supported_provider_kinds": [
     "openai_compat",
-    "anthropic"
+    "anthropic",
+    "google_openai"
   ],
   "supported_operations": [
     "chat_completions",
@@ -9,6 +10,7 @@
   ],
   "provider_capabilities": {
     "openai_compat": ["chat_completions", "embeddings"],
-    "anthropic": ["chat_completions"]
+    "anthropic": ["chat_completions"],
+    "google_openai": ["chat_completions"]
   }
 }

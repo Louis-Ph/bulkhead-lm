@@ -28,6 +28,7 @@ let sample_config
   ()
   =
   { Config.security_policy = Security_policy.default ()
+  ; persistence = { sqlite_path = None; busy_timeout_ms = 5000 }
   ; error_catalog = `Assoc []
   ; providers_schema = `Assoc []
   ; routes
