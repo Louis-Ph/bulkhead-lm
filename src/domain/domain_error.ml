@@ -126,7 +126,13 @@ let upstream ?provider_id message =
 ;;
 
 let retry_disposition_of_upstream_status status =
-  if status = 429 || (status >= 500 && status <= 599) then Retryable else Non_retryable
+  if status = 429
+  then Retryable
+  else if status = 508
+  then Non_retryable
+  else if status >= 500 && status <= 599
+  then Retryable
+  else Non_retryable
 ;;
 
 let upstream_status ?provider_id ~status message =
@@ -137,6 +143,19 @@ let upstream_status ?provider_id ~status message =
     ~status
     ~error_type:"api_error"
     message
+;;
+
+let loop_detected ~max_hops ~request_id ~hop_count () =
+  make
+    ~retry_disposition:Non_retryable
+    ~code:"loop_detected"
+    ~status:508
+    ~error_type:"api_error"
+    (Fmt.str
+       "AegisLM peer hop limit exceeded for request %s: received hop count %d with max_hops=%d."
+       request_id
+       hop_count
+       max_hops)
 ;;
 
 let is_retryable error =

@@ -44,6 +44,12 @@ let authorization_header store req =
   |> Option.value ~default:""
 ;;
 
+let peer_context_of_request store req =
+  Peer_mesh.context_of_headers
+    store.Runtime_state.config.security_policy
+    (Cohttp.Request.headers req)
+;;
+
 let models_json config =
   `Assoc
     [ ( "data"
@@ -101,15 +107,23 @@ let callback store _connection req body =
     read_request_json store body
     >>= fun body_result ->
     let authorization = authorization_header store req in
-    (match body_result with
-     | Error error ->
+    let peer_context_result = peer_context_of_request store req in
+    (match body_result, peer_context_result with
+     | _, Error error ->
        respond_error_with_audit
          store
          ~event_type:"chat.completions"
          ~authorization
          ~route_model:None
          error
-     | Ok json ->
+     | Error error, _ ->
+       respond_error_with_audit
+         store
+         ~event_type:"chat.completions"
+         ~authorization
+         ~route_model:None
+         error
+     | Ok json, Ok peer_context ->
        let json =
          Secret_redaction.redact_json
            ~sensitive_keys:store.Runtime_state.config.security_policy.redaction.json_keys
@@ -130,7 +144,7 @@ let callback store _connection req body =
           let route_model = Some request.model in
           if request.stream
           then
-            Router.dispatch_chat_stream store ~authorization request
+            Router.dispatch_chat_stream store ~authorization ~peer_context request
             >>= (function
              | Ok stream ->
                record_api_event
@@ -154,7 +168,7 @@ let callback store _connection req body =
                  ~route_model
                  error)
           else
-            Router.dispatch_chat store ~authorization request
+            Router.dispatch_chat store ~authorization ~peer_context request
             >>= (function
              | Ok response ->
                record_api_event
@@ -181,15 +195,23 @@ let callback store _connection req body =
     read_request_json store body
     >>= fun body_result ->
     let authorization = authorization_header store req in
-    (match body_result with
-     | Error error ->
+    let peer_context_result = peer_context_of_request store req in
+    (match body_result, peer_context_result with
+     | _, Error error ->
        respond_error_with_audit
          store
          ~event_type:"embeddings"
          ~authorization
          ~route_model:None
          error
-     | Ok json ->
+     | Error error, _ ->
+       respond_error_with_audit
+         store
+         ~event_type:"embeddings"
+         ~authorization
+         ~route_model:None
+         error
+     | Ok json, Ok peer_context ->
        (match Openai_types.embeddings_request_of_yojson json with
         | Error field ->
           respond_error_with_audit
@@ -199,7 +221,7 @@ let callback store _connection req body =
             ~route_model:None
             (Domain_error.invalid_request ("Invalid embeddings request field: " ^ field))
         | Ok request ->
-          Router.dispatch_embeddings store ~authorization request
+          Router.dispatch_embeddings store ~authorization ~peer_context request
           >>= (function
            | Ok response ->
              record_api_event
@@ -221,15 +243,23 @@ let callback store _connection req body =
     read_request_json store body
     >>= fun body_result ->
     let authorization = authorization_header store req in
-    (match body_result with
-     | Error error ->
+    let peer_context_result = peer_context_of_request store req in
+    (match body_result, peer_context_result with
+     | _, Error error ->
        respond_error_with_audit
          store
          ~event_type:"responses"
          ~authorization
          ~route_model:None
          error
-     | Ok json ->
+     | Error error, _ ->
+       respond_error_with_audit
+         store
+         ~event_type:"responses"
+         ~authorization
+         ~route_model:None
+         error
+     | Ok json, Ok peer_context ->
        (match Responses_api.request_of_yojson json with
         | Error field ->
           respond_error_with_audit
@@ -243,7 +273,7 @@ let callback store _connection req body =
           let chat_request = Responses_api.to_chat_request request in
           if request.stream
           then
-            Router.dispatch_chat_stream store ~authorization chat_request
+            Router.dispatch_chat_stream store ~authorization ~peer_context chat_request
             >>= (function
              | Ok stream ->
                let response = Responses_api.of_chat_response stream.Provider_client.response in
@@ -268,7 +298,11 @@ let callback store _connection req body =
                  ~route_model
                  error)
           else
-            Router.dispatch_chat store ~authorization { chat_request with stream = false }
+            Router.dispatch_chat
+              store
+              ~authorization
+              ~peer_context
+              { chat_request with stream = false }
             >>= (function
              | Ok response ->
                let response = Responses_api.of_chat_response response in

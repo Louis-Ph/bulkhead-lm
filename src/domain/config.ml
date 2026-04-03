@@ -6,6 +6,7 @@ type provider_kind =
   | Google_openai
   | Alibaba_openai
   | Moonshot_openai
+  | Aegis_peer
 
 type persistence =
   { sqlite_path : string option
@@ -49,11 +50,13 @@ let provider_kind_of_string = function
   | "google_openai" -> Ok Google_openai
   | "alibaba_openai" -> Ok Alibaba_openai
   | "moonshot_openai" -> Ok Moonshot_openai
+  | "aegis_peer" -> Ok Aegis_peer
   | value -> Error (Fmt.str "Unsupported provider kind: %s" value)
 ;;
 
 let is_openai_compatible_kind = function
-  | Openai_compat | Google_openai | Alibaba_openai | Moonshot_openai -> true
+  | Openai_compat | Google_openai | Alibaba_openai | Moonshot_openai | Aegis_peer ->
+    true
   | Anthropic -> false
 ;;
 

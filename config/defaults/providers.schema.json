@@ -4,7 +4,8 @@
     "anthropic",
     "google_openai",
     "alibaba_openai",
-    "moonshot_openai"
+    "moonshot_openai",
+    "aegis_peer"
   ],
   "supported_operations": [
     "chat_completions",
@@ -15,6 +16,7 @@
     "anthropic": ["chat_completions"],
     "google_openai": ["chat_completions"],
     "alibaba_openai": ["chat_completions", "embeddings"],
-    "moonshot_openai": ["chat_completions"]
+    "moonshot_openai": ["chat_completions"],
+    "aegis_peer": ["chat_completions", "embeddings"]
   }
 }

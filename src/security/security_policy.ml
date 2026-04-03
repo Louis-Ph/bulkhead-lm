@@ -23,6 +23,13 @@ type egress =
   ; blocked_hosts : string list
   }
 
+type mesh =
+  { enabled : bool
+  ; max_hops : int
+  ; request_id_header : string
+  ; hop_count_header : string
+  }
+
 type routing =
   { max_fallbacks : int
   ; strategy : string
@@ -36,6 +43,7 @@ type t =
   ; auth : auth
   ; redaction : redaction
   ; egress : egress
+  ; mesh : mesh
   ; routing : routing
   ; rate_limit : rate_limit
   ; budget : budget
@@ -69,6 +77,12 @@ let default () =
       { deny_private_ranges = true
       ; allowed_schemes = [ "https"; "http" ]
       ; blocked_hosts = [ "localhost"; "127.0.0.1"; "::1" ]
+      }
+  ; mesh =
+      { enabled = true
+      ; max_hops = 1
+      ; request_id_header = "x-aegislm-request-id"
+      ; hop_count_header = "x-aegislm-hop-count"
       }
   ; routing = { max_fallbacks = 2; strategy = "priority" }
   ; rate_limit = { default_requests_per_minute = 60 }
@@ -129,6 +143,7 @@ let of_yojson json =
   let auth_json = object_member "auth" json in
   let redaction_json = object_member "redaction" json in
   let egress_json = object_member "egress" json in
+  let mesh_json = object_member "mesh" json in
   let routing_json = object_member "routing" json in
   let rate_limit_json = object_member "rate_limit" json in
   let budget_json = object_member "budget" json in
@@ -185,6 +200,20 @@ let of_yojson json =
           (match list_member "blocked_hosts" egress_json with
            | [] -> defaults.egress.blocked_hosts
            | values -> values)
+      }
+  ; mesh =
+      { enabled = bool_member "enabled" mesh_json ~default:defaults.mesh.enabled
+      ; max_hops = int_member "max_hops" mesh_json ~default:defaults.mesh.max_hops
+      ; request_id_header =
+          string_member
+            "request_id_header"
+            mesh_json
+            ~default:defaults.mesh.request_id_header
+      ; hop_count_header =
+          string_member
+            "hop_count_header"
+            mesh_json
+            ~default:defaults.mesh.hop_count_header
       }
   ; routing =
       { max_fallbacks =

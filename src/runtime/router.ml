@@ -1,5 +1,12 @@
 open Lwt.Infix
 
+let peer_headers_for_backend store peer_context backend =
+  match backend.Config.provider_kind with
+  | Config.Aegis_peer ->
+    Peer_mesh.outbound_headers store.Runtime_state.config.security_policy peer_context
+  | _ -> []
+;;
+
 let find_route config model =
   List.find_opt (fun route -> route.Config.public_model = model) config.Config.routes
 ;;
@@ -41,7 +48,13 @@ let final_error_of_failures = function
     Domain_error.upstream message
 ;;
 
-let rec try_backends store principal (request : Openai_types.chat_request) failures
+let rec
+  try_backends
+    store
+    principal
+    peer_context
+    (request : Openai_types.chat_request)
+    failures
   = function
   | [] ->
     Lwt.return (Error (final_error_of_failures (List.rev failures)))
@@ -51,14 +64,16 @@ let rec try_backends store principal (request : Openai_types.chat_request) failu
          store.Runtime_state.config.security_policy
          backend.Config.api_base
      with
-     | Error err -> try_backends store principal request (err :: failures) rest
+     | Error err -> try_backends store principal peer_context request (err :: failures) rest
      | Ok () ->
        let provider = store.Runtime_state.provider_factory backend in
+       let peer_headers = peer_headers_for_backend store peer_context backend in
        protect_upstream ~provider_id:backend.Config.provider_id (fun () ->
          with_upstream_timeout
            store
            ~provider_id:backend.Config.provider_id
            (provider.Provider_client.invoke_chat
+              peer_headers
               backend
               { request with model = backend.Config.upstream_model }))
        >>= (function
@@ -70,11 +85,17 @@ let rec try_backends store principal (request : Openai_types.chat_request) failu
            | Error err -> Lwt.return (Error err))
         | Error err ->
           if Domain_error.is_retryable err
-          then try_backends store principal request (err :: failures) rest
+          then try_backends store principal peer_context request (err :: failures) rest
           else Lwt.return (Error err)))
 ;;
 
-let rec try_chat_stream_backends store principal (request : Openai_types.chat_request) failures
+let rec
+  try_chat_stream_backends
+    store
+    principal
+    peer_context
+    (request : Openai_types.chat_request)
+    failures
   = function
   | [] -> Lwt.return (Error (final_error_of_failures (List.rev failures)))
   | backend :: rest ->
@@ -83,14 +104,17 @@ let rec try_chat_stream_backends store principal (request : Openai_types.chat_re
          store.Runtime_state.config.security_policy
          backend.Config.api_base
      with
-     | Error err -> try_chat_stream_backends store principal request (err :: failures) rest
+     | Error err ->
+       try_chat_stream_backends store principal peer_context request (err :: failures) rest
      | Ok () ->
        let provider = store.Runtime_state.provider_factory backend in
+       let peer_headers = peer_headers_for_backend store peer_context backend in
        protect_upstream ~provider_id:backend.Config.provider_id (fun () ->
          with_upstream_timeout
            store
            ~provider_id:backend.Config.provider_id
            (provider.Provider_client.invoke_chat_stream
+              peer_headers
               backend
               { request with model = backend.Config.upstream_model }))
        >>= (function
@@ -100,11 +124,24 @@ let rec try_chat_stream_backends store principal (request : Openai_types.chat_re
            | Error err -> stream.close () >|= fun () -> Error err)
         | Error err ->
           if Domain_error.is_retryable err
-          then try_chat_stream_backends store principal request (err :: failures) rest
+          then
+            try_chat_stream_backends
+              store
+              principal
+              peer_context
+              request
+              (err :: failures)
+              rest
           else Lwt.return (Error err)))
 ;;
 
-let rec try_embeddings_backends store principal (request : Openai_types.embeddings_request) failures
+let rec
+  try_embeddings_backends
+    store
+    principal
+    peer_context
+    (request : Openai_types.embeddings_request)
+    failures
   = function
   | [] -> Lwt.return (Error (final_error_of_failures (List.rev failures)))
   | backend :: rest ->
@@ -113,14 +150,17 @@ let rec try_embeddings_backends store principal (request : Openai_types.embeddin
          store.Runtime_state.config.security_policy
          backend.Config.api_base
      with
-     | Error err -> try_embeddings_backends store principal request (err :: failures) rest
+     | Error err ->
+       try_embeddings_backends store principal peer_context request (err :: failures) rest
      | Ok () ->
        let provider = store.Runtime_state.provider_factory backend in
+       let peer_headers = peer_headers_for_backend store peer_context backend in
        protect_upstream ~provider_id:backend.Config.provider_id (fun () ->
          with_upstream_timeout
            store
            ~provider_id:backend.Config.provider_id
            (provider.Provider_client.invoke_embeddings
+              peer_headers
               backend
               { request with model = backend.Config.upstream_model }))
        >>= (function
@@ -130,11 +170,13 @@ let rec try_embeddings_backends store principal (request : Openai_types.embeddin
            | Error err -> Lwt.return (Error err))
         | Error err ->
           if Domain_error.is_retryable err
-          then try_embeddings_backends store principal request (err :: failures) rest
+          then
+            try_embeddings_backends store principal peer_context request (err :: failures) rest
           else Lwt.return (Error err)))
 ;;
 
-let dispatch_chat store ~authorization (request : Openai_types.chat_request) =
+let dispatch_chat ?peer_context store ~authorization (request : Openai_types.chat_request) =
+  let peer_context = Option.value peer_context ~default:(Peer_mesh.local_context ()) in
   match Auth.authenticate store ~authorization with
   | Error err -> Lwt.return (Error err)
   | Ok principal ->
@@ -156,10 +198,11 @@ let dispatch_chat store ~authorization (request : Openai_types.chat_request) =
                  then Some backend
                  else None)
              in
-             try_backends store principal request [] limited_backends)))
+             try_backends store principal peer_context request [] limited_backends)))
 ;;
 
-let dispatch_chat_stream store ~authorization (request : Openai_types.chat_request) =
+let dispatch_chat_stream ?peer_context store ~authorization (request : Openai_types.chat_request) =
+  let peer_context = Option.value peer_context ~default:(Peer_mesh.local_context ()) in
   match Auth.authenticate store ~authorization with
   | Error err -> Lwt.return (Error err)
   | Ok principal ->
@@ -181,10 +224,22 @@ let dispatch_chat_stream store ~authorization (request : Openai_types.chat_reque
                  then Some backend
                  else None)
              in
-             try_chat_stream_backends store principal request [] limited_backends)))
+             try_chat_stream_backends
+               store
+               principal
+               peer_context
+               request
+               []
+               limited_backends)))
 ;;
 
-let dispatch_embeddings store ~authorization (request : Openai_types.embeddings_request) =
+let dispatch_embeddings
+  ?peer_context
+  store
+  ~authorization
+  (request : Openai_types.embeddings_request)
+  =
+  let peer_context = Option.value peer_context ~default:(Peer_mesh.local_context ()) in
   match Auth.authenticate store ~authorization with
   | Error err -> Lwt.return (Error err)
   | Ok principal ->
@@ -206,5 +261,11 @@ let dispatch_embeddings store ~authorization (request : Openai_types.embeddings_
                  then Some backend
                  else None)
              in
-             try_embeddings_backends store principal request [] limited_backends)))
+             try_embeddings_backends
+               store
+               principal
+               peer_context
+               request
+               []
+               limited_backends)))
 ;;

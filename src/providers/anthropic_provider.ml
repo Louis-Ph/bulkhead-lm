@@ -38,7 +38,7 @@ let split_system_messages (messages : Openai_types.message list) =
     messages
 ;;
 
-let invoke_chat backend request =
+let invoke_chat _peer_headers backend request =
   if request.Openai_types.stream
   then Lwt.return (Error (Domain_error.unsupported_feature "anthropic streaming"))
   else (
@@ -153,15 +153,15 @@ let invoke_chat backend request =
                 (Fmt.str "Upstream status %d: %s" status body_string))))
 ;;
 
-let invoke_embeddings backend _request =
+let invoke_embeddings _peer_headers backend _request =
   Lwt.return
     (Error
        (Domain_error.unsupported_feature
           ("embeddings not available for anthropic provider " ^ backend.Config.provider_id)))
 ;;
 
-let invoke_chat_stream backend request =
-  invoke_chat backend { request with Openai_types.stream = false }
+let invoke_chat_stream _peer_headers backend request =
+  invoke_chat [] backend { request with Openai_types.stream = false }
   >|= Result.map Provider_stream.of_chat_response
 ;;
 

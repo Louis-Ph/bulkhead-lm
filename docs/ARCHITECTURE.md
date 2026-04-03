@@ -12,7 +12,7 @@
 - `scripts/remote_starter.sh`: remote human wrapper for SSH sessions with a TTY
 - `scripts/remote_worker.sh`: remote machine wrapper for JSONL worker traffic over SSH without a TTY
 - `src/domain/`: business types, OpenAI-compatible JSON parsing, normalized errors
-- `src/security/`: authentication, secret redaction, egress policy
+- `src/security/`: authentication, secret redaction, egress policy, and peer mesh hop control
 - `src/runtime/`: in-memory state, budget ledger, rate limiting, routing
 - `src/providers/`: upstream adapters by provider family
 - `src/http/`: HTTP handlers and SSE serialization
@@ -27,10 +27,11 @@
 4. `Rate_limiter` enforces a per-minute ceiling.
 5. `Router` resolves the public model to an explicit backend list.
 6. `Egress_policy` blocks loopback and private destinations before any upstream call.
-7. Each upstream attempt is time-boxed by configured request timeout policy.
-8. The selected provider adapter rewrites the request for the upstream API.
-9. `Budget_ledger` debits token usage after a successful response.
-10. The response is returned in OpenAI-compatible shape.
+7. `Peer_mesh` validates inbound AegisLM hop headers before reflexive forwarding is allowed.
+8. Each upstream attempt is time-boxed by configured request timeout policy.
+9. The selected provider adapter rewrites the request for the upstream API.
+10. `Budget_ledger` debits token usage after a successful response.
+11. The response is returned in OpenAI-compatible shape.
 
 ## SSE
 
@@ -72,3 +73,4 @@
 - explicit separation between security policy, runtime state, and provider adapters
 - fail-closed egress defaults
 - no implicit propagation of client secrets to upstream providers
+- reflexive AegisLM peering is explicit as `aegis_peer`, with bounded hop count by policy

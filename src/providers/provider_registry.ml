@@ -4,5 +4,6 @@ let make backend =
   | Config.Openai_compat
   | Config.Google_openai
   | Config.Alibaba_openai
-  | Config.Moonshot_openai -> Openai_compat_provider.make ()
+  | Config.Moonshot_openai
+  | Config.Aegis_peer -> Openai_compat_provider.make ()
 ;;

@@ -20,16 +20,16 @@ let make responses =
            ~provider_id:backend.Config.provider_id
            ("No mock response registered for " ^ backend.Config.upstream_model))
   in
-  { Provider_client.invoke_chat = (fun backend _request -> Lwt.return (lookup backend))
+  { Provider_client.invoke_chat = (fun _headers backend _request -> Lwt.return (lookup backend))
   ; invoke_chat_stream =
-      (fun backend request ->
+      (fun _headers backend request ->
         Lwt.return
           (lookup backend
            |> Result.map (fun response ->
              Provider_stream.of_chat_response
                { response with Openai_types.model = request.Openai_types.model })))
   ; invoke_embeddings =
-      (fun backend _request ->
+      (fun _headers backend _request ->
         Lwt.return
           (Error
              (Domain_error.unsupported_feature

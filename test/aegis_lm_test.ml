@@ -371,7 +371,7 @@ let routing_falls_back_after_provider_exception_test _switch () =
         ]
       ()
   in
-  let invoke_chat backend _request =
+  let invoke_chat _headers backend _request =
     match backend.Aegis_lm.Config.upstream_model with
     | "bad-model" -> failwith "provider exploded"
     | "good-model" ->
@@ -387,11 +387,11 @@ let routing_falls_back_after_provider_exception_test _switch () =
     { Aegis_lm.Provider_client.invoke_chat =
         invoke_chat
     ; invoke_chat_stream =
-        (fun backend request ->
-          invoke_chat backend request
+        (fun headers backend request ->
+          invoke_chat headers backend request
           >|= Result.map Aegis_lm.Provider_stream.of_chat_response)
     ; invoke_embeddings =
-        (fun _backend _request ->
+        (fun _headers _backend _request ->
           Lwt.return
             (Error (Aegis_lm.Domain_error.unsupported_feature "embeddings not used here")))
     }
@@ -443,7 +443,7 @@ let routing_times_out_slow_provider_test _switch () =
         }
     }
   in
-  let invoke_chat _backend _request =
+  let invoke_chat _headers _backend _request =
     Lwt_unix.sleep 0.05
     >|= fun () ->
     Ok
@@ -455,11 +455,11 @@ let routing_times_out_slow_provider_test _switch () =
   let provider =
     { Aegis_lm.Provider_client.invoke_chat = invoke_chat
     ; invoke_chat_stream =
-        (fun backend request ->
-          invoke_chat backend request
+        (fun headers backend request ->
+          invoke_chat headers backend request
           >|= Result.map Aegis_lm.Provider_stream.of_chat_response)
     ; invoke_embeddings =
-        (fun _backend _request ->
+        (fun _headers _backend _request ->
           Lwt.return
             (Error (Aegis_lm.Domain_error.unsupported_feature "embeddings not used here")))
     }
@@ -511,17 +511,17 @@ let embeddings_fall_back_on_retryable_failure_test _switch () =
   in
   let provider =
     { Aegis_lm.Provider_client.invoke_chat =
-        (fun _backend _request ->
+        (fun _headers _backend _request ->
           Lwt.return
             (Error (Aegis_lm.Domain_error.unsupported_feature "chat not used in embeddings test")))
     ; invoke_chat_stream =
-        (fun _backend _request ->
+        (fun _headers _backend _request ->
           Lwt.return
             (Error
                (Aegis_lm.Domain_error.unsupported_feature
                   "chat streaming not used in embeddings test")))
     ; invoke_embeddings =
-        (fun backend request ->
+        (fun _headers backend request ->
           match backend.Aegis_lm.Config.upstream_model with
           | "bad-embedding-model" ->
             Lwt.return
@@ -662,7 +662,7 @@ let chat_stream_response_closes_handle_test _switch () =
   Lwt.return_unit
 ;;
 
-let config_load_accepts_alibaba_and_moonshot_kinds_test _switch () =
+let config_load_accepts_openai_compatible_provider_variants_test _switch () =
   let config_path = Filename.temp_file "aegislm-provider-kinds" ".json" in
   let config_json =
     `Assoc
@@ -688,6 +688,13 @@ let config_load_accepts_alibaba_and_moonshot_kinds_test _switch () =
                           ; "api_base", `String "https://api.moonshot.ai/v1"
                           ; "api_key_env", `String "MOONSHOT_API_KEY"
                           ]
+                      ; `Assoc
+                          [ "provider_id", `String "peer-primary"
+                          ; "provider_kind", `String "aegis_peer"
+                          ; "upstream_model", `String "claude-sonnet"
+                          ; "api_base", `String "https://mesh.example.test/v1"
+                          ; "api_key_env", `String "AEGISLM_PEER_API_KEY"
+                          ]
                       ] )
                 ]
             ] )
@@ -701,7 +708,7 @@ let config_load_accepts_alibaba_and_moonshot_kinds_test _switch () =
      match config.Aegis_lm.Config.routes with
      | [ route ] ->
        (match route.Aegis_lm.Config.backends with
-        | [ alibaba; moonshot ] ->
+        | [ alibaba; moonshot; peer ] ->
           Alcotest.(check bool)
             "alibaba kind parsed"
             true
@@ -723,8 +730,18 @@ let config_load_accepts_alibaba_and_moonshot_kinds_test _switch () =
             "moonshot kind is openai-compatible"
             true
             (Aegis_lm.Config.is_openai_compatible_kind
-               moonshot.Aegis_lm.Config.provider_kind)
-        | _ -> Alcotest.fail "expected two backends")
+               moonshot.Aegis_lm.Config.provider_kind);
+          Alcotest.(check bool)
+            "peer kind parsed"
+            true
+            (match peer.Aegis_lm.Config.provider_kind with
+             | Aegis_lm.Config.Aegis_peer -> true
+             | _ -> false);
+          Alcotest.(check bool)
+            "peer kind is openai-compatible"
+            true
+            (Aegis_lm.Config.is_openai_compatible_kind peer.Aegis_lm.Config.provider_kind)
+        | _ -> Alcotest.fail "expected three backends")
      | _ -> Alcotest.fail "expected one route");
   Lwt.return_unit
 ;;
@@ -746,7 +763,7 @@ let provider_registry_routes_new_openai_compatible_kinds_test _switch () =
         ()
     in
     let provider = Aegis_lm.Provider_registry.make backend in
-    provider.Aegis_lm.Provider_client.invoke_embeddings backend request
+    provider.Aegis_lm.Provider_client.invoke_embeddings [] backend request
     >>= function
     | Ok _ -> Alcotest.fail "expected missing credential failure"
     | Error err ->
@@ -766,6 +783,104 @@ let provider_registry_routes_new_openai_compatible_kinds_test _switch () =
     Aegis_lm.Config.Moonshot_openai
     "moonshot-primary"
     "MOONSHOT_TEST_KEY"
+  >>= fun () ->
+  assert_openai_compat
+    Aegis_lm.Config.Aegis_peer
+    "peer-primary"
+    "AEGISLM_PEER_TEST_KEY"
+;;
+
+let peer_mesh_rejects_excessive_hop_count_test _switch () =
+  let headers =
+    Cohttp.Header.of_list
+      [ "x-aegislm-request-id", "req-overflow"; "x-aegislm-hop-count", "2" ]
+  in
+  match Aegis_lm.Peer_mesh.context_of_headers (Aegis_lm.Security_policy.default ()) headers with
+  | Ok _ -> Alcotest.fail "expected peer mesh hop rejection"
+  | Error err ->
+    Alcotest.(check string) "loop rejection code" "loop_detected" err.code;
+    Alcotest.(check int) "loop rejection status" 508 err.status;
+    Lwt.return_unit
+;;
+
+let router_adds_peer_mesh_headers_for_aegis_peer_test _switch () =
+  let captured_headers = ref [] in
+  let cfg =
+    Aegis_lm.Config_test_support.sample_config
+      ~routes:
+        [ Aegis_lm.Config_test_support.route
+            ~public_model:"mesh-claude"
+            ~backends:
+              [ Aegis_lm.Config_test_support.backend
+                  ~provider_id:"peer-a"
+                  ~provider_kind:Aegis_lm.Config.Aegis_peer
+                  ~api_base:"https://peer-a.example.test/v1"
+                  ~upstream_model:"claude-sonnet"
+                  ~api_key_env:"PEER_A_KEY"
+                  ()
+              ]
+            ()
+        ]
+      ()
+  in
+  let invoke_chat
+    headers
+    _backend
+    (request : Aegis_lm.Openai_types.chat_request)
+    =
+    captured_headers := headers;
+    Lwt.return
+      (Ok
+         (Aegis_lm.Provider_mock.sample_chat_response
+            ~model:request.Aegis_lm.Openai_types.model
+            ~content:"peer ok"
+            ()))
+  in
+  let provider =
+    { Aegis_lm.Provider_client.invoke_chat =
+        invoke_chat
+    ; invoke_chat_stream =
+        (fun headers backend request ->
+          invoke_chat headers backend request
+          >|= Result.map Aegis_lm.Provider_stream.of_chat_response)
+    ; invoke_embeddings =
+        (fun _headers _backend _request ->
+          Lwt.return
+            (Error
+               (Aegis_lm.Domain_error.unsupported_feature
+                  "embeddings not used in peer mesh header test")))
+    }
+  in
+  let store = Aegis_lm.Runtime_state.create ~provider_factory:(fun _ -> provider) cfg in
+  let request =
+    Aegis_lm.Openai_types.chat_request_of_yojson
+      (`Assoc
+        [ "model", `String "mesh-claude"
+        ; "messages", `List [ `Assoc [ "role", `String "user"; "content", `String "hi" ] ]
+        ])
+    |> Result.get_ok
+  in
+  Aegis_lm.Router.dispatch_chat
+    ~peer_context:
+      { Aegis_lm.Peer_mesh.request_id = "req-peer"; Aegis_lm.Peer_mesh.hop_count = 0 }
+    store
+    ~authorization:"Bearer sk-test"
+    request
+  >>= function
+  | Error err ->
+    Alcotest.failf "expected peer route success but got %s" (Aegis_lm.Domain_error.to_string err)
+  | Ok _response ->
+    let request_id = List.assoc_opt "x-aegislm-request-id" !captured_headers in
+    let hop_count = List.assoc_opt "x-aegislm-hop-count" !captured_headers in
+    Alcotest.(check (option string))
+      "peer request id forwarded"
+      (Some "req-peer")
+      request_id;
+    Alcotest.(check (option string))
+      "peer hop incremented"
+      (Some "1")
+      hop_count;
+    Lwt.return_unit
 ;;
 
 let persistent_budget_survives_restart_test _switch () =
@@ -927,7 +1042,7 @@ let worker_processes_requests_with_bounded_parallelism_test _switch () =
   in
   let provider =
     { Aegis_lm.Provider_client.invoke_chat =
-        (fun _backend request ->
+        (fun _headers _backend request ->
           with_active (fun () ->
             Lwt_unix.sleep 0.02
             >|= fun () ->
@@ -941,7 +1056,7 @@ let worker_processes_requests_with_bounded_parallelism_test _switch () =
                     |> fun message -> message.Aegis_lm.Openai_types.content)
                  ())))
     ; invoke_chat_stream =
-        (fun backend request ->
+        (fun _headers _backend request ->
           with_active (fun () ->
             Lwt_unix.sleep 0.02
             >|= fun () ->
@@ -952,7 +1067,7 @@ let worker_processes_requests_with_bounded_parallelism_test _switch () =
                     ~content:"stream"
                     ()))))
     ; invoke_embeddings =
-        (fun _backend _request ->
+        (fun _headers _backend _request ->
           Lwt.return
             (Error
                (Aegis_lm.Domain_error.unsupported_feature
@@ -1402,13 +1517,21 @@ let tests =
       `Quick
       chat_stream_response_closes_handle_test
   ; Alcotest_lwt.test_case
-      "config parses alibaba and moonshot kinds"
+      "config parses openai-compatible provider variants"
       `Quick
-      config_load_accepts_alibaba_and_moonshot_kinds_test
+      config_load_accepts_openai_compatible_provider_variants_test
   ; Alcotest_lwt.test_case
       "provider registry maps new openai-compatible kinds"
       `Quick
       provider_registry_routes_new_openai_compatible_kinds_test
+  ; Alcotest_lwt.test_case
+      "peer mesh rejects excessive hop count"
+      `Quick
+      peer_mesh_rejects_excessive_hop_count_test
+  ; Alcotest_lwt.test_case
+      "router adds peer mesh headers for aegis peer backends"
+      `Quick
+      router_adds_peer_mesh_headers_for_aegis_peer_test
   ; Alcotest_lwt.test_case
       "persistent budget survives restart"
       `Quick

@@ -133,6 +133,15 @@ ssh -T user@remote '/opt/aegis-lm/scripts/remote_worker.sh --config /etc/aegislm
 
 The full guide is in [docs/SSH_REMOTE.md](docs/SSH_REMOTE.md).
 
+## Peer mesh
+
+One AegisLM instance can use another AegisLM instance as an upstream LLM by
+declaring the backend as `aegis_peer`. This keeps the relationship explicit in
+config, still uses the OpenAI-compatible API surface, and adds bounded peer hop
+headers so accidental `A -> B -> A` loops fail closed instead of recursing.
+
+The full guide is in [docs/PEER_MESH.md](docs/PEER_MESH.md).
+
 ## Copy-paste demo
 
 List the public models exposed by the local gateway:
@@ -167,6 +176,7 @@ Example route families currently implemented:
 - `google_openai`
 - `alibaba_openai`
 - `moonshot_openai`
+- `aegis_peer`
 
 The bundled example config includes:
 

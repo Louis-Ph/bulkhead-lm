@@ -28,6 +28,13 @@ let api_key_from_env backend =
          ("Missing environment variable " ^ backend.Config.api_key_env))
 ;;
 
+let merge_headers base_headers extra_headers =
+  List.fold_left
+    (fun acc (name, value) -> Cohttp.Header.add acc name value)
+    base_headers
+    extra_headers
+;;
+
 let post_json uri ~headers body =
   Cohttp_lwt_unix.Client.post
     ~headers
@@ -37,14 +44,16 @@ let post_json uri ~headers body =
   Cohttp_lwt.Body.to_string body >|= fun body_string -> response, body_string
 ;;
 
-let invoke_chat backend request =
+let invoke_chat peer_headers backend request =
   match api_key_from_env backend with
   | Error err -> Lwt.return (Error err)
   | Ok api_key ->
     let uri = endpoint backend.Config.api_base "chat/completions" in
     let headers =
-      Cohttp.Header.of_list
-        [ "content-type", "application/json"; "authorization", "Bearer " ^ api_key ]
+      merge_headers
+        (Cohttp.Header.of_list
+           [ "content-type", "application/json"; "authorization", "Bearer " ^ api_key ])
+        peer_headers
     in
     let body =
       Openai_types.chat_request_to_yojson
@@ -74,14 +83,16 @@ let invoke_chat backend request =
               (Fmt.str "Upstream status %d: %s" status body_string)))
 ;;
 
-let invoke_embeddings backend request =
+let invoke_embeddings peer_headers backend request =
   match api_key_from_env backend with
   | Error err -> Lwt.return (Error err)
   | Ok api_key ->
     let uri = endpoint backend.Config.api_base "embeddings" in
     let headers =
-      Cohttp.Header.of_list
-        [ "content-type", "application/json"; "authorization", "Bearer " ^ api_key ]
+      merge_headers
+        (Cohttp.Header.of_list
+           [ "content-type", "application/json"; "authorization", "Bearer " ^ api_key ])
+        peer_headers
     in
     let body =
       `Assoc
@@ -140,8 +151,8 @@ let invoke_embeddings backend request =
               (Fmt.str "Upstream status %d: %s" status body_string)))
 ;;
 
-let invoke_chat_stream backend request =
-  invoke_chat backend { request with Openai_types.stream = false }
+let invoke_chat_stream peer_headers backend request =
+  invoke_chat peer_headers backend { request with Openai_types.stream = false }
   >|= Result.map Provider_stream.of_chat_response
 ;;
 
