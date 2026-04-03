@@ -12,7 +12,7 @@ It targets the same operating problem as LiteLLM-style gateways, but with a stri
 - fail-closed network posture for loopback and common private ranges
 - stable gateway-level SSE contract even when providers differ
 - programmable terminal client with a human-facing `ask` mode and a JSONL worker mode
-- clone-and-run Mac starter with local-switch bootstrap and guided first-run setup
+- clone-and-run local starter for macOS, Ubuntu, and FreeBSD with guided first-run setup
 - OCaml codebase with clear separation between domain, runtime, security, providers, HTTP, and persistence layers
 
 ## Current capabilities
@@ -42,15 +42,15 @@ You can also override the listen port:
 dune exec aegislm -- --config config/example.gateway.json --port 4200
 ```
 
-## Mac starter
+## Local starter
 
-On a MacBook, the simplest entry point is the starter script:
+On macOS, Ubuntu, or FreeBSD, the simplest entry point is the starter script:
 
 ```bash
 ./run.sh
 ```
 
-or, if you prefer the Mac-style launcher:
+On macOS, you can also use the Finder-friendly launcher:
 
 ```bash
 ./start-macos-client.command
@@ -58,9 +58,10 @@ or, if you prefer the Mac-style launcher:
 
 The starter:
 
-- sources `~/.zshrc.secret` or `~/.zshrc.secrets` when present
+- supports local first-run flows on macOS, Ubuntu, and FreeBSD through OS-specific wrappers behind the same `./run.sh` entrypoint
+- sources `~/.zshrc.secret`, `~/.zshrc.secrets`, `~/.bashrc.secret`, `~/.bashrc.secrets`, `~/.profile.secret`, `~/.profile.secrets`, and `~/.config/aegislm/env` when present
 - checks the current `opam` switch first and only offers a project-local fallback when the active toolchain is not coherent for this repo
-- can offer Homebrew and opam bootstrap steps instead of dropping raw OCaml build errors on a beginner
+- can offer Homebrew, `apt`, or `pkg` bootstrap steps instead of dropping raw OCaml build errors on a beginner
 - reuses your configured provider keys from the shell environment
 - asks which configured model you want to use now
 - can build a personal portable JSON config at `config/starter.gateway.json`
@@ -225,6 +226,9 @@ docs/
 scripts/
   integration_matrix.sh
   macos_starter.sh
+  starter_common.sh
+  ubuntu_starter.sh
+  freebsd_starter.sh
   remote_common.sh
   remote_starter.sh
   remote_worker.sh
@@ -300,7 +304,7 @@ dune build @runtest
 - Moonshot is currently modeled as chat-only in the provider schema
 - there is no admin UI or hot-reload control plane yet
 - the worker protocol is currently JSONL over stdio rather than a binary IPC protocol
-- the guided starter is currently optimized for macOS shell habits and secrets stored in `zsh` startup files
+- the guided local starter currently targets macOS, Ubuntu, and FreeBSD; other systems should use `aegislm-client starter` directly
 - military or sovereign-environment compliance still requires deployment hardening, supply-chain evidence, identity integration, and formal assessment artifacts
 
 ## License

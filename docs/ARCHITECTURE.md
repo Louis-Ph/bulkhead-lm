@@ -4,8 +4,11 @@
 
 - `config/`: hierarchical instance configuration and default policy catalogs
 - `src/client/`: direct terminal client and JSONL worker mode over the shared runtime
-- `run.sh`: clone-and-run macOS-first wrapper that hands off to the guided starter
-- `scripts/macos_starter.sh`: beginner-oriented macOS launcher that sources local shell secrets before entering the client
+- `run.sh`: clone-and-run local wrapper that dispatches to the supported OS starter for macOS, Ubuntu, or FreeBSD
+- `scripts/starter_common.sh`: shared shell bootstrap layer for the local starters, including env loading, opam checks, build validation, and local-switch fallback
+- `scripts/macos_starter.sh`: beginner-oriented macOS launcher with Homebrew-aware bootstrap behavior
+- `scripts/ubuntu_starter.sh`: beginner-oriented Ubuntu launcher with `apt` bootstrap behavior
+- `scripts/freebsd_starter.sh`: beginner-oriented FreeBSD launcher with `pkg` bootstrap behavior
 - `scripts/remote_starter.sh`: remote human wrapper for SSH sessions with a TTY
 - `scripts/remote_worker.sh`: remote machine wrapper for JSONL worker traffic over SSH without a TTY
 - `src/domain/`: business types, OpenAI-compatible JSON parsing, normalized errors

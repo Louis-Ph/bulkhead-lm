@@ -13,6 +13,10 @@ aegislm_remote_find_opam() {
     command -v opam
     return 0
   fi
+  if [ -x "/usr/local/bin/opam" ]; then
+    printf '%s\n' "/usr/local/bin/opam"
+    return 0
+  fi
   if [ -x "/opt/homebrew/bin/opam" ]; then
     printf '%s\n' "/opt/homebrew/bin/opam"
     return 0
