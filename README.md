@@ -64,8 +64,9 @@ The starter:
 - reuses your configured provider keys from the shell environment
 - asks which configured model you want to use now
 - can build a personal portable JSON config at `config/starter.gateway.json`
+- keeps a followed conversation thread by default and compresses older turns into a shorter memory summary when the session grows
 - shows masked environment and provider readiness state from inside the REPL
-- drops you into a simple terminal session with `/model`, `/models`, `/swap`, `/providers`, `/env`, `/config`, `/help`, and `/quit`
+- drops you into a simple terminal session with `/model`, `/models`, `/swap`, `/memory`, `/forget`, `/thread on|off`, `/providers`, `/env`, `/config`, `/help`, and `/quit`
 
 ## Terminal client
 

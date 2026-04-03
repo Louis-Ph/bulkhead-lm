@@ -11,7 +11,7 @@ type loaded_store =
   }
 
 type stream_outcome =
-  | Stream_completed
+  | Stream_completed of Openai_types.chat_response
   | Stream_interrupted
   | Stream_failed of Domain_error.t
 
@@ -356,6 +356,10 @@ let print_help state =
   print_line "";
   print_wrapped (Fmt.str "Current model: %s" current_model);
   print_wrapped (Fmt.str "Current config: %s" config_path);
+  print_wrapped
+    (if Starter_session.conversation_enabled state
+     then Starter_constants.Text.memory_enabled
+     else Starter_constants.Text.memory_disabled);
   print_wrapped_lines Starter_constants.Text.command_help_lines
 ;;
 
@@ -390,6 +394,20 @@ let print_env_statuses () =
     statuses
 ;;
 
+let print_memory_status state runtime =
+  let stats = Starter_conversation.stats runtime.Starter_runtime.conversation in
+  print_line "";
+  print_wrapped
+    (if Starter_session.conversation_enabled state
+     then Starter_constants.Text.memory_enabled
+     else Starter_constants.Text.memory_disabled);
+  print_wrapped (Fmt.str "Recent verbatim turns: %d" stats.recent_turn_count);
+  print_wrapped (Fmt.str "Compressed older turns: %d" stats.compressed_turn_count);
+  print_wrapped (Fmt.str "Compressed summary chars: %d" stats.summary_char_count);
+  print_wrapped
+    (Fmt.str "Estimated context chars currently sent: %d" stats.estimated_context_chars)
+;;
+
 let prompt_input model =
   print_string (Fmt.str "\n%s> " model);
   flush stdout;
@@ -402,8 +420,14 @@ let prompt_input model =
     ""
 ;;
 
-let run_stream_prompt store ~authorization ~model prompt =
-  match Terminal_client.build_ask_request store ~model ~stream:true prompt with
+let request_messages state runtime prompt : Openai_types.message list =
+  if Starter_session.conversation_enabled state
+  then Starter_conversation.request_messages runtime.Starter_runtime.conversation ~pending_user:prompt
+  else [ ({ Openai_types.role = "user"; content = prompt } : Openai_types.message) ]
+;;
+
+let run_stream_messages store ~authorization ~model messages =
+  match Terminal_client.build_chat_request store ~model ~stream:true messages with
   | Error err -> Stream_failed err
   | Ok request ->
     (try
@@ -419,10 +443,13 @@ let run_stream_prompt store ~authorization ~model prompt =
                 Lwt.return_unit))
        in
        (match result with
-        | Ok _ ->
+        | Ok (Terminal_client.Chat_response response) ->
           print_newline ();
           flush stdout;
-          Stream_completed
+          Stream_completed response
+        | Ok _ ->
+          Stream_failed
+            (Domain_error.invalid_request "Starter streaming expected a chat response.")
         | Error err -> Stream_failed err)
      with
      | Sys.Break ->
@@ -431,7 +458,25 @@ let run_stream_prompt store ~authorization ~model prompt =
        Stream_interrupted)
 ;;
 
-let rec repl store ~authorization state =
+let remember_exchange state runtime ~user response =
+  if not (Starter_session.conversation_enabled state)
+  then runtime
+  else (
+    let assistant = Terminal_client.text_of_chat_response response in
+    let conversation, event =
+      Starter_conversation.commit_exchange
+        runtime.Starter_runtime.conversation
+        ~user
+        ~assistant
+    in
+    (match event with
+     | None -> ()
+     | Some event ->
+       print_wrapped (Starter_constants.Text.compression_notice event.archived_turn_count));
+    Starter_runtime.update_conversation runtime conversation)
+;;
+
+let rec repl store ~authorization state runtime =
   let active_model =
     match Starter_session.current_model state with
     | Some model -> model
@@ -440,61 +485,80 @@ let rec repl store ~authorization state =
   let input = prompt_input active_model in
   let next_state, effect = Starter_session.step state input in
   match effect with
-  | Starter_session.Noop -> repl store ~authorization next_state
+  | Starter_session.Noop -> repl store ~authorization next_state runtime
   | Starter_session.Exit ->
     print_line Starter_constants.Text.goodbye;
     0
   | Starter_session.Print_message message ->
     print_wrapped message;
-    repl store ~authorization next_state
+    repl store ~authorization next_state runtime
   | Starter_session.Show_help ->
     print_help next_state;
-    repl store ~authorization next_state
+    repl store ~authorization next_state runtime
   | Starter_session.Show_config_path path ->
     print_line path;
-    repl store ~authorization next_state
+    repl store ~authorization next_state runtime
   | Starter_session.List_models ->
     print_models store;
-    repl store ~authorization next_state
+    repl store ~authorization next_state runtime
+  | Starter_session.Show_memory_status ->
+    print_memory_status next_state runtime;
+    repl store ~authorization next_state runtime
+  | Starter_session.Reset_memory ->
+    print_wrapped Starter_constants.Text.memory_cleared;
+    repl
+      store
+      ~authorization
+      next_state
+      (Starter_runtime.clear_conversation runtime)
   | Starter_session.List_providers ->
     print_provider_matrix store;
-    repl store ~authorization next_state
+    repl store ~authorization next_state runtime
   | Starter_session.List_env ->
     print_env_statuses ();
-    repl store ~authorization next_state
+    repl store ~authorization next_state runtime
+  | Starter_session.Update_thread enabled ->
+    print_wrapped
+      (if enabled
+       then Starter_constants.Text.memory_enabled
+       else Starter_constants.Text.memory_disabled);
+    repl store ~authorization next_state runtime
   | Starter_session.Select_model ->
     (match choose_model store with
      | Error message ->
        print_wrapped message;
-       repl store ~authorization next_state
+       repl store ~authorization next_state runtime
      | Ok model ->
        print_line (Fmt.str "Switched to %s" model);
-       repl store ~authorization (Starter_session.set_model next_state model))
+       repl store ~authorization (Starter_session.set_model next_state model) runtime)
   | Starter_session.Attempt_swap requested_model ->
     (match ensure_ready_model store requested_model with
      | Error message ->
        print_wrapped message;
-       repl store ~authorization next_state
+       repl store ~authorization next_state runtime
      | Ok model ->
        print_line (Fmt.str "Switched to %s" model);
-       repl store ~authorization (Starter_session.set_model next_state model))
+       repl store ~authorization (Starter_session.set_model next_state model) runtime)
   | Starter_session.Begin_prompt prompt ->
     let model =
       match Starter_session.current_model next_state with
       | Some model -> model
       | None -> ""
     in
-    let resumed_state =
-      match run_stream_prompt store ~authorization ~model prompt with
-      | Stream_completed -> Starter_session.finish_stream next_state
+    let messages = request_messages next_state runtime prompt in
+    let resumed_state, runtime =
+      match run_stream_messages store ~authorization ~model messages with
+      | Stream_completed response ->
+        let runtime = remember_exchange next_state runtime ~user:prompt response in
+        Starter_session.finish_stream next_state, runtime
       | Stream_interrupted ->
         print_line Starter_constants.Text.interrupted_message;
-        Starter_session.interrupt_stream next_state
+        Starter_session.interrupt_stream next_state, runtime
       | Stream_failed err ->
         print_wrapped (Domain_error.to_string err);
-        Starter_session.finish_stream next_state
+        Starter_session.finish_stream next_state, runtime
     in
-    repl store ~authorization resumed_state
+    repl store ~authorization resumed_state runtime
 ;;
 
 let run ~base_config_path ~starter_output_path () =
@@ -530,5 +594,5 @@ let run ~base_config_path ~starter_output_path () =
            | Ok model ->
              let state = Starter_session.create ~model ~config_path:loaded.path in
              print_help state;
-             repl loaded.store ~authorization state)))
+             repl loaded.store ~authorization state (Starter_runtime.create ()))))
 ;;

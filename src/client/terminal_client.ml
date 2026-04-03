@@ -162,28 +162,32 @@ let invoke_json store ~authorization ~kind json =
      | Error field ->
        Lwt.return
          (Error (Domain_error.invalid_request ("Invalid embeddings request field: " ^ field)))
-     | Ok request ->
+       | Ok request ->
        Router.dispatch_embeddings store ~authorization request
        >|= Result.map (fun response -> Embeddings_response response))
 ;;
 
-let build_ask_request store ?model ?system ?max_tokens ?(stream = false) prompt =
+let build_chat_request store ?model ?max_tokens ?(stream = false) messages =
   resolve_model store ?model ()
   |> Result.map (fun resolved_model ->
-    let base_messages : Openai_types.message list =
-      [ { Openai_types.role = "user"; content = prompt } ]
-    in
-    let messages =
-      match system with
-      | Some content when String.trim content <> "" ->
-        ({ Openai_types.role = "system"; content } : Openai_types.message) :: base_messages
-      | _ -> base_messages
-    in
     { Openai_types.model = resolved_model
     ; messages
     ; stream
     ; max_tokens
     })
+;;
+
+let build_ask_request store ?model ?system ?max_tokens ?(stream = false) prompt =
+  let base_messages : Openai_types.message list =
+    [ { Openai_types.role = "user"; content = prompt } ]
+  in
+  let messages =
+    match system with
+    | Some content when String.trim content <> "" ->
+      ({ Openai_types.role = "system"; content } : Openai_types.message) :: base_messages
+    | _ -> base_messages
+  in
+  build_chat_request store ?model ?max_tokens ~stream messages
 ;;
 
 let run_ask store ~authorization request =

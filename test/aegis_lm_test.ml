@@ -1156,6 +1156,21 @@ let starter_session_parses_beginner_commands_test _switch () =
   (match Aegis_lm.Starter_session.parse_command "/swap" with
    | Aegis_lm.Starter_session.Invalid _ -> ()
    | _ -> Alcotest.fail "expected invalid /swap without argument");
+  (match Aegis_lm.Starter_session.parse_command "/memory" with
+   | Aegis_lm.Starter_session.Show_memory -> ()
+   | _ -> Alcotest.fail "expected /memory command");
+  (match Aegis_lm.Starter_session.parse_command "/forget" with
+   | Aegis_lm.Starter_session.Forget_memory -> ()
+   | _ -> Alcotest.fail "expected /forget command");
+  (match Aegis_lm.Starter_session.parse_command "/thread on" with
+   | Aegis_lm.Starter_session.Set_thread true -> ()
+   | _ -> Alcotest.fail "expected /thread on command");
+  (match Aegis_lm.Starter_session.parse_command "/thread off" with
+   | Aegis_lm.Starter_session.Set_thread false -> ()
+   | _ -> Alcotest.fail "expected /thread off command");
+  (match Aegis_lm.Starter_session.parse_command "/thread maybe" with
+   | Aegis_lm.Starter_session.Invalid _ -> ()
+   | _ -> Alcotest.fail "expected invalid /thread argument");
   Lwt.return_unit
 ;;
 
@@ -1184,6 +1199,93 @@ let starter_session_tracks_streaming_state_test _switch () =
   (match resumed_state with
    | Aegis_lm.Starter_session.Ready _ -> ()
    | _ -> Alcotest.fail "expected ready state after interrupt");
+  Lwt.return_unit
+;;
+
+let starter_session_toggles_conversation_mode_test _switch () =
+  let state =
+    Aegis_lm.Starter_session.create
+      ~model:"claude-sonnet"
+      ~config_path:"config/starter.gateway.json"
+  in
+  Alcotest.(check bool)
+    "conversation starts enabled"
+    true
+    (Aegis_lm.Starter_session.conversation_enabled state);
+  let state, effect = Aegis_lm.Starter_session.step state "/thread off" in
+  (match effect with
+   | Aegis_lm.Starter_session.Update_thread false -> ()
+   | _ -> Alcotest.fail "expected thread update effect");
+  Alcotest.(check bool)
+    "conversation disabled"
+    false
+    (Aegis_lm.Starter_session.conversation_enabled state);
+  let state, effect = Aegis_lm.Starter_session.step state "/thread on" in
+  (match effect with
+   | Aegis_lm.Starter_session.Update_thread true -> ()
+   | _ -> Alcotest.fail "expected thread update effect");
+  Alcotest.(check bool)
+    "conversation re-enabled"
+    true
+    (Aegis_lm.Starter_session.conversation_enabled state);
+  Lwt.return_unit
+;;
+
+let starter_conversation_compresses_old_turns_test _switch () =
+  let user_text = String.make 1700 'u' in
+  let assistant_text = String.make 1700 'a' in
+  let rec loop conversation count last_event =
+    if count = 0
+    then conversation, last_event
+    else
+      let conversation, event =
+        Aegis_lm.Starter_conversation.commit_exchange
+          conversation
+          ~user:user_text
+          ~assistant:assistant_text
+      in
+      loop conversation (count - 1) (match event with None -> last_event | some -> some)
+  in
+  let conversation, event = loop Aegis_lm.Starter_conversation.empty 4 None in
+  let stats = Aegis_lm.Starter_conversation.stats conversation in
+  Alcotest.(check bool) "compression happened" true (Option.is_some event);
+  Alcotest.(check int)
+    "keeps latest recent turns"
+    Aegis_lm.Starter_constants.Defaults.conversation_keep_recent_turns
+    stats.recent_turn_count;
+  Alcotest.(check bool) "compressed turns tracked" true (stats.compressed_turn_count >= 2);
+  Alcotest.(check bool) "summary exists" true (stats.summary_char_count > 0);
+  Lwt.return_unit
+;;
+
+let starter_conversation_request_messages_include_summary_test _switch () =
+  let conversation =
+    [ ("first question", "first answer")
+    ; ("second question", "second answer")
+    ; ("third question", "third answer")
+    ; ("fourth question", "fourth answer")
+    ]
+    |> List.map (fun (user, assistant) ->
+      String.concat " " [ user; String.make 1600 'x' ],
+      String.concat " " [ assistant; String.make 1600 'y' ])
+    |> List.fold_left
+         (fun conversation (user, assistant) ->
+           Aegis_lm.Starter_conversation.commit_exchange conversation ~user ~assistant
+           |> fst)
+         Aegis_lm.Starter_conversation.empty
+  in
+  let messages =
+    Aegis_lm.Starter_conversation.request_messages conversation ~pending_user:"next question"
+  in
+  (match messages with
+   | first :: _ ->
+     Alcotest.(check string) "summary is injected as system" "system" first.Aegis_lm.Openai_types.role
+   | [] -> Alcotest.fail "expected messages");
+  (match List.rev messages with
+   | last :: _ ->
+     Alcotest.(check string) "pending user kept last" "user" last.Aegis_lm.Openai_types.role;
+     Alcotest.(check string) "pending user content" "next question" last.content
+   | [] -> Alcotest.fail "expected last message");
   Lwt.return_unit
 ;;
 
@@ -1300,6 +1402,18 @@ let tests =
       "starter session tracks streaming state"
       `Quick
       starter_session_tracks_streaming_state_test
+  ; Alcotest_lwt.test_case
+      "starter session toggles conversation mode"
+      `Quick
+      starter_session_toggles_conversation_mode_test
+  ; Alcotest_lwt.test_case
+      "starter conversation compresses old turns"
+      `Quick
+      starter_conversation_compresses_old_turns_test
+  ; Alcotest_lwt.test_case
+      "starter conversation request messages include summary"
+      `Quick
+      starter_conversation_request_messages_include_summary_test
   ]
 ;;
 
