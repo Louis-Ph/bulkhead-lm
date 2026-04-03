@@ -59,7 +59,7 @@ or, if you prefer the Mac-style launcher:
 The starter:
 
 - sources `~/.zshrc.secret` or `~/.zshrc.secrets` when present
-- prefers a project-local opam switch to avoid mixed-compiler breakage
+- checks the current `opam` switch first and only offers a project-local fallback when the active toolchain is not coherent for this repo
 - can offer Homebrew and opam bootstrap steps instead of dropping raw OCaml build errors on a beginner
 - reuses your configured provider keys from the shell environment
 - asks which configured model you want to use now

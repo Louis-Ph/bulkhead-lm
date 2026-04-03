@@ -319,7 +319,7 @@ let cmd =
 let () =
   Sys.catch_break true;
   let code =
-    try Cmdliner.Cmd.eval cmd with
+    try Cmdliner.Cmd.eval' cmd with
     | Sys.Break ->
       prerr_endline "Interrupted.";
       130
