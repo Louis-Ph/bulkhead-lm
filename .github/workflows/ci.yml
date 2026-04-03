@@ -1,0 +1,48 @@
+name: CI
+
+on:
+  push:
+    branches:
+      - main
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build-and-test:
+    name: Build And Test (Ubuntu)
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+
+      - name: Set up OCaml
+        uses: ocaml/setup-ocaml@v3
+        with:
+          ocaml-compiler: 5.2
+          opam-local-packages: aegis_lm.opam
+          dune-cache: true
+
+      - name: Install Dependencies
+        run: opam install . --deps-only --with-test
+
+      - name: Build
+        run: opam exec -- dune build @install
+
+      - name: Test
+        run: opam exec -- dune runtest
+
+      - name: Check Shell Wrappers
+        run: |
+          sh -n run.sh
+          find scripts -maxdepth 1 -type f -name '*.sh' -print0 | xargs -0 -n1 sh -n
+
+      - name: Check Diff Hygiene
+        run: git diff --check
