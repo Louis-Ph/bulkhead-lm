@@ -5,11 +5,11 @@
 (generate_opam_files true)
 
 (source
- (github placeholder/aegis-lm))
+ (github Louis-Ph/aegis-lm))
 
-(authors "Codex")
+(authors "Louis-Ph")
 
-(maintainers "Codex")
+(maintainers "Louis-Ph")
 
 (license Proprietary)
 

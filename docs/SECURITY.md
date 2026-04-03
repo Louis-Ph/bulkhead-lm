@@ -1,5 +1,9 @@
 # Security Posture
 
+For supported versions and vulnerability reporting instructions, see the
+repository [Security Policy](../SECURITY.md). This document describes the
+technical control set and current gaps.
+
 ## Goals
 
 - minimize secret exposure

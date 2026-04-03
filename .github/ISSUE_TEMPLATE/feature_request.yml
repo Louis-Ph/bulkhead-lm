@@ -1,0 +1,30 @@
+name: Feature request
+description: Propose a focused improvement to the gateway, configuration model, or provider coverage.
+title: "[Feature]: "
+labels:
+  - enhancement
+body:
+  - type: textarea
+    id: problem
+    attributes:
+      label: Operator problem
+      description: Describe the real operational problem first.
+      placeholder: We need explicit sovereignty labels on routes to forbid cross-border fallback.
+    validations:
+      required: true
+  - type: textarea
+    id: proposal
+    attributes:
+      label: Proposed change
+      description: Describe the change you want and where it should live.
+    validations:
+      required: true
+  - type: textarea
+    id: alternatives
+    attributes:
+      label: Alternatives considered
+  - type: textarea
+    id: impact
+    attributes:
+      label: Security or operational impact
+      description: Note any routing, persistence, compatibility, or security implications.

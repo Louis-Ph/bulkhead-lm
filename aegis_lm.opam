@@ -3,11 +3,11 @@ opam-version: "2.0"
 synopsis: "Secure OCaml LLM gateway with OpenAI-compatible endpoints"
 description:
   "A hierarchical, security-first OCaml LLM gateway with routing, budgets, virtual keys, and provider adapters."
-maintainer: ["Codex"]
-authors: ["Codex"]
+maintainer: ["Louis-Ph"]
+authors: ["Louis-Ph"]
 license: "Proprietary"
-homepage: "https://github.com/placeholder/aegis-lm"
-bug-reports: "https://github.com/placeholder/aegis-lm/issues"
+homepage: "https://github.com/Louis-Ph/aegis-lm"
+bug-reports: "https://github.com/Louis-Ph/aegis-lm/issues"
 depends: [
   "ocaml"
   "dune" {>= "3.21"}
@@ -41,5 +41,5 @@ build: [
     "@doc" {with-doc}
   ]
 ]
-dev-repo: "git+https://github.com/placeholder/aegis-lm.git"
+dev-repo: "git+https://github.com/Louis-Ph/aegis-lm.git"
 x-maintenance-intent: ["(latest)"]

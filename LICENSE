@@ -1,0 +1,32 @@
+AegisLM Proprietary Source License
+
+Copyright (c) 2026 Louis-Ph.
+All rights reserved.
+
+This repository is published for review, evaluation, and collaboration planning.
+Except as required by applicable law or with prior written permission from the
+copyright holder, no right is granted to use, copy, modify, merge, publish,
+distribute, sublicense, sell, or deploy this software, in whole or in part.
+
+You may:
+
+- view the source code in this repository
+- fork the repository on GitHub when required by the platform to propose a change
+- submit issues and pull requests for review
+
+You may not:
+
+- use this software in production
+- redistribute this software or derivative works
+- remove this notice or misrepresent the origin or licensing status of the project
+
+Contributions are reviewed individually. Maintainers may request explicit
+licensing confirmation before accepting external changes.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE, AND NON-INFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES, OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT, OR OTHERWISE, ARISING FROM,
+OUT OF, OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
