@@ -11,6 +11,7 @@ It targets the same operating problem as LiteLLM-style gateways, but with a stri
 - virtual keys with per-key route allowlists, rate limits, and token budgets
 - fail-closed network posture for loopback and common private ranges
 - stable gateway-level SSE contract even when providers differ
+- programmable terminal client with a human-facing `ask` mode and a JSONL worker mode
 - OCaml codebase with clear separation between domain, runtime, security, providers, HTTP, and persistence layers
 
 ## Current capabilities
@@ -39,6 +40,53 @@ You can also override the listen port:
 ```bash
 dune exec aegislm -- --config config/example.gateway.json --port 4200
 ```
+
+## Terminal client
+
+For direct terminal use without starting the HTTP gateway, use `aegislm-client`.
+
+Human-facing prompt mode:
+
+```bash
+dune exec aegislm-client -- ask \
+  --config config/example.gateway.json \
+  --model gpt-5-mini \
+  "Summarize the value of AegisLM in one sentence."
+```
+
+Programmatic one-shot mode:
+
+```bash
+printf '%s\n' \
+  '{"model":"gpt-5-mini","messages":[{"role":"user","content":"Reply with OK."}]}' \
+  | dune exec aegislm-client -- call \
+      --config config/example.gateway.json \
+      --kind chat
+```
+
+Long-running worker mode over JSONL with bounded parallelism:
+
+```bash
+dune exec aegislm-client -- worker \
+  --config config/example.gateway.json \
+  --jobs 4
+```
+
+Worker input line example:
+
+```json
+{"id":"job-1","kind":"chat","request":{"model":"gpt-5-mini","messages":[{"role":"user","content":"Reply with OK."}]}}
+```
+
+Worker output line example:
+
+```json
+{"ok":true,"id":"job-1","kind":"chat","line":1,"response":{"id":"chatcmpl-...","object":"chat.completion","model":"gpt-5-mini","choices":[...],"usage":{...}}}
+```
+
+Worker responses are emitted when jobs complete, not in submission order. Use `id` for correlation.
+
+Use `worker` when several programmatic callers should share one in-process runtime, one rate-limit state, and one persistence handle. Use `ask` or `call` for isolated one-shot invocations.
 
 ## Copy-paste demo
 
@@ -109,6 +157,7 @@ Use the Beijing DashScope base instead of the international base when you intent
 
 ```text
 bin/
+  client.ml
   main.ml
 
 config/
@@ -128,6 +177,7 @@ docs/
   SECURITY.md
 
 src/
+  client/
   domain/
   security/
   runtime/
@@ -153,6 +203,7 @@ Current built-in controls include:
 - request size and timeout enforcement
 - persistent audit logging
 - request and token budget enforcement before uncontrolled fan-out
+- bounded worker concurrency with per-request output isolation on stdio
 
 Detailed references:
 
@@ -194,6 +245,7 @@ dune build @runtest
 - provider coverage is intentionally narrow and explicit
 - Moonshot is currently modeled as chat-only in the provider schema
 - there is no admin UI or hot-reload control plane yet
+- the worker protocol is currently JSONL over stdio rather than a binary IPC protocol
 - military or sovereign-environment compliance still requires deployment hardening, supply-chain evidence, identity integration, and formal assessment artifacts
 
 ## License

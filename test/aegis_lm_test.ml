@@ -840,6 +840,158 @@ let audit_log_is_persisted_test _switch () =
   Lwt.return_unit
 ;;
 
+let terminal_client_resolves_single_plaintext_virtual_key_test _switch () =
+  let config =
+    Aegis_lm.Config_test_support.sample_config
+      ~virtual_keys:
+        [ Aegis_lm.Config_test_support.virtual_key
+            ~name:"solo"
+            ~token_plaintext:"sk-solo"
+            ()
+        ]
+      ()
+  in
+  let store = Aegis_lm.Runtime_state.create config in
+  match Aegis_lm.Terminal_client.resolve_authorization store () with
+  | Error err ->
+    Alcotest.failf
+      "expected terminal client auth resolution success but got %s"
+      (Aegis_lm.Domain_error.to_string err)
+  | Ok authorization ->
+    Alcotest.(check string) "bearer authorization synthesized" "Bearer sk-solo" authorization;
+    Lwt.return_unit
+;;
+
+let terminal_client_infers_first_route_for_ask_test _switch () =
+  let config =
+    Aegis_lm.Config_test_support.sample_config
+      ~routes:
+        [ Aegis_lm.Config_test_support.route ~public_model:"first-route" ()
+        ; Aegis_lm.Config_test_support.route ~public_model:"second-route" ()
+        ]
+      ()
+  in
+  let store = Aegis_lm.Runtime_state.create config in
+  match Aegis_lm.Terminal_client.build_ask_request store "hello" with
+  | Error err ->
+    Alcotest.failf
+      "expected ask request build success but got %s"
+      (Aegis_lm.Domain_error.to_string err)
+  | Ok request ->
+    Alcotest.(check string) "first route selected" "first-route" request.model;
+    Lwt.return_unit
+;;
+
+let worker_rejects_malformed_json_lines_test _switch () =
+  let store = Aegis_lm.Runtime_state.create (Aegis_lm.Config_test_support.sample_config ()) in
+  Aegis_lm.Terminal_worker.run_lines store ~jobs:1 [ "{not-json" ]
+  >>= fun outputs ->
+  match outputs with
+  | [ line ] ->
+    let json = Yojson.Safe.from_string line in
+    (match json with
+     | `Assoc fields ->
+       let ok =
+         match List.assoc_opt "ok" fields with
+         | Some (`Bool value) -> value
+         | _ -> true
+       in
+       let line_number =
+         match List.assoc_opt "line" fields with
+         | Some (`Int value) -> value
+         | _ -> 0
+       in
+       Alcotest.(check bool) "worker line rejected" false ok;
+       Alcotest.(check int) "worker line number preserved" 1 line_number;
+       Lwt.return_unit
+     | _ -> Alcotest.fail "expected worker output object")
+  | _ -> Alcotest.fail "expected exactly one worker output line"
+;;
+
+let worker_processes_requests_with_bounded_parallelism_test _switch () =
+  let active = ref 0 in
+  let max_active = ref 0 in
+  let active_lock = Mutex.create () in
+  let with_active f =
+    Mutex.lock active_lock;
+    active := !active + 1;
+    if !active > !max_active then max_active := !active;
+    Mutex.unlock active_lock;
+    Lwt.finalize
+      f
+      (fun () ->
+        Mutex.lock active_lock;
+        active := !active - 1;
+        Mutex.unlock active_lock;
+        Lwt.return_unit)
+  in
+  let provider =
+    { Aegis_lm.Provider_client.invoke_chat =
+        (fun _backend request ->
+          with_active (fun () ->
+            Lwt_unix.sleep 0.02
+            >|= fun () ->
+            Ok
+              (Aegis_lm.Provider_mock.sample_chat_response
+                 ~model:request.Aegis_lm.Openai_types.model
+                 ~content:
+                   (request.messages
+                    |> List.rev
+                    |> List.hd
+                    |> fun message -> message.Aegis_lm.Openai_types.content)
+                 ())))
+    ; invoke_chat_stream =
+        (fun backend request ->
+          with_active (fun () ->
+            Lwt_unix.sleep 0.02
+            >|= fun () ->
+            Ok
+              (Aegis_lm.Provider_stream.of_chat_response
+                 (Aegis_lm.Provider_mock.sample_chat_response
+                    ~model:request.Aegis_lm.Openai_types.model
+                    ~content:"stream"
+                    ()))))
+    ; invoke_embeddings =
+        (fun _backend _request ->
+          Lwt.return
+            (Error
+               (Aegis_lm.Domain_error.unsupported_feature
+                  "embeddings not used in worker concurrency test")))
+    }
+  in
+  let store =
+    Aegis_lm.Runtime_state.create
+      ~provider_factory:(fun _ -> provider)
+      (Aegis_lm.Config_test_support.sample_config ())
+  in
+  let lines =
+    [ {|{"id":"job-1","request":{"model":"gpt-4o-mini","messages":[{"role":"user","content":"one"}]}}|}
+    ; {|{"id":"job-2","request":{"model":"gpt-4o-mini","messages":[{"role":"user","content":"two"}]}}|}
+    ; {|{"id":"job-3","request":{"model":"gpt-4o-mini","messages":[{"role":"user","content":"three"}]}}|}
+    ]
+  in
+  Aegis_lm.Terminal_worker.run_lines store ~jobs:2 lines
+  >>= fun outputs ->
+  Alcotest.(check int) "one output per input" 3 (List.length outputs);
+  Alcotest.(check bool) "parallelism reached two in flight" true (!max_active >= 2);
+  let contains_job id =
+    List.exists
+      (fun line ->
+        let json = Yojson.Safe.from_string line in
+        match json with
+        | `Assoc fields ->
+          (match List.assoc_opt "id" fields with
+           | Some (`String value) -> String.equal value id
+           | _ -> false)
+        | _ -> false)
+      outputs
+  in
+  Alcotest.(check bool) "job-1 kept" true (contains_job "job-1");
+  Alcotest.(check bool) "job-2 kept" true (contains_job "job-2");
+  Alcotest.(check bool) "job-3 kept" true (contains_job "job-3");
+  Lwt.return_unit
+;;
+
 let tests =
   [ Alcotest_lwt.test_case "redacts secrets recursively" `Quick secret_redaction_test
   ; Alcotest_lwt.test_case
@@ -913,6 +1065,22 @@ let tests =
       `Quick
       persistent_budget_survives_restart_test
   ; Alcotest_lwt.test_case "audit log is persisted" `Quick audit_log_is_persisted_test
+  ; Alcotest_lwt.test_case
+      "terminal client resolves single plaintext virtual key"
+      `Quick
+      terminal_client_resolves_single_plaintext_virtual_key_test
+  ; Alcotest_lwt.test_case
+      "terminal client infers first route for ask"
+      `Quick
+      terminal_client_infers_first_route_for_ask_test
+  ; Alcotest_lwt.test_case
+      "worker rejects malformed json lines"
+      `Quick
+      worker_rejects_malformed_json_lines_test
+  ; Alcotest_lwt.test_case
+      "worker processes requests with bounded parallelism"
+      `Quick
+      worker_processes_requests_with_bounded_parallelism_test
   ]
 ;;
 

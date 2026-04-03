@@ -28,7 +28,7 @@ dune exec aegislm -- --config config/example.gateway.json
 
 ## Design expectations
 
-- preserve the module hierarchy under `src/domain`, `src/security`, `src/runtime`, `src/providers`, `src/http`, and `src/persistence`
+- preserve the module hierarchy under `src/client`, `src/domain`, `src/security`, `src/runtime`, `src/providers`, `src/http`, and `src/persistence`
 - prefer explicit types and explicit boundaries over convenience wrappers
 - do not scatter magic numbers, route names, or externally visible strings when a shared definition or config entry is warranted
 - keep provider behavior explicit and auditable

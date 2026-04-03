@@ -4,3 +4,10 @@
  (package aegis_lm)
  (modules main)
  (libraries aegis_lm cmdliner lwt.unix logs.fmt))
+
+(executable
+ (name client)
+ (public_name aegislm-client)
+ (package aegis_lm)
+ (modules client)
+ (libraries aegis_lm cmdliner lwt.unix logs.fmt))

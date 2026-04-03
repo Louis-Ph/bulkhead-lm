@@ -3,6 +3,7 @@
 ## Layers
 
 - `config/`: hierarchical instance configuration and default policy catalogs
+- `src/client/`: direct terminal client and JSONL worker mode over the shared runtime
 - `src/domain/`: business types, OpenAI-compatible JSON parsing, normalized errors
 - `src/security/`: authentication, secret redaction, egress policy
 - `src/runtime/`: in-memory state, budget ledger, rate limiting, routing
@@ -30,6 +31,15 @@
 - it then emits a consistent `text/event-stream` format to the client
 - this keeps the external contract stable even though provider-native streaming is not yet wired per backend
 
+## Terminal client and worker mode
+
+- `aegislm-client ask` dispatches directly against the shared runtime without starting the HTTP server
+- `aegislm-client call` accepts one JSON request on stdin and returns one JSON response on stdout
+- `aegislm-client worker` keeps one runtime store alive and processes JSONL requests with bounded concurrency
+- `ask` and `call` are isolated per-process invocations, while `worker` is the mode intended to coordinate many concurrent local jobs through one runtime instance
+- worker outputs are serialized under a dedicated stdout lock so parallel jobs do not interleave their JSON lines
+- shared rate-limit, budget, and persistence state remain protected by the existing `Mutex` and SQLite locking strategy
+
 ## Concurrency model
 
 - mutable request windows and budget counters are protected with `Mutex`
@@ -45,6 +55,7 @@
 ## Intentional design choices
 
 - hierarchical JSON configuration instead of scattered literals
+- a dedicated client layer instead of burying terminal and worker behavior inside the HTTP server
 - explicit separation between security policy, runtime state, and provider adapters
 - fail-closed egress defaults
 - no implicit propagation of client secrets to upstream providers
