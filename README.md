@@ -85,12 +85,14 @@ dune exec aegislm -- --config config/example.gateway.json --port 4200
 ./scripts/integration_matrix.sh
 ```
 
-`smoke_openai.sh` automatically selects `claude-sonnet` when `ANTHROPIC_API_KEY` is present, otherwise `gpt-5-mini` when `OPENAI_API_KEY` is present.
+`smoke_openai.sh` automatically selects, in order, `claude-sonnet`, `qwen-plus`, `kimi-k2.5`, `gemini-2.5-flash`, then `gpt-5-mini` when the corresponding provider key is present.
 
 `integration_matrix.sh` exercises:
 
 - Anthropic
 - Google Gemini through the official OpenAI-compatible interface
+- Alibaba Model Studio through DashScope OpenAI-compatible mode
+- Moonshot Kimi through its OpenAI-compatible chat interface
 - OpenAI when the upstream key is available and has quota
 - SSE for `chat/completions`
 - SSE for `responses`
@@ -110,6 +112,15 @@ Example route families currently implemented:
 - `openai_compat`
 - `anthropic`
 - `google_openai`
+- `alibaba_openai`
+- `moonshot_openai`
+
+The bundled example config includes:
+
+- `qwen-plus` via `https://dashscope-intl.aliyuncs.com/compatible-mode/v1`
+- `kimi-k2.5` via `https://api.moonshot.ai/v1`
+
+Use the Beijing DashScope base instead of the international base when you intentionally deploy against the mainland China region.
 
 ## Security posture
 
@@ -182,5 +193,6 @@ dune build @runtest
 
 - provider-native upstream streaming is not implemented yet; SSE is currently normalized by the gateway from the provider-normalized response
 - provider coverage is intentionally narrow and explicit
+- Moonshot is currently modeled as chat-only in the provider schema
 - there is no admin UI or hot-reload control plane yet
 - military or sovereign-environment compliance still requires deployment hardening, supply-chain evidence, identity integration, and formal assessment artifacts

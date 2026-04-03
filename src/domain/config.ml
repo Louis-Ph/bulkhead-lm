@@ -4,6 +4,8 @@ type provider_kind =
   | Openai_compat
   | Anthropic
   | Google_openai
+  | Alibaba_openai
+  | Moonshot_openai
 
 type persistence =
   { sqlite_path : string option
@@ -45,7 +47,14 @@ let provider_kind_of_string = function
   | "openai_compat" -> Ok Openai_compat
   | "anthropic" -> Ok Anthropic
   | "google_openai" -> Ok Google_openai
+  | "alibaba_openai" -> Ok Alibaba_openai
+  | "moonshot_openai" -> Ok Moonshot_openai
   | value -> Error (Fmt.str "Unsupported provider kind: %s" value)
+;;
+
+let is_openai_compatible_kind = function
+  | Openai_compat | Google_openai | Alibaba_openai | Moonshot_openai -> true
+  | Anthropic -> false
 ;;
 
 let resolve_path ~base_dir path =

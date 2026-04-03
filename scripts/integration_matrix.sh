@@ -119,6 +119,22 @@ if [[ -n "${GOOGLE_API_KEY:-}" ]]; then
     '"object":"chat.completion"'
 fi
 
+if [[ -n "${DASHSCOPE_API_KEY:-}" ]]; then
+  assert_successful_json \
+    "alibaba chat" \
+    "/v1/chat/completions" \
+    '{"model":"qwen-plus","messages":[{"role":"user","content":"Reply with the single word OK."}]}' \
+    '"object":"chat.completion"'
+fi
+
+if [[ -n "${MOONSHOT_API_KEY:-}" ]]; then
+  assert_successful_json \
+    "moonshot chat" \
+    "/v1/chat/completions" \
+    '{"model":"kimi-k2.5","messages":[{"role":"user","content":"Reply with the single word OK."}]}' \
+    '"object":"chat.completion"'
+fi
+
 if [[ -n "${OPENAI_API_KEY:-}" ]]; then
   assert_successful_json \
     "openai chat" \
@@ -130,6 +146,10 @@ fi
 STREAM_MODEL=""
 if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
   STREAM_MODEL="claude-sonnet"
+elif [[ -n "${DASHSCOPE_API_KEY:-}" ]]; then
+  STREAM_MODEL="qwen-plus"
+elif [[ -n "${MOONSHOT_API_KEY:-}" ]]; then
+  STREAM_MODEL="kimi-k2.5"
 elif [[ -n "${GOOGLE_API_KEY:-}" ]]; then
   STREAM_MODEL="gemini-2.5-flash"
 elif [[ -n "${OPENAI_API_KEY:-}" ]]; then

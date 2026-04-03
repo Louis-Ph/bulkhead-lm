@@ -14,13 +14,15 @@
 ## Request flow for `/v1/chat/completions`
 
 1. The HTTP layer parses the OpenAI-compatible request body.
-2. `Auth` resolves the presented virtual key from its hashed form.
-3. `Rate_limiter` enforces a per-minute ceiling.
-4. `Router` resolves the public model to an explicit backend list.
-5. `Egress_policy` blocks loopback and private destinations before any upstream call.
-6. The selected provider adapter rewrites the request for the upstream API.
-7. `Budget_ledger` debits token usage after a successful response.
-8. The response is returned in OpenAI-compatible shape.
+2. Request body size is bounded by configured server policy before full materialization.
+3. `Auth` resolves the presented virtual key from its hashed form.
+4. `Rate_limiter` enforces a per-minute ceiling.
+5. `Router` resolves the public model to an explicit backend list.
+6. `Egress_policy` blocks loopback and private destinations before any upstream call.
+7. Each upstream attempt is time-boxed by configured request timeout policy.
+8. The selected provider adapter rewrites the request for the upstream API.
+9. `Budget_ledger` debits token usage after a successful response.
+10. The response is returned in OpenAI-compatible shape.
 
 ## SSE
 

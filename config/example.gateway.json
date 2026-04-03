@@ -12,7 +12,13 @@
       "token_plaintext": "sk-aegis-dev",
       "daily_token_budget": 50000,
       "requests_per_minute": 30,
-      "allowed_routes": ["gpt-5-mini", "claude-sonnet", "gemini-2.5-flash"]
+      "allowed_routes": [
+        "gpt-5-mini",
+        "claude-sonnet",
+        "gemini-2.5-flash",
+        "qwen-plus",
+        "kimi-k2.5"
+      ]
     }
   ],
   "routes": [
@@ -49,6 +55,30 @@
           "upstream_model": "gemini-2.5-flash",
           "api_base": "https://generativelanguage.googleapis.com/v1beta/openai/",
           "api_key_env": "GOOGLE_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "qwen-plus",
+      "backends": [
+        {
+          "provider_id": "alibaba-primary",
+          "provider_kind": "alibaba_openai",
+          "upstream_model": "qwen-plus",
+          "api_base": "https://dashscope-intl.aliyuncs.com/compatible-mode/v1",
+          "api_key_env": "DASHSCOPE_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "kimi-k2.5",
+      "backends": [
+        {
+          "provider_id": "moonshot-primary",
+          "provider_kind": "moonshot_openai",
+          "upstream_model": "kimi-k2.5",
+          "api_base": "https://api.moonshot.ai/v1",
+          "api_key_env": "MOONSHOT_API_KEY"
         }
       ]
     }

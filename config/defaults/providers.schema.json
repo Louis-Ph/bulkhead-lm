@@ -2,7 +2,9 @@
   "supported_provider_kinds": [
     "openai_compat",
     "anthropic",
-    "google_openai"
+    "google_openai",
+    "alibaba_openai",
+    "moonshot_openai"
   ],
   "supported_operations": [
     "chat_completions",
@@ -11,6 +13,8 @@
   "provider_capabilities": {
     "openai_compat": ["chat_completions", "embeddings"],
     "anthropic": ["chat_completions"],
-    "google_openai": ["chat_completions"]
+    "google_openai": ["chat_completions"],
+    "alibaba_openai": ["chat_completions", "embeddings"],
+    "moonshot_openai": ["chat_completions"]
   }
 }

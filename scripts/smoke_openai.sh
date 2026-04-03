@@ -22,6 +22,12 @@ fi
 if [[ -z "$MODEL" ]]; then
   if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
     MODEL="claude-sonnet"
+  elif [[ -n "${DASHSCOPE_API_KEY:-}" ]]; then
+    MODEL="qwen-plus"
+  elif [[ -n "${MOONSHOT_API_KEY:-}" ]]; then
+    MODEL="kimi-k2.5"
+  elif [[ -n "${GOOGLE_API_KEY:-}" ]]; then
+    MODEL="gemini-2.5-flash"
   elif [[ -n "${OPENAI_API_KEY:-}" ]]; then
     MODEL="gpt-5-mini"
   else

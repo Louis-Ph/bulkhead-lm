@@ -1,9 +1,39 @@
 open Lwt.Infix
 
-let read_json_body body =
-  Cohttp_lwt.Body.to_string body
-  >|= fun content ->
-  if String.trim content = "" then `Assoc [] else Yojson.Safe.from_string content
+let read_json_body_limited ~max_bytes body =
+  let stream = Cohttp_lwt.Body.to_stream body in
+  let buffer = Buffer.create (max 1 (min max_bytes 4096)) in
+  let total_bytes = ref 0 in
+  let rec loop () =
+    Lwt_stream.get stream
+    >>= function
+    | None ->
+      Lwt.catch
+        (fun () ->
+          let content = Buffer.contents buffer in
+          let json =
+            if String.trim content = "" then `Assoc [] else Yojson.Safe.from_string content
+          in
+          Lwt.return (Ok json))
+        (fun _exn -> Lwt.return (Error (Domain_error.malformed_json_body ())))
+    | Some chunk ->
+      total_bytes := !total_bytes + String.length chunk;
+      if !total_bytes > max_bytes
+      then Lwt.return (Error (Domain_error.request_too_large ~max_bytes))
+      else (
+        Buffer.add_string buffer chunk;
+        loop ())
+  in
+  loop ()
+;;
+
+let read_request_json store body =
+  let server_policy = store.Runtime_state.config.security_policy.server in
+  Timeout_guard.with_timeout_ms
+    ~timeout_ms:server_policy.request_timeout_ms
+    ~on_timeout:(fun () ->
+      Error (Domain_error.request_timeout ~timeout_ms:server_policy.request_timeout_ms ()))
+    (read_json_body_limited ~max_bytes:server_policy.max_request_body_bytes body)
 ;;
 
 let authorization_header store req =
@@ -68,127 +98,200 @@ let callback store _connection req body =
   | `GET, "/v1/models" ->
     Json_response.respond_json (models_json store.Runtime_state.config)
   | `POST, "/v1/chat/completions" ->
-    read_json_body body
-    >>= fun json ->
+    read_request_json store body
+    >>= fun body_result ->
     let authorization = authorization_header store req in
-    let json =
-      Secret_redaction.redact_json
-        ~sensitive_keys:store.Runtime_state.config.security_policy.redaction.json_keys
-        ~replacement:store.Runtime_state.config.security_policy.redaction.replacement
-        json
-    in
-    (* parsing uses the original request shape; redaction only protects later logging hooks *)
-    let request_json = json in
-    (match Openai_types.chat_request_of_yojson request_json with
-     | Error field ->
+    (match body_result with
+     | Error error ->
        respond_error_with_audit
          store
          ~event_type:"chat.completions"
          ~authorization
          ~route_model:None
-         (Domain_error.upstream ("Invalid chat request field: " ^ field))
-     | Ok request ->
-       let route_model = Some request.model in
-       let routed_request =
-         if request.stream then { request with stream = false } else request
+         error
+     | Ok json ->
+       let json =
+         Secret_redaction.redact_json
+           ~sensitive_keys:store.Runtime_state.config.security_policy.redaction.json_keys
+           ~replacement:store.Runtime_state.config.security_policy.redaction.replacement
+           json
        in
-       Router.dispatch_chat store ~authorization routed_request
-       >>= (function
-        | Ok response ->
-          record_api_event
-            store
-            ~event_type:"chat.completions"
-            ~authorization
-            ~route_model
-            ~status_code:200
-            ~details:
-              (`Assoc
-                [ "stream", `Bool request.stream
-                ; "result", `String "ok"
-                ; "response_model", `String response.model
-                ]);
-          if request.stream
-          then Sse_stream.respond_chat response
-          else Json_response.respond_json (Openai_types.chat_response_to_yojson response)
-        | Error error ->
+       (* parsing uses the original request shape; redaction only protects later logging hooks *)
+       let request_json = json in
+       (match Openai_types.chat_request_of_yojson request_json with
+        | Error field ->
           respond_error_with_audit
             store
             ~event_type:"chat.completions"
             ~authorization
-            ~route_model
-            error))
+            ~route_model:None
+            (Domain_error.invalid_request ("Invalid chat request field: " ^ field))
+        | Ok request ->
+          let route_model = Some request.model in
+          if request.stream
+          then
+            Router.dispatch_chat_stream store ~authorization request
+            >>= (function
+             | Ok stream ->
+               record_api_event
+                 store
+                 ~event_type:"chat.completions"
+                 ~authorization
+                 ~route_model
+                 ~status_code:200
+                 ~details:
+                   (`Assoc
+                     [ "stream", `Bool true
+                     ; "result", `String "ok"
+                     ; "response_model", `String stream.Provider_client.response.model
+                     ]);
+               Sse_stream.respond_chat_stream stream
+             | Error error ->
+               respond_error_with_audit
+                 store
+                 ~event_type:"chat.completions"
+                 ~authorization
+                 ~route_model
+                 error)
+          else
+            Router.dispatch_chat store ~authorization request
+            >>= (function
+             | Ok response ->
+               record_api_event
+                 store
+                 ~event_type:"chat.completions"
+                 ~authorization
+                 ~route_model
+                 ~status_code:200
+                 ~details:
+                   (`Assoc
+                     [ "stream", `Bool false
+                     ; "result", `String "ok"
+                     ; "response_model", `String response.model
+                     ]);
+               Json_response.respond_json (Openai_types.chat_response_to_yojson response)
+             | Error error ->
+               respond_error_with_audit
+                 store
+                 ~event_type:"chat.completions"
+                 ~authorization
+                 ~route_model
+                 error)))
   | `POST, "/v1/embeddings" ->
-    read_json_body body
-    >>= fun json ->
+    read_request_json store body
+    >>= fun body_result ->
     let authorization = authorization_header store req in
-    (match Openai_types.embeddings_request_of_yojson json with
-     | Error field ->
+    (match body_result with
+     | Error error ->
        respond_error_with_audit
          store
          ~event_type:"embeddings"
          ~authorization
          ~route_model:None
-         (Domain_error.upstream ("Invalid embeddings request field: " ^ field))
-     | Ok request ->
-       Router.dispatch_embeddings store ~authorization request
-       >>= (function
-        | Ok response ->
-          record_api_event
-            store
-            ~event_type:"embeddings"
-            ~authorization
-            ~route_model:(Some request.model)
-            ~status_code:200
-            ~details:(`Assoc [ "result", `String "ok" ]);
-          Json_response.respond_json (Openai_types.embeddings_response_to_yojson response)
-        | Error error ->
+         error
+     | Ok json ->
+       (match Openai_types.embeddings_request_of_yojson json with
+        | Error field ->
           respond_error_with_audit
             store
             ~event_type:"embeddings"
             ~authorization
-            ~route_model:(Some request.model)
-            error))
+            ~route_model:None
+            (Domain_error.invalid_request ("Invalid embeddings request field: " ^ field))
+        | Ok request ->
+          Router.dispatch_embeddings store ~authorization request
+          >>= (function
+           | Ok response ->
+             record_api_event
+               store
+               ~event_type:"embeddings"
+               ~authorization
+               ~route_model:(Some request.model)
+               ~status_code:200
+               ~details:(`Assoc [ "result", `String "ok" ]);
+             Json_response.respond_json (Openai_types.embeddings_response_to_yojson response)
+           | Error error ->
+             respond_error_with_audit
+               store
+               ~event_type:"embeddings"
+               ~authorization
+               ~route_model:(Some request.model)
+               error)))
   | `POST, "/v1/responses" ->
-    read_json_body body
-    >>= fun json ->
+    read_request_json store body
+    >>= fun body_result ->
     let authorization = authorization_header store req in
-    (match Responses_api.request_of_yojson json with
-     | Error field ->
+    (match body_result with
+     | Error error ->
        respond_error_with_audit
          store
          ~event_type:"responses"
          ~authorization
          ~route_model:None
-         (Domain_error.upstream ("Invalid responses request field: " ^ field))
-     | Ok request ->
-       let route_model = Some request.model in
-       let chat_request = Responses_api.to_chat_request { request with stream = false } in
-       Router.dispatch_chat store ~authorization chat_request
-       >>= (function
-        | Ok response ->
-          let response = Responses_api.of_chat_response response in
-          record_api_event
-            store
-            ~event_type:"responses"
-            ~authorization
-            ~route_model
-            ~status_code:200
-            ~details:
-              (`Assoc
-                [ "stream", `Bool request.stream
-                ; "result", `String "ok"
-                ; "response_model", `String response.model
-                ]);
-          if request.stream
-          then Sse_stream.respond_response response
-          else Json_response.respond_json (Responses_api.response_to_yojson response)
-        | Error error ->
+         error
+     | Ok json ->
+       (match Responses_api.request_of_yojson json with
+        | Error field ->
           respond_error_with_audit
             store
             ~event_type:"responses"
             ~authorization
-            ~route_model
-            error))
+            ~route_model:None
+            (Domain_error.invalid_request ("Invalid responses request field: " ^ field))
+        | Ok request ->
+          let route_model = Some request.model in
+          let chat_request = Responses_api.to_chat_request request in
+          if request.stream
+          then
+            Router.dispatch_chat_stream store ~authorization chat_request
+            >>= (function
+             | Ok stream ->
+               let response = Responses_api.of_chat_response stream.Provider_client.response in
+               record_api_event
+                 store
+                 ~event_type:"responses"
+                 ~authorization
+                 ~route_model
+                 ~status_code:200
+                 ~details:
+                   (`Assoc
+                     [ "stream", `Bool true
+                     ; "result", `String "ok"
+                     ; "response_model", `String response.model
+                     ]);
+               Sse_stream.respond_response_stream ~response stream
+             | Error error ->
+               respond_error_with_audit
+                 store
+                 ~event_type:"responses"
+                 ~authorization
+                 ~route_model
+                 error)
+          else
+            Router.dispatch_chat store ~authorization { chat_request with stream = false }
+            >>= (function
+             | Ok response ->
+               let response = Responses_api.of_chat_response response in
+               record_api_event
+                 store
+                 ~event_type:"responses"
+                 ~authorization
+                 ~route_model
+                 ~status_code:200
+                 ~details:
+                   (`Assoc
+                     [ "stream", `Bool false
+                     ; "result", `String "ok"
+                     ; "response_model", `String response.model
+                     ]);
+               Json_response.respond_json (Responses_api.response_to_yojson response)
+             | Error error ->
+               respond_error_with_audit
+                 store
+                 ~event_type:"responses"
+                 ~authorization
+                 ~route_model
+                 error)))
   | _ ->
     Json_response.respond_error
       (Domain_error.route_not_found (Uri.path (Cohttp.Request.uri req)))

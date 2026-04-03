@@ -140,6 +140,130 @@ let routing_uses_fallback_after_failure_test _switch () =
     Lwt.return_unit
 ;;
 
+let routing_falls_back_on_retryable_upstream_status_test _switch () =
+  let cfg =
+    Aegis_lm.Config_test_support.sample_config
+      ~routes:
+        [ Aegis_lm.Config_test_support.route
+            ~public_model:"gpt-4o-mini"
+            ~backends:
+              [ Aegis_lm.Config_test_support.backend
+                  ~provider_id:"first"
+                  ~provider_kind:Aegis_lm.Config.Openai_compat
+                  ~api_base:"https://api.example.test/v1"
+                  ~upstream_model:"rate-limited-model"
+                  ~api_key_env:"PRIMARY_KEY"
+                  ()
+              ; Aegis_lm.Config_test_support.backend
+                  ~provider_id:"second"
+                  ~provider_kind:Aegis_lm.Config.Openai_compat
+                  ~api_base:"https://api.example.test/v1"
+                  ~upstream_model:"good-model"
+                  ~api_key_env:"SECONDARY_KEY"
+                  ()
+              ]
+            ()
+        ]
+      ()
+  in
+  let provider =
+    Aegis_lm.Provider_mock.make
+      [ ( "rate-limited-model"
+        , Error
+            (Aegis_lm.Domain_error.upstream_status
+               ~provider_id:"first"
+               ~status:429
+               "quota hit") )
+      ; ( "good-model"
+        , Ok
+            (Aegis_lm.Provider_mock.sample_chat_response
+               ~model:"good-model"
+               ~content:"ok"
+               ()) )
+      ]
+  in
+  let store = Aegis_lm.Runtime_state.create ~provider_factory:(fun _ -> provider) cfg in
+  let request =
+    Aegis_lm.Openai_types.chat_request_of_yojson
+      (`Assoc
+        [ "model", `String "gpt-4o-mini"
+        ; "messages", `List [ `Assoc [ "role", `String "user"; "content", `String "hi" ] ]
+        ])
+    |> Result.get_ok
+  in
+  Aegis_lm.Router.dispatch_chat store ~authorization:"Bearer sk-test" request
+  >>= function
+  | Error err ->
+    Alcotest.failf
+      "expected retryable upstream status fallback but got %s"
+      (Aegis_lm.Domain_error.to_string err)
+  | Ok response ->
+    Alcotest.(check string) "retryable fallback chosen" "good-model" response.model;
+    Lwt.return_unit
+;;
+
+let routing_stops_on_non_retryable_upstream_status_test _switch () =
+  let cfg =
+    Aegis_lm.Config_test_support.sample_config
+      ~routes:
+        [ Aegis_lm.Config_test_support.route
+            ~public_model:"gpt-4o-mini"
+            ~backends:
+              [ Aegis_lm.Config_test_support.backend
+                  ~provider_id:"first"
+                  ~provider_kind:Aegis_lm.Config.Openai_compat
+                  ~api_base:"https://api.example.test/v1"
+                  ~upstream_model:"auth-failed-model"
+                  ~api_key_env:"PRIMARY_KEY"
+                  ()
+              ; Aegis_lm.Config_test_support.backend
+                  ~provider_id:"second"
+                  ~provider_kind:Aegis_lm.Config.Openai_compat
+                  ~api_base:"https://api.example.test/v1"
+                  ~upstream_model:"good-model"
+                  ~api_key_env:"SECONDARY_KEY"
+                  ()
+              ]
+            ()
+        ]
+      ()
+  in
+  let provider =
+    Aegis_lm.Provider_mock.make
+      [ ( "auth-failed-model"
+        , Error
+            (Aegis_lm.Domain_error.upstream_status
+               ~provider_id:"first"
+               ~status:401
+               "bad upstream key") )
+      ; ( "good-model"
+        , Ok
+            (Aegis_lm.Provider_mock.sample_chat_response
+               ~model:"good-model"
+               ~content:"should-not-run"
+               ()) )
+      ]
+  in
+  let store = Aegis_lm.Runtime_state.create ~provider_factory:(fun _ -> provider) cfg in
+  let request =
+    Aegis_lm.Openai_types.chat_request_of_yojson
+      (`Assoc
+        [ "model", `String "gpt-4o-mini"
+        ; "messages", `List [ `Assoc [ "role", `String "user"; "content", `String "hi" ] ]
+        ])
+    |> Result.get_ok
+  in
+  Aegis_lm.Router.dispatch_chat store ~authorization:"Bearer sk-test" request
+  >>= function
+  | Ok response ->
+    Alcotest.failf "expected non-retryable stop, got model %s" response.model
+  | Error err ->
+    Alcotest.(check string) "non-retryable code kept" "upstream_failure" err.code;
+    Alcotest.(check int) "non-retryable status kept" 401 err.status;
+    Alcotest.(check (option string)) "non-retryable provider kept" (Some "first") err.provider_id;
+    Lwt.return_unit
+;;
+
 let egress_blocks_localhost_test _switch () =
   let policy = Aegis_lm.Security_policy.default () in
   let denied = Aegis_lm.Egress_policy.ensure_allowed policy "http://127.0.0.1:8080/v1" in
@@ -150,6 +274,32 @@ let egress_blocks_localhost_test _switch () =
      | Error _ -> true
      | Ok () -> false);
   Lwt.return_unit
+;;
+
+let request_body_limit_is_enforced_test _switch () =
+  let base_config = Aegis_lm.Config_test_support.sample_config () in
+  let config =
+    { base_config with
+      Aegis_lm.Config.security_policy =
+        { base_config.security_policy with
+          server =
+            { base_config.security_policy.server with
+              max_request_body_bytes = 24
+            }
+        }
+    }
+  in
+  let store = Aegis_lm.Runtime_state.create config in
+  let oversized_body =
+    Cohttp_lwt.Body.of_string "{\"model\":\"gpt-4o-mini\",\"messages\":[{\"role\":\"user\"}]}"
+  in
+  Aegis_lm.Server.read_request_json store oversized_body
+  >>= function
+  | Ok _ -> Alcotest.fail "expected oversized request body to be rejected"
+  | Error err ->
+    Alcotest.(check string) "request too large code" "request_too_large" err.code;
+    Alcotest.(check int) "request too large status" 413 err.status;
+    Lwt.return_unit
 ;;
 
 let budget_is_domain_safe_test _switch () =
@@ -221,19 +371,25 @@ let routing_falls_back_after_provider_exception_test _switch () =
         ]
       ()
   in
+  let invoke_chat backend _request =
+    match backend.Aegis_lm.Config.upstream_model with
+    | "bad-model" -> failwith "provider exploded"
+    | "good-model" ->
+      Lwt.return
+        (Ok
+           (Aegis_lm.Provider_mock.sample_chat_response
+              ~model:"good-model"
+              ~content:"ok"
+              ()))
+    | _ -> failwith "unexpected model"
+  in
   let provider =
     { Aegis_lm.Provider_client.invoke_chat =
-        (fun backend _request ->
-          match backend.Aegis_lm.Config.upstream_model with
-          | "bad-model" -> failwith "provider exploded"
-          | "good-model" ->
-            Lwt.return
-              (Ok
-                 (Aegis_lm.Provider_mock.sample_chat_response
-                    ~model:"good-model"
-                    ~content:"ok"
-                    ()))
-          | _ -> failwith "unexpected model")
+        invoke_chat
+    ; invoke_chat_stream =
+        (fun backend request ->
+          invoke_chat backend request
+          >|= Result.map Aegis_lm.Provider_stream.of_chat_response)
     ; invoke_embeddings =
         (fun _backend _request ->
           Lwt.return
@@ -257,6 +413,151 @@ let routing_falls_back_after_provider_exception_test _switch () =
       (Aegis_lm.Domain_error.to_string err)
   | Ok response ->
     Alcotest.(check string) "fallback chosen after exception" "good-model" response.model;
+    Lwt.return_unit
+;;
+
+let routing_times_out_slow_provider_test _switch () =
+  let base_config =
+    Aegis_lm.Config_test_support.sample_config
+      ~routes:
+        [ Aegis_lm.Config_test_support.route
+            ~public_model:"gpt-4o-mini"
+            ~backends:
+              [ Aegis_lm.Config_test_support.backend
+                  ~provider_id:"slow"
+                  ~provider_kind:Aegis_lm.Config.Openai_compat
+                  ~api_base:"https://api.example.test/v1"
+                  ~upstream_model:"slow-model"
+                  ~api_key_env:"SLOW_KEY"
+                  ()
+              ]
+            ()
+        ]
+      ()
+  in
+  let config =
+    { base_config with
+      Aegis_lm.Config.security_policy =
+        { base_config.security_policy with
+          server = { base_config.security_policy.server with request_timeout_ms = 10 }
+        }
+    }
+  in
+  let invoke_chat _backend _request =
+    Lwt_unix.sleep 0.05
+    >|= fun () ->
+    Ok
+      (Aegis_lm.Provider_mock.sample_chat_response
+         ~model:"slow-model"
+         ~content:"late"
+         ())
+  in
+  let provider =
+    { Aegis_lm.Provider_client.invoke_chat = invoke_chat
+    ; invoke_chat_stream =
+        (fun backend request ->
+          invoke_chat backend request
+          >|= Result.map Aegis_lm.Provider_stream.of_chat_response)
+    ; invoke_embeddings =
+        (fun _backend _request ->
+          Lwt.return
+            (Error (Aegis_lm.Domain_error.unsupported_feature "embeddings not used here")))
+    }
+  in
+  let store = Aegis_lm.Runtime_state.create ~provider_factory:(fun _ -> provider) config in
+  let request =
+    Aegis_lm.Openai_types.chat_request_of_yojson
+      (`Assoc
+        [ "model", `String "gpt-4o-mini"
+        ; "messages", `List [ `Assoc [ "role", `String "user"; "content", `String "hi" ] ]
+        ])
+    |> Result.get_ok
+  in
+  Aegis_lm.Router.dispatch_chat store ~authorization:"Bearer sk-test" request
+  >>= function
+  | Ok _ -> Alcotest.fail "expected timeout from slow provider"
+  | Error err ->
+    Alcotest.(check string) "timeout code" "request_timeout" err.code;
+    Alcotest.(check int) "timeout status" 504 err.status;
+    Alcotest.(check (option string)) "provider id kept" (Some "slow") err.provider_id;
+    Lwt.return_unit
+;;
+
+let embeddings_fall_back_on_retryable_failure_test _switch () =
+  let cfg =
+    Aegis_lm.Config_test_support.sample_config
+      ~routes:
+        [ Aegis_lm.Config_test_support.route
+            ~public_model:"text-embedding-3-small"
+            ~backends:
+              [ Aegis_lm.Config_test_support.backend
+                  ~provider_id:"first"
+                  ~provider_kind:Aegis_lm.Config.Openai_compat
+                  ~api_base:"https://api.example.test/v1"
+                  ~upstream_model:"bad-embedding-model"
+                  ~api_key_env:"PRIMARY_KEY"
+                  ()
+              ; Aegis_lm.Config_test_support.backend
+                  ~provider_id:"second"
+                  ~provider_kind:Aegis_lm.Config.Openai_compat
+                  ~api_base:"https://api.example.test/v1"
+                  ~upstream_model:"good-embedding-model"
+                  ~api_key_env:"SECONDARY_KEY"
+                  ()
+              ]
+            ()
+        ]
+      ()
+  in
+  let provider =
+    { Aegis_lm.Provider_client.invoke_chat =
+        (fun _backend _request ->
+          Lwt.return
+            (Error (Aegis_lm.Domain_error.unsupported_feature "chat not used in embeddings test")))
+    ; invoke_chat_stream =
+        (fun _backend _request ->
+          Lwt.return
+            (Error
+               (Aegis_lm.Domain_error.unsupported_feature
+                  "chat streaming not used in embeddings test")))
+    ; invoke_embeddings =
+        (fun backend request ->
+          match backend.Aegis_lm.Config.upstream_model with
+          | "bad-embedding-model" ->
+            Lwt.return
+              (Error
+                 (Aegis_lm.Domain_error.upstream_status
+                    ~provider_id:"first"
+                    ~status:503
+                    "temporary outage"))
+          | "good-embedding-model" ->
+            Lwt.return
+              (Ok
+                 { Aegis_lm.Openai_types.model = request.model
+                 ; data = [ { index = 0; embedding = [ 0.1; 0.2 ] } ]
+                 ; usage = { prompt_tokens = 1; completion_tokens = 0; total_tokens = 1 }
+                 })
+          | _ -> failwith "unexpected embeddings model")
+    }
+  in
+  let store = Aegis_lm.Runtime_state.create ~provider_factory:(fun _ -> provider) cfg in
+  let request =
+    Aegis_lm.Openai_types.embeddings_request_of_yojson
+      (`Assoc
+        [ "model", `String "text-embedding-3-small"
+        ; "input", `String "hi"
+        ])
+    |> Result.get_ok
+  in
+  Aegis_lm.Router.dispatch_embeddings store ~authorization:"Bearer sk-test" request
+  >>= function
+  | Error err ->
+    Alcotest.failf
+      "expected embeddings fallback success but got %s"
+      (Aegis_lm.Domain_error.to_string err)
+  | Ok response ->
+    Alcotest.(check string) "embeddings fallback chosen" "good-embedding-model" response.model;
+    Alcotest.(check int) "one embedding returned" 1 (List.length response.data);
     Lwt.return_unit
 ;;
 
@@ -328,6 +629,143 @@ let responses_sse_contains_completion_event_test _switch () =
     true
     (String.contains encoded 'c' && String.contains encoded 'd');
   Lwt.return_unit
+;;
+
+let chat_stream_response_closes_handle_test _switch () =
+  let closed = ref false in
+  let response =
+    Aegis_lm.Provider_mock.sample_chat_response
+      ~model:"claude-sonnet"
+      ~content:"stream-close-ok"
+      ()
+  in
+  let stream =
+    { Aegis_lm.Provider_client.response = response
+    ; events = Lwt_stream.of_list [ Aegis_lm.Provider_client.Text_delta "stream-close-ok" ]
+    ; close =
+        (fun () ->
+          closed := true;
+          Lwt.return_unit)
+    }
+  in
+  Aegis_lm.Sse_stream.respond_chat_stream stream
+  >>= fun (_response, body) ->
+  Cohttp_lwt.Body.to_string body
+  >>= fun encoded ->
+  Lwt.pause ()
+  >>= fun () ->
+  Alcotest.(check bool)
+    "stream body includes done marker"
+    true
+    (String.ends_with ~suffix:"data: [DONE]\n\n" encoded);
+  Alcotest.(check bool) "stream close called" true !closed;
+  Lwt.return_unit
+;;
+
+let config_load_accepts_alibaba_and_moonshot_kinds_test _switch () =
+  let config_path = Filename.temp_file "aegislm-provider-kinds" ".json" in
+  let config_json =
+    `Assoc
+      [ ( "routes"
+        , `List
+            [ `Assoc
+                [ "public_model", `String "asia-multi"
+                ; ( "backends"
+                  , `List
+                      [ `Assoc
+                          [ "provider_id", `String "alibaba-primary"
+                          ; "provider_kind", `String "alibaba_openai"
+                          ; "upstream_model", `String "qwen-plus"
+                          ; ( "api_base"
+                            , `String
+                                "https://dashscope-intl.aliyuncs.com/compatible-mode/v1" )
+                          ; "api_key_env", `String "DASHSCOPE_API_KEY"
+                          ]
+                      ; `Assoc
+                          [ "provider_id", `String "moonshot-primary"
+                          ; "provider_kind", `String "moonshot_openai"
+                          ; "upstream_model", `String "kimi-k2.5"
+                          ; "api_base", `String "https://api.moonshot.ai/v1"
+                          ; "api_key_env", `String "MOONSHOT_API_KEY"
+                          ]
+                      ] )
+                ]
+            ] )
+      ; "virtual_keys", `List []
+      ]
+  in
+  Yojson.Safe.to_file config_path config_json;
+  (match Aegis_lm.Config.load config_path with
+   | Error err -> Alcotest.failf "expected config load success: %s" err
+   | Ok config ->
+     match config.Aegis_lm.Config.routes with
+     | [ route ] ->
+       (match route.Aegis_lm.Config.backends with
+        | [ alibaba; moonshot ] ->
+          Alcotest.(check bool)
+            "alibaba kind parsed"
+            true
+            (match alibaba.Aegis_lm.Config.provider_kind with
+             | Aegis_lm.Config.Alibaba_openai -> true
+             | _ -> false);
+          Alcotest.(check bool)
+            "alibaba kind is openai-compatible"
+            true
+            (Aegis_lm.Config.is_openai_compatible_kind
+               alibaba.Aegis_lm.Config.provider_kind);
+          Alcotest.(check bool)
+            "moonshot kind parsed"
+            true
+            (match moonshot.Aegis_lm.Config.provider_kind with
+             | Aegis_lm.Config.Moonshot_openai -> true
+             | _ -> false);
+          Alcotest.(check bool)
+            "moonshot kind is openai-compatible"
+            true
+            (Aegis_lm.Config.is_openai_compatible_kind
+               moonshot.Aegis_lm.Config.provider_kind)
+        | _ -> Alcotest.fail "expected two backends")
+     | _ -> Alcotest.fail "expected one route");
+  Lwt.return_unit
+;;
+
+let provider_registry_routes_new_openai_compatible_kinds_test _switch () =
+  let request =
+    { Aegis_lm.Openai_types.model = "ignored"
+    ; input = [ "hello" ]
+    }
+  in
+  let assert_openai_compat kind provider_id api_key_env =
+    let backend =
+      Aegis_lm.Config_test_support.backend
+        ~provider_id
+        ~provider_kind:kind
+        ~api_base:"https://api.example.test/v1"
+        ~upstream_model:"example-model"
+        ~api_key_env
+        ()
+    in
+    let provider = Aegis_lm.Provider_registry.make backend in
+    provider.Aegis_lm.Provider_client.invoke_embeddings backend request
+    >>= function
+    | Ok _ -> Alcotest.fail "expected missing credential failure"
+    | Error err ->
+      Alcotest.(check string)
+        "new kinds use openai-compatible adapter"
+        "upstream_failure"
+        err.Aegis_lm.Domain_error.code;
+      Alcotest.(check string)
+        "missing env reported"
+        ("Missing environment variable " ^ api_key_env)
+        err.Aegis_lm.Domain_error.message;
+      Lwt.return_unit
+  in
+  assert_openai_compat Aegis_lm.Config.Alibaba_openai "alibaba-primary" "DASHSCOPE_TEST_KEY"
+  >>= fun () ->
+  assert_openai_compat
+    Aegis_lm.Config.Moonshot_openai
+    "moonshot-primary"
+    "MOONSHOT_TEST_KEY"
 ;;
 
 let persistent_budget_survives_restart_test _switch () =
@@ -413,7 +851,19 @@ let tests =
       "uses fallback provider"
       `Quick
       routing_uses_fallback_after_failure_test
+  ; Alcotest_lwt.test_case
+      "falls back on retryable upstream status"
+      `Quick
+      routing_falls_back_on_retryable_upstream_status_test
+  ; Alcotest_lwt.test_case
+      "stops on non-retryable upstream status"
+      `Quick
+      routing_stops_on_non_retryable_upstream_status_test
   ; Alcotest_lwt.test_case "blocks localhost egress" `Quick egress_blocks_localhost_test
+  ; Alcotest_lwt.test_case
+      "enforces request body limit"
+      `Quick
+      request_body_limit_is_enforced_test
   ; Alcotest_lwt.test_case
       "budget ledger is domain-safe"
       `Quick
@@ -422,6 +872,14 @@ let tests =
       "falls back after provider exception"
       `Quick
       routing_falls_back_after_provider_exception_test
+  ; Alcotest_lwt.test_case
+      "times out slow provider calls"
+      `Quick
+      routing_times_out_slow_provider_test
+  ; Alcotest_lwt.test_case
+      "embeddings fall back on retryable failure"
+      `Quick
+      embeddings_fall_back_on_retryable_failure_test
   ; Alcotest_lwt.test_case
       "responses parses string input"
       `Quick
@@ -438,6 +896,18 @@ let tests =
       "responses sse contains completion event"
       `Quick
       responses_sse_contains_completion_event_test
+  ; Alcotest_lwt.test_case
+      "chat stream response closes handle"
+      `Quick
+      chat_stream_response_closes_handle_test
+  ; Alcotest_lwt.test_case
+      "config parses alibaba and moonshot kinds"
+      `Quick
+      config_load_accepts_alibaba_and_moonshot_kinds_test
+  ; Alcotest_lwt.test_case
+      "provider registry maps new openai-compatible kinds"
+      `Quick
+      provider_registry_routes_new_openai_compatible_kinds_test
   ; Alcotest_lwt.test_case
       "persistent budget survives restart"
       `Quick

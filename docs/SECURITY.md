@@ -11,9 +11,11 @@
 
 - virtual keys are hashed with SHA-256 in runtime state
 - loopback hosts and common private ranges are blocked by default
+- inbound JSON request bodies are rejected once they exceed the configured size limit
 - sensitive JSON fields are recursively redacted before log-oriented handling
 - fallback routing is only allowed across explicitly configured backends
 - daily budgets and per-minute request limits are enforced at the gateway
+- upstream provider calls are time-boxed by configured request timeout policy
 - audit events are durably stored when SQLite persistence is enabled
 
 ## Safety decisions

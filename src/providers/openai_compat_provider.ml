@@ -68,8 +68,9 @@ let invoke_chat backend request =
     else
       Lwt.return
         (Error
-           (Domain_error.upstream
+           (Domain_error.upstream_status
               ~provider_id:backend.Config.provider_id
+              ~status
               (Fmt.str "Upstream status %d: %s" status body_string)))
 ;;
 
@@ -133,9 +134,15 @@ let invoke_embeddings backend request =
     else
       Lwt.return
         (Error
-           (Domain_error.upstream
+           (Domain_error.upstream_status
               ~provider_id:backend.Config.provider_id
+              ~status
               (Fmt.str "Upstream status %d: %s" status body_string)))
 ;;
 
-let make () = { Provider_client.invoke_chat; invoke_embeddings }
+let invoke_chat_stream backend request =
+  invoke_chat backend { request with Openai_types.stream = false }
+  >|= Result.map Provider_stream.of_chat_response
+;;
+
+let make () = { Provider_client.invoke_chat; invoke_chat_stream; invoke_embeddings }
