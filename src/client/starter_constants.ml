@@ -62,6 +62,8 @@ module Text = struct
   let goodbye = "Bye."
   let busy_message = "A response is already in progress. Wait for it to finish or interrupt it with Ctrl+C."
   let interrupted_message = "Interrupted. The starter is ready for another command."
+  let terminal_ready =
+    "Line editing is enabled: arrows, history, and tab completion are available in the starter."
   let swap_usage = "/swap expects a configured public model name, for example: /swap claude-sonnet"
   let thread_usage = "/thread expects on or off, for example: /thread off"
   let memory_enabled = "Conversation memory is enabled."

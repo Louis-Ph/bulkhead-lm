@@ -45,6 +45,7 @@
 - `Starter_conversation` keeps a compressed local transcript and converts older turns into a shorter summary message
 - `Starter_runtime` isolates mutable starter session data, such as conversation memory, from the finite-state command parser
 - `Starter_session` models the starter REPL as a finite-state machine with explicit `Ready`, `Streaming`, and `Closed` states
+- `Starter_terminal` owns human-facing line editing, persistent history, and slash-command/model completion
 - `ask` and `call` are isolated per-process invocations, while `worker` is the mode intended to coordinate many concurrent local jobs through one runtime instance
 - worker outputs are serialized under a dedicated stdout lock so parallel jobs do not interleave their JSON lines
 - shared rate-limit, budget, and persistence state remain protected by the existing `Mutex` and SQLite locking strategy

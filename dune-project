@@ -28,6 +28,7 @@
   tls-lwt
   sqlite3
   cmdliner
+  linenoise
   logs
   fmt
   digestif

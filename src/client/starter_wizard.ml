@@ -66,10 +66,12 @@ let prompt ?default label =
     | Some value -> Fmt.str " [%s]" value
     | None -> ""
   in
-  print_string (label ^ suffix ^ ": ");
-  flush stdout;
   try
-    let value = read_line () |> String.trim in
+    let value =
+      Starter_terminal.read_line ~prompt:(label ^ suffix ^ ": ") ()
+      |> Option.value ~default:""
+      |> String.trim
+    in
     match value, default with
     | "", Some fallback -> fallback
     | _ -> value
@@ -369,6 +371,29 @@ let print_models store =
   configured_statuses store |> List.iter (fun status -> print_line ("  " ^ route_status_summary status))
 ;;
 
+let starter_commands () =
+  [ Starter_constants.Command.help
+  ; Starter_constants.Command.config
+  ; Starter_constants.Command.model
+  ; Starter_constants.Command.models
+  ; Starter_constants.Command.memory
+  ; Starter_constants.Command.forget
+  ; Starter_constants.Command.providers
+  ; Starter_constants.Command.env
+  ; Starter_constants.Command.thread
+  ; Starter_constants.Command.swap
+  ; Starter_constants.Command.quit
+  ]
+;;
+
+let update_terminal_context store =
+  let models =
+    configured_statuses store
+    |> List.map (fun (status : Starter_profile.route_status) -> status.public_model)
+  in
+  Starter_terminal.set_context ~commands:(starter_commands ()) ~models
+;;
+
 let print_provider_matrix store =
   let ready, missing = configured_statuses store |> Starter_profile.split_route_statuses in
   let print_group title statuses =
@@ -409,10 +434,11 @@ let print_memory_status state runtime =
 ;;
 
 let prompt_input model =
-  print_string (Fmt.str "\n%s> " model);
-  flush stdout;
-  try read_line () with
-  | End_of_file -> Starter_constants.Command.quit
+  try
+    (match Starter_terminal.read_line ~record_history:true ~prompt:(Fmt.str "\n%s> " model) () with
+    | Some line -> line
+    | None -> Starter_constants.Command.quit)
+  with
   | Sys.Break ->
     print_newline ();
     flush stdout;
@@ -566,6 +592,7 @@ let run ~base_config_path ~starter_output_path () =
   print_wrapped Starter_constants.Text.title;
   print_line "";
   print_wrapped_lines Starter_constants.Text.intro_lines;
+  print_wrapped Starter_constants.Text.terminal_ready;
   let selected_path =
     match choose_config_source ~base_config_path ~starter_output_path with
     | Example_config -> Ok base_config_path
@@ -592,6 +619,7 @@ let run ~base_config_path ~starter_output_path () =
              prerr_endline message;
              1
            | Ok model ->
+             update_terminal_context loaded.store;
              let state = Starter_session.create ~model ~config_path:loaded.path in
              print_help state;
              repl loaded.store ~authorization state (Starter_runtime.create ()))))

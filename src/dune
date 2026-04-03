@@ -12,6 +12,7 @@
   cohttp-lwt-unix
   sqlite3
   cmdliner
+  linenoise
   logs
   fmt
   digestif

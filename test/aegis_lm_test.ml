@@ -1285,7 +1285,59 @@ let starter_conversation_request_messages_include_summary_test _switch () =
    | last :: _ ->
      Alcotest.(check string) "pending user kept last" "user" last.Aegis_lm.Openai_types.role;
      Alcotest.(check string) "pending user content" "next question" last.content
-   | [] -> Alcotest.fail "expected last message");
+  | [] -> Alcotest.fail "expected last message");
+  Lwt.return_unit
+;;
+
+let starter_terminal_completes_commands_and_models_test _switch () =
+  let context =
+    { Aegis_lm.Starter_terminal.commands =
+        [ "/help"; "/models"; "/memory"; "/swap"; "/thread"; "/quit" ]
+    ; models = [ "claude-sonnet"; "gpt-5-mini" ]
+    }
+  in
+  let slash_candidates =
+    Aegis_lm.Starter_terminal.completion_candidates ~context "/m"
+  in
+  Alcotest.(check (list string))
+    "slash command completion"
+    [ "/memory"; "/models" ]
+    slash_candidates;
+  let swap_candidates =
+    Aegis_lm.Starter_terminal.completion_candidates ~context "/swap c"
+  in
+  Alcotest.(check (list string))
+    "model completion after swap"
+    [ "/swap claude-sonnet" ]
+    swap_candidates;
+  let thread_candidates =
+    Aegis_lm.Starter_terminal.completion_candidates ~context "/thread o"
+  in
+  Alcotest.(check (list string))
+    "thread completion"
+    [ "/thread on"; "/thread off" ]
+    thread_candidates;
+  Lwt.return_unit
+;;
+
+let starter_terminal_history_file_prefers_override_test _switch () =
+  let file =
+    Aegis_lm.Starter_terminal.history_file
+      ~history_env:"/tmp/custom-history.txt"
+      ~home:"/Users/example"
+      ()
+  in
+  Alcotest.(check string) "history override wins" "/tmp/custom-history.txt" file;
+  let fallback =
+    Aegis_lm.Starter_terminal.history_file
+      ~history_env:""
+      ~home:"/Users/example"
+      ()
+  in
+  Alcotest.(check string)
+    "history fallback path"
+    "/Users/example/.aegislm/starter.history"
+    fallback;
   Lwt.return_unit
 ;;
 
@@ -1414,6 +1466,14 @@ let tests =
       "starter conversation request messages include summary"
       `Quick
       starter_conversation_request_messages_include_summary_test
+  ; Alcotest_lwt.test_case
+      "starter terminal completes commands and models"
+      `Quick
+      starter_terminal_completes_commands_and_models_test
+  ; Alcotest_lwt.test_case
+      "starter terminal history file prefers override"
+      `Quick
+      starter_terminal_history_file_prefers_override_test
   ]
 ;;
 
