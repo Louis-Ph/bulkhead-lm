@@ -115,6 +115,22 @@ Worker responses are emitted when jobs complete, not in submission order. Use `i
 
 Use `worker` when several programmatic callers should share one in-process runtime, one rate-limit state, and one persistence handle. Use `ask` or `call` for isolated one-shot invocations.
 
+## SSH remote usage
+
+For a human remote session over SSH:
+
+```bash
+ssh -t user@remote '/opt/aegis-lm/scripts/remote_starter.sh'
+```
+
+For a programmatic remote worker over SSH:
+
+```bash
+ssh -T user@remote '/opt/aegis-lm/scripts/remote_worker.sh --config /etc/aegislm/gateway.json'
+```
+
+The full guide is in [docs/SSH_REMOTE.md](docs/SSH_REMOTE.md).
+
 ## Copy-paste demo
 
 List the public models exposed by the local gateway:
@@ -208,6 +224,9 @@ docs/
 scripts/
   integration_matrix.sh
   macos_starter.sh
+  remote_common.sh
+  remote_starter.sh
+  remote_worker.sh
   smoke_openai.sh
 
 src/

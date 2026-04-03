@@ -6,6 +6,8 @@
 - `src/client/`: direct terminal client and JSONL worker mode over the shared runtime
 - `run.sh`: clone-and-run macOS-first wrapper that hands off to the guided starter
 - `scripts/macos_starter.sh`: beginner-oriented macOS launcher that sources local shell secrets before entering the client
+- `scripts/remote_starter.sh`: remote human wrapper for SSH sessions with a TTY
+- `scripts/remote_worker.sh`: remote machine wrapper for JSONL worker traffic over SSH without a TTY
 - `src/domain/`: business types, OpenAI-compatible JSON parsing, normalized errors
 - `src/security/`: authentication, secret redaction, egress policy
 - `src/runtime/`: in-memory state, budget ledger, rate limiting, routing
