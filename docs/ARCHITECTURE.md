@@ -11,6 +11,7 @@
 - `scripts/freebsd_starter.sh`: beginner-oriented FreeBSD launcher with `pkg` bootstrap behavior
 - `scripts/remote_starter.sh`: remote human wrapper for SSH sessions with a TTY
 - `scripts/remote_worker.sh`: remote machine wrapper for JSONL worker traffic over SSH without a TTY
+- `scripts/remote_install.sh`: remote bootstrap wrapper that can serve a local installer or a filtered repo archive over SSH
 - `src/domain/`: business types, OpenAI-compatible JSON parsing, normalized errors
 - `src/security/`: authentication, secret redaction, egress policy, and peer mesh hop control
 - `src/runtime/`: in-memory state, budget ledger, rate limiting, routing

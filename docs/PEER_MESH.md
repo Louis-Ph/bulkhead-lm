@@ -15,6 +15,10 @@ Both participate in the same peer hop guard carried by AegisLM headers.
 - you want one AegisLM to front another without writing a separate microservice
 - you want bounded peer-to-peer forwarding instead of an unguarded OpenAI-style proxy chain
 
+If machine `B` does not have AegisLM installed yet, machine `A` can also serve a
+local bootstrap installer over SSH via `scripts/remote_install.sh`. The bootstrap
+flow is documented in [SSH_REMOTE.md](SSH_REMOTE.md).
+
 ## Minimal route example on machine B
 
 ### HTTP peer

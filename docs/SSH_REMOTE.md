@@ -17,6 +17,60 @@ Neither wrapper creates an `opam` switch or installs dependencies. They only:
 3. prefer an existing compiled client binary,
 4. fall back to `dune exec` when necessary.
 
+There is also a separate bootstrap path for a machine that does not yet have
+AegisLM locally: `scripts/remote_install.sh`.
+
+## Bootstrap a Clean Client Machine
+
+If machine `A` already has AegisLM and machine `B` has only `ssh`, `tar`, and a
+POSIX shell, `B` can install a local snapshot of AegisLM directly from `A`.
+
+Recommended one-liner on the clean client machine:
+
+```bash
+ssh user@remote \
+  '/opt/aegis-lm/scripts/remote_install.sh --emit-installer --origin user@remote' \
+  | sh
+```
+
+By default, the emitted installer:
+
+1. opens a second SSH fetch back to the same remote host,
+2. downloads a filtered tarball of the remote repository,
+3. installs it into `~/opt/aegis-lm`,
+4. makes `run.sh`, `start-macos-client.command`, and shell wrappers executable.
+
+Then start the local copy:
+
+```bash
+cd ~/opt/aegis-lm
+./run.sh
+```
+
+Choose another local target directory:
+
+```bash
+ssh user@remote \
+  '/opt/aegis-lm/scripts/remote_install.sh --emit-installer --origin user@remote' \
+  | sh -s -- --target "$HOME/apps/aegis-lm"
+```
+
+Start immediately after install:
+
+```bash
+ssh user@remote \
+  '/opt/aegis-lm/scripts/remote_install.sh --emit-installer --origin user@remote' \
+  | sh -s -- --start
+```
+
+Advanced notes:
+
+- the local installer also accepts `AEGISLM_INSTALL_SSH_BIN` and `AEGISLM_INSTALL_SSH_ARGS`
+  if the callback SSH command needs a non-default binary, port, or identity file
+- `AEGISLM_INSTALL_ARCHIVE_CMD` can override the archive fetch path entirely for custom transports
+- the archive is intentionally filtered and excludes `.git`, `_build`, `_opam`, and `var`
+- this is a bootstrap snapshot, not a `git clone`
+
 ## Human Remote Session
 
 Use a pseudo-terminal:
@@ -89,6 +143,7 @@ ssh -T user@remote \
 ## Operational Advice
 
 - Prefer `scripts/remote_starter.sh` for humans and `scripts/remote_worker.sh` for programs.
+- Use `scripts/remote_install.sh` when the local client machine does not yet have AegisLM at all.
 - Do not use the interactive starter for machine-to-machine traffic.
 - Avoid banners or shell startup output on stdout when using the worker, otherwise JSONL consumers will break.
 - If the remote repository is already built, the wrappers prefer the compiled client binary before trying `dune exec`.

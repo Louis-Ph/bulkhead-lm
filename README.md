@@ -188,6 +188,21 @@ ssh -T user@remote '/opt/aegis-lm/scripts/remote_worker.sh --config /etc/aegislm
 
 The full guide is in [docs/SSH_REMOTE.md](docs/SSH_REMOTE.md).
 
+For a clean client machine that does not have AegisLM yet, an existing remote
+AegisLM install can also serve a local bootstrap installer over SSH:
+
+```bash
+ssh user@remote '/opt/aegis-lm/scripts/remote_install.sh --emit-installer --origin user@remote' | sh
+```
+
+That installs a filtered snapshot locally, by default into `~/opt/aegis-lm`,
+then the local user can start it with:
+
+```bash
+cd ~/opt/aegis-lm
+./run.sh
+```
+
 ## Peer mesh
 
 One AegisLM instance can use another AegisLM instance as an upstream LLM by
