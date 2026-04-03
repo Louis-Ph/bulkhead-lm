@@ -54,6 +54,7 @@ let kind_term =
     [ "chat", Aegis_lm.Terminal_client.Chat
     ; "responses", Aegis_lm.Terminal_client.Responses
     ; "embeddings", Aegis_lm.Terminal_client.Embeddings
+    ; "ops", Aegis_lm.Terminal_client.Ops
     ]
   in
   let doc = "One-shot or worker request kind." in

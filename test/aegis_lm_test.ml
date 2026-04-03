@@ -1119,6 +1119,280 @@ let terminal_client_infers_first_route_for_ask_test _switch () =
     Lwt.return_unit
 ;;
 
+let client_ops_security_policy
+  ?(file_ops_enabled = true)
+  ?(exec_enabled = false)
+  ?(read_roots = [])
+  ?(write_roots = [])
+  ?(working_roots = [])
+  ?(max_read_bytes = 1_048_576)
+  ?(max_write_bytes = 1_048_576)
+  ?(timeout_ms = 10_000)
+  ?(max_output_bytes = 65_536)
+  ()
+  =
+  let base = Aegis_lm.Security_policy.default () in
+  { base with
+    Aegis_lm.Security_policy.client_ops =
+      { files =
+          { enabled = file_ops_enabled
+          ; read_roots
+          ; write_roots
+          ; max_read_bytes
+          ; max_write_bytes
+          }
+      ; exec =
+          { enabled = exec_enabled
+          ; working_roots
+          ; timeout_ms
+          ; max_output_bytes
+          }
+      }
+  }
+;;
+
+let rec remove_path_recursively path =
+  if Sys.file_exists path
+  then
+    match Unix.lstat path with
+    | { Unix.st_kind = Unix.S_DIR; _ } ->
+      Sys.readdir path
+      |> Array.iter (fun entry ->
+        remove_path_recursively (Filename.concat path entry));
+      Unix.rmdir path
+    | _ -> Unix.unlink path
+;;
+
+let with_temp_dir prefix f =
+  let path = Filename.temp_file prefix "tmp" in
+  Sys.remove path;
+  Unix.mkdir path 0o700;
+  Lwt.finalize
+    (fun () -> f path)
+    (fun () ->
+      if Sys.file_exists path then remove_path_recursively path;
+      Lwt.return_unit)
+;;
+
+let write_fixture_file path content =
+  let channel = open_out_bin path in
+  Fun.protect
+    ~finally:(fun () -> close_out_noerr channel)
+    (fun () -> output_string channel content)
+;;
+
+let json_assoc = function
+  | `Assoc fields -> fields
+  | _ -> Alcotest.fail "expected JSON object"
+;;
+
+let terminal_ops_lists_directory_within_allowed_root_test _switch () =
+  with_temp_dir "aegislm-ops-list" (fun root ->
+    let nested_dir = Filename.concat root "notes" in
+    Unix.mkdir nested_dir 0o755;
+    write_fixture_file (Filename.concat root "hello.txt") "hello";
+    let store =
+      Aegis_lm.Runtime_state.create
+        (Aegis_lm.Config_test_support.sample_config
+           ~security_policy:
+             (client_ops_security_policy ~read_roots:[ root ] ~write_roots:[ root ] ())
+           ())
+    in
+    Aegis_lm.Terminal_client.invoke_json
+      store
+      ~authorization:"Bearer sk-test"
+      ~kind:Aegis_lm.Terminal_client.Ops
+      (`Assoc [ "op", `String "list_dir"; "path", `String "." ])
+    >>= function
+    | Error err ->
+      Alcotest.failf
+        "expected list_dir success but got %s"
+        (Aegis_lm.Domain_error.to_string err)
+    | Ok response ->
+      let fields =
+        Aegis_lm.Terminal_client.response_to_yojson response |> json_assoc
+      in
+      let entries =
+        match List.assoc_opt "entries" fields with
+        | Some (`List values) -> values
+        | _ -> Alcotest.fail "expected entries list"
+      in
+      let names =
+        entries
+        |> List.filter_map (function
+          | `Assoc entry_fields ->
+            (match List.assoc_opt "name" entry_fields with
+             | Some (`String value) -> Some value
+             | _ -> None)
+          | _ -> None)
+      in
+      Alcotest.(check bool)
+        "file entry present"
+        true
+        (List.mem "hello.txt" names);
+      Alcotest.(check bool)
+        "directory entry present"
+        true
+        (List.mem "notes" names);
+      Lwt.return_unit)
+;;
+
+let terminal_ops_rejects_paths_outside_allowed_roots_test _switch () =
+  with_temp_dir "aegislm-ops-deny" (fun root ->
+    let store =
+      Aegis_lm.Runtime_state.create
+        (Aegis_lm.Config_test_support.sample_config
+           ~security_policy:(client_ops_security_policy ~read_roots:[ root ] ())
+           ())
+    in
+    Aegis_lm.Terminal_client.invoke_json
+      store
+      ~authorization:"Bearer sk-test"
+      ~kind:Aegis_lm.Terminal_client.Ops
+      (`Assoc [ "op", `String "read_file"; "path", `String "/etc/hosts" ])
+    >>= function
+    | Ok _ -> Alcotest.fail "expected read_file outside root to be denied"
+    | Error err ->
+      Alcotest.(check string) "denied code" "operation_denied" err.code;
+      Lwt.return_unit)
+;;
+
+let terminal_ops_writes_base64_files_test _switch () =
+  with_temp_dir "aegislm-ops-write" (fun root ->
+    let payload = "binary-\000-content" in
+    let encoded = Base64.encode_exn payload in
+    let store =
+      Aegis_lm.Runtime_state.create
+        (Aegis_lm.Config_test_support.sample_config
+           ~security_policy:
+             (client_ops_security_policy ~read_roots:[ root ] ~write_roots:[ root ] ())
+           ())
+    in
+    Aegis_lm.Terminal_client.invoke_json
+      store
+      ~authorization:"Bearer sk-test"
+      ~kind:Aegis_lm.Terminal_client.Ops
+      (`Assoc
+        [ "op", `String "write_file"
+        ; "path", `String "artifacts/output.bin"
+        ; "encoding", `String "base64"
+        ; "content", `String encoded
+        ; "create_parents", `Bool true
+        ])
+    >>= function
+    | Error err ->
+      Alcotest.failf
+        "expected write_file success but got %s"
+        (Aegis_lm.Domain_error.to_string err)
+    | Ok _ ->
+      let written_path = Filename.concat root "artifacts/output.bin" in
+      let channel = open_in_bin written_path in
+      let content =
+        Fun.protect
+          ~finally:(fun () -> close_in_noerr channel)
+          (fun () -> really_input_string channel (in_channel_length channel))
+      in
+      Alcotest.(check string) "written bytes preserved" payload content;
+      Lwt.return_unit)
+;;
+
+let terminal_ops_executes_commands_in_allowed_root_test _switch () =
+  with_temp_dir "aegislm-ops-exec" (fun root ->
+    let canonical_root = Unix.realpath root in
+    write_fixture_file (Filename.concat canonical_root "marker.txt") "root-marker";
+    let store =
+      Aegis_lm.Runtime_state.create
+        (Aegis_lm.Config_test_support.sample_config
+           ~security_policy:
+             (client_ops_security_policy
+                ~file_ops_enabled:false
+                ~exec_enabled:true
+                ~working_roots:[ root ]
+                ())
+           ())
+    in
+    Aegis_lm.Terminal_client.invoke_json
+      store
+      ~authorization:"Bearer sk-test"
+      ~kind:Aegis_lm.Terminal_client.Ops
+      (`Assoc
+        [ "op", `String "exec"
+        ; "command", `String "/bin/cat"
+        ; "args", `List [ `String (Filename.concat canonical_root "marker.txt") ]
+        ; "cwd", `String "."
+        ])
+    >>= function
+    | Error err ->
+      Alcotest.failf
+        "expected exec success but got %s"
+        (Aegis_lm.Domain_error.to_string err)
+    | Ok response ->
+      let fields =
+        Aegis_lm.Terminal_client.response_to_yojson response |> json_assoc
+      in
+      let exit_code =
+        match List.assoc_opt "exit_code" fields with
+        | Some (`Int value) -> value
+        | _ -> -1
+      in
+      let stdout =
+        match List.assoc_opt "stdout" fields with
+        | Some (`String value) -> String.trim value
+        | _ -> Alcotest.fail "expected stdout string"
+      in
+      let stderr =
+        match List.assoc_opt "stderr" fields with
+        | Some (`String value) -> String.trim value
+        | _ -> ""
+      in
+      if not (String.equal stdout "root-marker")
+      then
+        Alcotest.failf
+          "unexpected exec output: exit=%d stdout=%S stderr=%S"
+          exit_code
+          stdout
+          stderr;
+      Alcotest.(check string) "command resolves relative file in allowed cwd" "root-marker" stdout;
+      Lwt.return_unit)
+;;
+
+let worker_processes_ops_requests_test _switch () =
+  with_temp_dir "aegislm-ops-worker" (fun root ->
+    write_fixture_file (Filename.concat root "worker.txt") "worker-data";
+    let store =
+      Aegis_lm.Runtime_state.create
+        (Aegis_lm.Config_test_support.sample_config
+           ~security_policy:(client_ops_security_policy ~read_roots:[ root ] ())
+           ())
+    in
+    Aegis_lm.Terminal_worker.run_lines
+      store
+      ~jobs:1
+      [ {|{"id":"ops-1","kind":"ops","request":{"op":"read_file","path":"worker.txt"}}|} ]
+    >>= function
+    | [ line ] ->
+      let fields = Yojson.Safe.from_string line |> json_assoc in
+      let kind =
+        match List.assoc_opt "kind" fields with
+        | Some (`String value) -> value
+        | _ -> Alcotest.fail "expected kind field"
+      in
+      let response_fields =
+        match List.assoc_opt "response" fields with
+        | Some json -> json_assoc json
+        | None -> Alcotest.fail "expected response field"
+      in
+      let content =
+        match List.assoc_opt "content" response_fields with
+        | Some (`String value) -> value
+        | _ -> Alcotest.fail "expected content field"
+      in
+      Alcotest.(check string) "worker kind preserved" "ops" kind;
+      Alcotest.(check string) "worker file content returned" "worker-data" content;
+      Lwt.return_unit
+    | _ -> Alcotest.fail "expected exactly one worker output")
+;;
+
 let worker_rejects_malformed_json_lines_test _switch () =
   let store = Aegis_lm.Runtime_state.create (Aegis_lm.Config_test_support.sample_config ()) in
   Aegis_lm.Terminal_worker.run_lines store ~jobs:1 [ "{not-json" ]
@@ -1603,6 +1877,22 @@ let tests =
       `Quick
       request_body_limit_is_enforced_test
   ; Alcotest_lwt.test_case
+      "terminal ops lists directory within allowed root"
+      `Quick
+      terminal_ops_lists_directory_within_allowed_root_test
+  ; Alcotest_lwt.test_case
+      "terminal ops reject paths outside allowed roots"
+      `Quick
+      terminal_ops_rejects_paths_outside_allowed_roots_test
+  ; Alcotest_lwt.test_case
+      "terminal ops write base64 files"
+      `Quick
+      terminal_ops_writes_base64_files_test
+  ; Alcotest_lwt.test_case
+      "terminal ops execute commands in allowed root"
+      `Quick
+      terminal_ops_executes_commands_in_allowed_root_test
+  ; Alcotest_lwt.test_case
       "budget ledger is domain-safe"
       `Quick
       budget_is_domain_safe_test
@@ -1675,6 +1965,10 @@ let tests =
       "terminal client infers first route for ask"
       `Quick
       terminal_client_infers_first_route_for_ask_test
+  ; Alcotest_lwt.test_case
+      "worker processes ops requests"
+      `Quick
+      worker_processes_ops_requests_test
   ; Alcotest_lwt.test_case
       "worker rejects malformed json lines"
       `Quick

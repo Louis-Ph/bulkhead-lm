@@ -30,6 +30,26 @@ type mesh =
   ; hop_count_header : string
   }
 
+type client_files =
+  { enabled : bool
+  ; read_roots : string list
+  ; write_roots : string list
+  ; max_read_bytes : int
+  ; max_write_bytes : int
+  }
+
+type client_exec =
+  { enabled : bool
+  ; working_roots : string list
+  ; timeout_ms : int
+  ; max_output_bytes : int
+  }
+
+type client_ops =
+  { files : client_files
+  ; exec : client_exec
+  }
+
 type routing =
   { max_fallbacks : int
   ; strategy : string
@@ -44,6 +64,7 @@ type t =
   ; redaction : redaction
   ; egress : egress
   ; mesh : mesh
+  ; client_ops : client_ops
   ; routing : routing
   ; rate_limit : rate_limit
   ; budget : budget
@@ -83,6 +104,21 @@ let default () =
       ; max_hops = 1
       ; request_id_header = "x-aegislm-request-id"
       ; hop_count_header = "x-aegislm-hop-count"
+      }
+  ; client_ops =
+      { files =
+          { enabled = false
+          ; read_roots = []
+          ; write_roots = []
+          ; max_read_bytes = 1_048_576
+          ; max_write_bytes = 1_048_576
+          }
+      ; exec =
+          { enabled = false
+          ; working_roots = []
+          ; timeout_ms = 10_000
+          ; max_output_bytes = 65_536
+          }
       }
   ; routing = { max_fallbacks = 2; strategy = "priority" }
   ; rate_limit = { default_requests_per_minute = 60 }
@@ -144,6 +180,9 @@ let of_yojson json =
   let redaction_json = object_member "redaction" json in
   let egress_json = object_member "egress" json in
   let mesh_json = object_member "mesh" json in
+  let client_ops_json = object_member "client_ops" json in
+  let client_files_json = object_member "files" client_ops_json in
+  let client_exec_json = object_member "exec" client_ops_json in
   let routing_json = object_member "routing" json in
   let rate_limit_json = object_member "rate_limit" json in
   let budget_json = object_member "budget" json in
@@ -214,6 +253,48 @@ let of_yojson json =
             "hop_count_header"
             mesh_json
             ~default:defaults.mesh.hop_count_header
+      }
+  ; client_ops =
+      { files =
+          { enabled =
+              bool_member "enabled" client_files_json ~default:defaults.client_ops.files.enabled
+          ; read_roots =
+              (match list_member "read_roots" client_files_json with
+               | [] -> defaults.client_ops.files.read_roots
+               | values -> values)
+          ; write_roots =
+              (match list_member "write_roots" client_files_json with
+               | [] -> defaults.client_ops.files.write_roots
+               | values -> values)
+          ; max_read_bytes =
+              int_member
+                "max_read_bytes"
+                client_files_json
+                ~default:defaults.client_ops.files.max_read_bytes
+          ; max_write_bytes =
+              int_member
+                "max_write_bytes"
+                client_files_json
+                ~default:defaults.client_ops.files.max_write_bytes
+          }
+      ; exec =
+          { enabled =
+              bool_member "enabled" client_exec_json ~default:defaults.client_ops.exec.enabled
+          ; working_roots =
+              (match list_member "working_roots" client_exec_json with
+               | [] -> defaults.client_ops.exec.working_roots
+               | values -> values)
+          ; timeout_ms =
+              int_member
+                "timeout_ms"
+                client_exec_json
+                ~default:defaults.client_ops.exec.timeout_ms
+          ; max_output_bytes =
+              int_member
+                "max_output_bytes"
+                client_exec_json
+                ~default:defaults.client_ops.exec.max_output_bytes
+          }
       }
   ; routing =
       { max_fallbacks =

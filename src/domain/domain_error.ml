@@ -69,11 +69,38 @@ let provider_denied message =
     message
 ;;
 
+let operation_denied message =
+  make
+    ~retry_disposition:Non_retryable
+    ~code:"operation_denied"
+    ~status:403
+    ~error_type:"permission_error"
+    message
+;;
+
 let invalid_request message =
   make
     ~retry_disposition:Non_retryable
     ~code:"invalid_request"
     ~status:400
+    ~error_type:"invalid_request_error"
+    message
+;;
+
+let resource_not_found message =
+  make
+    ~retry_disposition:Non_retryable
+    ~code:"resource_not_found"
+    ~status:404
+    ~error_type:"invalid_request_error"
+    message
+;;
+
+let resource_conflict message =
+  make
+    ~retry_disposition:Non_retryable
+    ~code:"resource_conflict"
+    ~status:409
     ~error_type:"invalid_request_error"
     message
 ;;
@@ -85,6 +112,15 @@ let request_too_large ~max_bytes =
     ~status:413
     ~error_type:"invalid_request_error"
     (Fmt.str "Request body exceeds configured limit of %d bytes." max_bytes)
+;;
+
+let operation_too_large ~subject ~max_bytes =
+  make
+    ~retry_disposition:Non_retryable
+    ~code:"operation_too_large"
+    ~status:413
+    ~error_type:"invalid_request_error"
+    (Fmt.str "%s exceeds configured limit of %d bytes." subject max_bytes)
 ;;
 
 let malformed_json_body () =
@@ -104,6 +140,15 @@ let request_timeout ?provider_id ~timeout_ms () =
     ~status:504
     ~error_type:"api_error"
     (Fmt.str "Request exceeded configured timeout of %d ms." timeout_ms)
+;;
+
+let command_timeout ~timeout_ms () =
+  make
+    ~retry_disposition:Non_retryable
+    ~code:"command_timeout"
+    ~status:504
+    ~error_type:"api_error"
+    (Fmt.str "Command exceeded configured timeout of %d ms." timeout_ms)
 ;;
 
 let unsupported_feature feature =

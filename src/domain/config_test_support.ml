@@ -56,11 +56,12 @@ let backend
 let route ~public_model ~backends () = { Config.public_model; backends }
 
 let sample_config
+  ?security_policy
   ?(virtual_keys = [ virtual_key ~token_plaintext:"sk-test" ~name:"test" () ])
   ?(routes = [ route ~public_model:"gpt-4o-mini" ~backends:[] () ])
   ()
   =
-  { Config.security_policy = Security_policy.default ()
+  { Config.security_policy = Option.value security_policy ~default:(Security_policy.default ())
   ; persistence = { sqlite_path = None; busy_timeout_ms = 5000 }
   ; error_catalog = `Assoc []
   ; providers_schema = `Assoc []

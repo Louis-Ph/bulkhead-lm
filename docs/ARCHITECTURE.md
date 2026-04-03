@@ -46,6 +46,7 @@
 - `aegislm-client call` accepts one JSON request on stdin and returns one JSON response on stdout
 - `aegislm-client worker` keeps one runtime store alive and processes JSONL requests with bounded concurrency
 - `aegislm-client starter` is an interactive wizard that can write a portable config JSON and then launch a local terminal session
+- `Terminal_ops` owns the structured `ops` protocol for filesystem and command requests under explicit security-policy roots
 - `Starter_constants` centralizes the public starter command strings and defaults
 - `Starter_conversation` keeps a compressed local transcript and converts older turns into a shorter summary message
 - `Starter_runtime` isolates mutable starter session data, such as conversation memory, from the finite-state command parser
@@ -54,6 +55,8 @@
 - `ask` and `call` are isolated per-process invocations, while `worker` is the mode intended to coordinate many concurrent local jobs through one runtime instance
 - worker outputs are serialized under a dedicated stdout lock so parallel jobs do not interleave their JSON lines
 - shared rate-limit, budget, and persistence state remain protected by the existing `Mutex` and SQLite locking strategy
+- `ops` requests reuse virtual-key auth and request-rate checks, but they are fail-closed until `security_policy.client_ops` enables explicit read, write, or exec roots
+- command execution is shell-free: callers send `command` plus `args`, and AegisLM applies timeout and output caps before returning a structured result
 
 ## Concurrency model
 

@@ -12,6 +12,7 @@ It targets the same operating problem as LiteLLM-style gateways, but with a stri
 - fail-closed network posture for loopback and common private ranges
 - stable gateway-level SSE contract even when providers differ
 - programmable terminal client with a human-facing `ask` mode and a JSONL worker mode
+- programmable terminal client ops for bounded file browsing, file writes, and command execution
 - clone-and-run local starter for macOS, Ubuntu, and FreeBSD with guided first-run setup
 - OCaml codebase with clear separation between domain, runtime, security, providers, HTTP, and persistence layers
 
@@ -116,6 +117,60 @@ Worker output line example:
 Worker responses are emitted when jobs complete, not in submission order. Use `id` for correlation.
 
 Use `worker` when several programmatic callers should share one in-process runtime, one rate-limit state, and one persistence handle. Use `ask` or `call` for isolated one-shot invocations.
+
+Structured client operations are also available through `--kind ops`. They are disabled by default and only activate when `security_policy.client_ops` explicitly enables bounded roots.
+
+Minimal policy example:
+
+```json
+{
+  "client_ops": {
+    "files": {
+      "enabled": true,
+      "read_roots": ["/srv/aegislm/workspace"],
+      "write_roots": ["/srv/aegislm/workspace"],
+      "max_read_bytes": 1048576,
+      "max_write_bytes": 1048576
+    },
+    "exec": {
+      "enabled": true,
+      "working_roots": ["/srv/aegislm/workspace"],
+      "timeout_ms": 10000,
+      "max_output_bytes": 65536
+    }
+  }
+}
+```
+
+One-shot directory listing:
+
+```bash
+printf '%s\n' \
+  '{"op":"list_dir","path":"."}' \
+  | dune exec aegislm-client -- call \
+      --config config/example.gateway.json \
+      --kind ops
+```
+
+One-shot file upload/write with base64:
+
+```bash
+printf '%s\n' \
+  '{"op":"write_file","path":"artifacts/report.bin","encoding":"base64","content":"SGVsbG8=","create_parents":true}' \
+  | dune exec aegislm-client -- call \
+      --config config/example.gateway.json \
+      --kind ops
+```
+
+One-shot command execution:
+
+```bash
+printf '%s\n' \
+  '{"op":"exec","command":"/bin/ls","args":["-la"],"cwd":"."}' \
+  | dune exec aegislm-client -- call \
+      --config config/example.gateway.json \
+      --kind ops
+```
 
 ## SSH remote usage
 

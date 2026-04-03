@@ -4,27 +4,31 @@ type call_kind =
   | Chat
   | Responses
   | Embeddings
+  | Ops
 
 type call_response =
   | Chat_response of Openai_types.chat_response
   | Responses_response of Responses_api.response
   | Embeddings_response of Openai_types.embeddings_response
+  | Ops_response of Terminal_ops.response
 
 let call_kind_to_string = function
   | Chat -> "chat"
   | Responses -> "responses"
   | Embeddings -> "embeddings"
+  | Ops -> "ops"
 ;;
 
 let call_kind_of_string = function
   | "chat" -> Ok Chat
   | "responses" -> Ok Responses
   | "embeddings" -> Ok Embeddings
+  | "ops" -> Ok Ops
   | value ->
     Error
       (Domain_error.invalid_request
          (Fmt.str
-            "Unsupported client request kind: %s. Expected one of chat, responses, embeddings."
+            "Unsupported client request kind: %s. Expected one of chat, responses, embeddings, ops."
             value))
 ;;
 
@@ -32,6 +36,7 @@ let response_to_yojson = function
   | Chat_response response -> Openai_types.chat_response_to_yojson response
   | Responses_response response -> Responses_api.response_to_yojson response
   | Embeddings_response response -> Openai_types.embeddings_response_to_yojson response
+  | Ops_response response -> Terminal_ops.response_to_yojson response
 ;;
 
 let text_of_chat_response (response : Openai_types.chat_response) =
@@ -46,6 +51,7 @@ let text_of_response = function
   | Chat_response response -> text_of_chat_response response
   | Responses_response response -> response.Responses_api.output_text
   | Embeddings_response _ -> ""
+  | Ops_response response -> Terminal_ops.text_of_response response
 ;;
 
 let first_configured_model store =
@@ -166,6 +172,14 @@ let invoke_json ?peer_context store ~authorization ~kind json =
     | Ok request ->
        Router.dispatch_embeddings ?peer_context store ~authorization request
        >|= Result.map (fun response -> Embeddings_response response))
+  | Ops ->
+    (match Terminal_ops.request_of_yojson json with
+     | Error field ->
+       Lwt.return
+         (Error (Domain_error.invalid_request ("Invalid ops request field: " ^ field)))
+     | Ok request ->
+       Terminal_ops.invoke store ~authorization request
+       >|= Result.map (fun response -> Ops_response response))
 ;;
 
 let build_chat_request store ?model ?max_tokens ?(stream = false) messages =
