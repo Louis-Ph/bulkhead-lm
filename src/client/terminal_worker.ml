@@ -154,7 +154,7 @@ let run_lines store ?authorization ?api_key ~jobs lines =
 ;;
 
 let run_stdio store ?authorization ?api_key ~jobs () =
-  let push, stream = Lwt_stream.create () in
+  let stream, push = Lwt_stream.create () in
   let output_lock = Lwt_mutex.create () in
   let emit json =
     Lwt_mutex.with_lock output_lock (fun () ->

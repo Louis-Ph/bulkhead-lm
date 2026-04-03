@@ -170,11 +170,13 @@ let invoke_json store ~authorization ~kind json =
 let build_ask_request store ?model ?system ?max_tokens ?(stream = false) prompt =
   resolve_model store ?model ()
   |> Result.map (fun resolved_model ->
-    let base_messages = [ ({ Openai_types.role = "user"; content = prompt } : Openai_types.message) ] in
+    let base_messages : Openai_types.message list =
+      [ { Openai_types.role = "user"; content = prompt } ]
+    in
     let messages =
       match system with
       | Some content when String.trim content <> "" ->
-        { Openai_types.role = "system"; content } :: base_messages
+        ({ Openai_types.role = "system"; content } : Openai_types.message) :: base_messages
       | _ -> base_messages
     in
     { Openai_types.model = resolved_model
