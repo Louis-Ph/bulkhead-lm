@@ -6,6 +6,7 @@ type request =
   ; kind : Terminal_client.call_kind
   ; authorization : string option
   ; api_key : string option
+  ; peer_context : Peer_mesh.context option
   ; request_json : Yojson.Safe.t
   }
 
@@ -64,17 +65,30 @@ let parse_request ~line_no line =
     match kind with
     | Error err -> Error (string_member_opt "id" json, None, err)
     | Ok kind ->
-      (match member "request" json with
-       | Some request_json ->
+      let peer_context_result =
+        match member "mesh" json with
+        | Some mesh_json ->
+          (match Peer_mesh.of_yojson mesh_json with
+           | Ok context -> Ok (Some context)
+           | Error _ ->
+             Error
+               (Domain_error.invalid_request
+                  (Fmt.str "Worker line %d has an invalid mesh object." line_no)))
+        | None -> Ok None
+      in
+      (match member "request" json, peer_context_result with
+       | _, Error err -> Error (string_member_opt "id" json, Some kind, err)
+       | Some request_json, Ok peer_context ->
          Ok
            { line_no
            ; id = string_member_opt "id" json
            ; kind
            ; authorization = string_member_opt "authorization" json
            ; api_key = string_member_opt "api_key" json
+           ; peer_context
            ; request_json
            }
-       | None ->
+       | None, Ok _ ->
          Error
            ( string_member_opt "id" json
            , Some kind
@@ -106,6 +120,7 @@ let handle_request store ?authorization ?api_key request =
       (error_json ?id:request.id ~kind:request.kind ~line_no:request.line_no error)
   | Ok authorization ->
     Terminal_client.invoke_json
+      ?peer_context:request.peer_context
       store
       ~authorization
       ~kind:request.kind

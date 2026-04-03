@@ -44,16 +44,24 @@ let post_json uri ~headers body =
   Cohttp_lwt.Body.to_string body >|= fun body_string -> response, body_string
 ;;
 
-let invoke_chat peer_headers backend request =
+let invoke_chat upstream_context backend request =
   match api_key_from_env backend with
   | Error err -> Lwt.return (Error err)
   | Ok api_key ->
-    let uri = endpoint backend.Config.api_base "chat/completions" in
+    let api_base =
+      match Config.backend_http_api_base backend with
+      | Some api_base -> api_base
+      | None ->
+        invalid_arg
+          ("openai_compat provider requires an HTTP target for "
+           ^ backend.Config.provider_id)
+    in
+    let uri = endpoint api_base "chat/completions" in
     let headers =
       merge_headers
         (Cohttp.Header.of_list
            [ "content-type", "application/json"; "authorization", "Bearer " ^ api_key ])
-        peer_headers
+        upstream_context.Provider_client.peer_headers
     in
     let body =
       Openai_types.chat_request_to_yojson
@@ -83,16 +91,24 @@ let invoke_chat peer_headers backend request =
               (Fmt.str "Upstream status %d: %s" status body_string)))
 ;;
 
-let invoke_embeddings peer_headers backend request =
+let invoke_embeddings upstream_context backend request =
   match api_key_from_env backend with
   | Error err -> Lwt.return (Error err)
   | Ok api_key ->
-    let uri = endpoint backend.Config.api_base "embeddings" in
+    let api_base =
+      match Config.backend_http_api_base backend with
+      | Some api_base -> api_base
+      | None ->
+        invalid_arg
+          ("openai_compat provider requires an HTTP target for "
+           ^ backend.Config.provider_id)
+    in
+    let uri = endpoint api_base "embeddings" in
     let headers =
       merge_headers
         (Cohttp.Header.of_list
            [ "content-type", "application/json"; "authorization", "Bearer " ^ api_key ])
-        peer_headers
+        upstream_context.Provider_client.peer_headers
     in
     let body =
       `Assoc
@@ -151,8 +167,8 @@ let invoke_embeddings peer_headers backend request =
               (Fmt.str "Upstream status %d: %s" status body_string)))
 ;;
 
-let invoke_chat_stream peer_headers backend request =
-  invoke_chat peer_headers backend { request with Openai_types.stream = false }
+let invoke_chat_stream upstream_context backend request =
+  invoke_chat upstream_context backend { request with Openai_types.stream = false }
   >|= Result.map Provider_stream.of_chat_response
 ;;
 

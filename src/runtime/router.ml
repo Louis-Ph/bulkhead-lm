@@ -1,10 +1,13 @@
 open Lwt.Infix
 
-let peer_headers_for_backend store peer_context backend =
+let upstream_context_for_backend store peer_context backend =
   match backend.Config.provider_kind with
-  | Config.Aegis_peer ->
-    Peer_mesh.outbound_headers store.Runtime_state.config.security_policy peer_context
-  | _ -> []
+  | Config.Aegis_peer | Config.Aegis_ssh_peer ->
+    { Provider_client.peer_headers =
+        Peer_mesh.outbound_headers store.Runtime_state.config.security_policy peer_context
+    ; peer_context = Some peer_context
+    }
+  | _ -> { Provider_client.peer_headers = []; peer_context = None }
 ;;
 
 let find_route config model =
@@ -62,18 +65,18 @@ let rec
     (match
        Egress_policy.ensure_allowed
          store.Runtime_state.config.security_policy
-         backend.Config.api_base
+         backend
      with
      | Error err -> try_backends store principal peer_context request (err :: failures) rest
      | Ok () ->
        let provider = store.Runtime_state.provider_factory backend in
-       let peer_headers = peer_headers_for_backend store peer_context backend in
+       let upstream_context = upstream_context_for_backend store peer_context backend in
        protect_upstream ~provider_id:backend.Config.provider_id (fun () ->
          with_upstream_timeout
            store
            ~provider_id:backend.Config.provider_id
            (provider.Provider_client.invoke_chat
-              peer_headers
+              upstream_context
               backend
               { request with model = backend.Config.upstream_model }))
        >>= (function
@@ -102,19 +105,19 @@ let rec
     (match
        Egress_policy.ensure_allowed
          store.Runtime_state.config.security_policy
-         backend.Config.api_base
+         backend
      with
      | Error err ->
        try_chat_stream_backends store principal peer_context request (err :: failures) rest
      | Ok () ->
        let provider = store.Runtime_state.provider_factory backend in
-       let peer_headers = peer_headers_for_backend store peer_context backend in
+       let upstream_context = upstream_context_for_backend store peer_context backend in
        protect_upstream ~provider_id:backend.Config.provider_id (fun () ->
          with_upstream_timeout
            store
            ~provider_id:backend.Config.provider_id
            (provider.Provider_client.invoke_chat_stream
-              peer_headers
+              upstream_context
               backend
               { request with model = backend.Config.upstream_model }))
        >>= (function
@@ -148,19 +151,19 @@ let rec
     (match
        Egress_policy.ensure_allowed
          store.Runtime_state.config.security_policy
-         backend.Config.api_base
+         backend
      with
      | Error err ->
        try_embeddings_backends store principal peer_context request (err :: failures) rest
      | Ok () ->
        let provider = store.Runtime_state.provider_factory backend in
-       let peer_headers = peer_headers_for_backend store peer_context backend in
+       let upstream_context = upstream_context_for_backend store peer_context backend in
        protect_upstream ~provider_id:backend.Config.provider_id (fun () ->
          with_upstream_timeout
            store
            ~provider_id:backend.Config.provider_id
            (provider.Provider_client.invoke_embeddings
-              peer_headers
+              upstream_context
               backend
               { request with model = backend.Config.upstream_model }))
        >>= (function

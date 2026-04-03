@@ -266,7 +266,7 @@ let routing_stops_on_non_retryable_upstream_status_test _switch () =
 
 let egress_blocks_localhost_test _switch () =
   let policy = Aegis_lm.Security_policy.default () in
-  let denied = Aegis_lm.Egress_policy.ensure_allowed policy "http://127.0.0.1:8080/v1" in
+  let denied = Aegis_lm.Egress_policy.ensure_http_allowed policy "http://127.0.0.1:8080/v1" in
   Alcotest.(check bool)
     "localhost blocked"
     true
@@ -695,6 +695,23 @@ let config_load_accepts_openai_compatible_provider_variants_test _switch () =
                           ; "api_base", `String "https://mesh.example.test/v1"
                           ; "api_key_env", `String "AEGISLM_PEER_API_KEY"
                           ]
+                      ; `Assoc
+                          [ "provider_id", `String "ssh-peer-primary"
+                          ; "provider_kind", `String "aegis_ssh_peer"
+                          ; "upstream_model", `String "claude-sonnet"
+                          ; "api_key_env", `String "AEGISLM_SSH_PEER_API_KEY"
+                          ; ( "ssh_transport"
+                            , `Assoc
+                                [ "destination", `String "ops@machine-a.example.net"
+                                ; "host", `String "machine-a.example.net"
+                                ; ( "remote_worker_command"
+                                  , `String "/opt/aegis-lm/scripts/remote_worker.sh" )
+                                ; "remote_config_path", `String "/etc/aegislm/gateway.json"
+                                ; "remote_switch", `String "prod-switch"
+                                ; "remote_jobs", `Int 2
+                                ; "options", `List [ `String "-i"; `String "/tmp/aegis-key" ]
+                                ] )
+                          ]
                       ] )
                 ]
             ] )
@@ -708,7 +725,7 @@ let config_load_accepts_openai_compatible_provider_variants_test _switch () =
      match config.Aegis_lm.Config.routes with
      | [ route ] ->
        (match route.Aegis_lm.Config.backends with
-        | [ alibaba; moonshot; peer ] ->
+        | [ alibaba; moonshot; peer; ssh_peer ] ->
           Alcotest.(check bool)
             "alibaba kind parsed"
             true
@@ -740,8 +757,30 @@ let config_load_accepts_openai_compatible_provider_variants_test _switch () =
           Alcotest.(check bool)
             "peer kind is openai-compatible"
             true
-            (Aegis_lm.Config.is_openai_compatible_kind peer.Aegis_lm.Config.provider_kind)
-        | _ -> Alcotest.fail "expected three backends")
+            (Aegis_lm.Config.is_openai_compatible_kind peer.Aegis_lm.Config.provider_kind);
+          Alcotest.(check bool)
+            "ssh peer kind parsed"
+            true
+            (match ssh_peer.Aegis_lm.Config.provider_kind with
+             | Aegis_lm.Config.Aegis_ssh_peer -> true
+             | _ -> false);
+          Alcotest.(check bool)
+            "ssh peer kind is openai-compatible"
+            true
+            (Aegis_lm.Config.is_openai_compatible_kind ssh_peer.Aegis_lm.Config.provider_kind);
+          (match Aegis_lm.Config.backend_ssh_transport ssh_peer with
+           | None -> Alcotest.fail "expected ssh transport"
+           | Some transport ->
+             Alcotest.(check string)
+               "ssh destination parsed"
+               "ops@machine-a.example.net"
+               transport.destination;
+             Alcotest.(check string)
+               "ssh host parsed"
+               "machine-a.example.net"
+               transport.host;
+             Alcotest.(check int) "ssh remote jobs parsed" 2 transport.remote_jobs)
+        | _ -> Alcotest.fail "expected four backends")
      | _ -> Alcotest.fail "expected one route");
   Lwt.return_unit
 ;;
@@ -763,7 +802,10 @@ let provider_registry_routes_new_openai_compatible_kinds_test _switch () =
         ()
     in
     let provider = Aegis_lm.Provider_registry.make backend in
-    provider.Aegis_lm.Provider_client.invoke_embeddings [] backend request
+    provider.Aegis_lm.Provider_client.invoke_embeddings
+      { Aegis_lm.Provider_client.peer_headers = []; peer_context = None }
+      backend
+      request
     >>= function
     | Ok _ -> Alcotest.fail "expected missing credential failure"
     | Error err ->
@@ -788,6 +830,86 @@ let provider_registry_routes_new_openai_compatible_kinds_test _switch () =
     Aegis_lm.Config.Aegis_peer
     "peer-primary"
     "AEGISLM_PEER_TEST_KEY"
+  >>= fun () ->
+  let ssh_backend =
+    Aegis_lm.Config_test_support.backend
+      ~provider_id:"ssh-peer-primary"
+      ~provider_kind:Aegis_lm.Config.Aegis_ssh_peer
+      ~api_base:""
+      ~upstream_model:"example-model"
+      ~api_key_env:"AEGISLM_SSH_PEER_TEST_KEY"
+      ~ssh_transport:
+        (Aegis_lm.Config_test_support.ssh_transport
+           ~destination:"ops@machine-a.example.net"
+           ~host:"machine-a.example.net"
+           ~remote_worker_command:"/opt/aegis-lm/scripts/remote_worker.sh"
+           ())
+      ()
+  in
+  let ssh_provider = Aegis_lm.Provider_registry.make ssh_backend in
+  ssh_provider.Aegis_lm.Provider_client.invoke_embeddings
+    { Aegis_lm.Provider_client.peer_headers = []; peer_context = None }
+    ssh_backend
+    request
+  >>= function
+  | Ok _ -> Alcotest.fail "expected missing ssh peer credential failure"
+  | Error err ->
+    Alcotest.(check string)
+      "ssh peer reports missing env"
+      "Missing environment variable AEGISLM_SSH_PEER_TEST_KEY"
+      err.Aegis_lm.Domain_error.message;
+    Lwt.return_unit
+;;
+
+let ssh_peer_protocol_request_includes_mesh_test _switch () =
+  let json =
+    Aegis_lm.Ssh_peer_protocol.request_json
+      ~request_id:"req-ssh"
+      ~kind:Aegis_lm.Ssh_peer_protocol.Chat
+      ~peer_context:{ Aegis_lm.Peer_mesh.request_id = "req-peer"; hop_count = 1 }
+      (`Assoc [ "model", `String "remote"; "messages", `List [] ])
+  in
+  match json with
+  | `Assoc fields ->
+    Alcotest.(check string)
+      "kind encoded"
+      "chat"
+      (match List.assoc_opt "kind" fields with
+       | Some (`String value) -> value
+       | _ -> "");
+    (match List.assoc_opt "mesh" fields with
+     | Some mesh_json ->
+       (match Aegis_lm.Peer_mesh.of_yojson mesh_json with
+        | Ok context ->
+          Alcotest.(check string) "mesh request id kept" "req-peer" context.request_id;
+          Alcotest.(check int) "mesh hop kept" 1 context.hop_count;
+          Lwt.return_unit
+        | Error field -> Alcotest.failf "expected valid mesh json, got %s" field)
+     | None -> Alcotest.fail "expected mesh object")
+  | _ -> Alcotest.fail "expected request object"
+;;
+
+let ssh_peer_protocol_surfaces_worker_error_test _switch () =
+  let line =
+    Yojson.Safe.to_string
+      (`Assoc
+        [ "ok", `Bool false
+        ; "status", `Int 508
+        ; "retryable", `Bool false
+        ; ( "error"
+          , `Assoc
+              [ "message", `String "loop detected remotely"
+              ; "type", `String "api_error"
+              ; "code", `String "loop_detected"
+              ] )
+        ])
+  in
+  match Aegis_lm.Ssh_peer_protocol.chat_response_of_line ~provider_id:"ssh-peer" line with
+  | Ok _ -> Alcotest.fail "expected remote worker error"
+  | Error err ->
+    Alcotest.(check string) "remote error code kept" "loop_detected" err.code;
+    Alcotest.(check int) "remote error status kept" 508 err.status;
+    Lwt.return_unit
 ;;
 
 let peer_mesh_rejects_excessive_hop_count_test _switch () =
@@ -804,7 +926,7 @@ let peer_mesh_rejects_excessive_hop_count_test _switch () =
 ;;
 
 let router_adds_peer_mesh_headers_for_aegis_peer_test _switch () =
-  let captured_headers = ref [] in
+  let captured_headers : (string * string) list ref = ref [] in
   let cfg =
     Aegis_lm.Config_test_support.sample_config
       ~routes:
@@ -824,11 +946,11 @@ let router_adds_peer_mesh_headers_for_aegis_peer_test _switch () =
       ()
   in
   let invoke_chat
-    headers
+    (upstream_context : Aegis_lm.Provider_client.upstream_context)
     _backend
     (request : Aegis_lm.Openai_types.chat_request)
     =
-    captured_headers := headers;
+    captured_headers := upstream_context.peer_headers;
     Lwt.return
       (Ok
          (Aegis_lm.Provider_mock.sample_chat_response
@@ -840,8 +962,8 @@ let router_adds_peer_mesh_headers_for_aegis_peer_test _switch () =
     { Aegis_lm.Provider_client.invoke_chat =
         invoke_chat
     ; invoke_chat_stream =
-        (fun headers backend request ->
-          invoke_chat headers backend request
+        (fun upstream_context backend request ->
+          invoke_chat upstream_context backend request
           >|= Result.map Aegis_lm.Provider_stream.of_chat_response)
     ; invoke_embeddings =
         (fun _headers _backend _request ->
@@ -1524,6 +1646,14 @@ let tests =
       "provider registry maps new openai-compatible kinds"
       `Quick
       provider_registry_routes_new_openai_compatible_kinds_test
+  ; Alcotest_lwt.test_case
+      "ssh peer protocol request includes mesh"
+      `Quick
+      ssh_peer_protocol_request_includes_mesh_test
+  ; Alcotest_lwt.test_case
+      "ssh peer protocol surfaces worker error"
+      `Quick
+      ssh_peer_protocol_surfaces_worker_error_test
   ; Alcotest_lwt.test_case
       "peer mesh rejects excessive hop count"
       `Quick

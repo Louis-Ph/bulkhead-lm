@@ -130,7 +130,7 @@ let non_streaming_only kind is_streaming =
   else Ok ()
 ;;
 
-let invoke_json store ~authorization ~kind json =
+let invoke_json ?peer_context store ~authorization ~kind json =
   match kind with
   | Chat ->
     (match Openai_types.chat_request_of_yojson json with
@@ -138,10 +138,10 @@ let invoke_json store ~authorization ~kind json =
        Lwt.return
          (Error (Domain_error.invalid_request ("Invalid chat request field: " ^ field)))
      | Ok request ->
-       (match non_streaming_only kind request.Openai_types.stream with
+        (match non_streaming_only kind request.Openai_types.stream with
         | Error err -> Lwt.return (Error err)
         | Ok () ->
-          Router.dispatch_chat store ~authorization request
+          Router.dispatch_chat ?peer_context store ~authorization request
           >|= Result.map (fun response -> Chat_response response)))
   | Responses ->
     (match Responses_api.request_of_yojson json with
@@ -149,21 +149,22 @@ let invoke_json store ~authorization ~kind json =
        Lwt.return
          (Error (Domain_error.invalid_request ("Invalid responses request field: " ^ field)))
      | Ok request ->
-       (match non_streaming_only kind request.Responses_api.stream with
+        (match non_streaming_only kind request.Responses_api.stream with
         | Error err -> Lwt.return (Error err)
         | Ok () ->
           Router.dispatch_chat
+            ?peer_context
             store
             ~authorization
             { (Responses_api.to_chat_request request) with stream = false }
           >|= Result.map (fun response -> Responses_response (Responses_api.of_chat_response response))))
   | Embeddings ->
     (match Openai_types.embeddings_request_of_yojson json with
-     | Error field ->
-       Lwt.return
-         (Error (Domain_error.invalid_request ("Invalid embeddings request field: " ^ field)))
-       | Ok request ->
-       Router.dispatch_embeddings store ~authorization request
+    | Error field ->
+      Lwt.return
+        (Error (Domain_error.invalid_request ("Invalid embeddings request field: " ^ field)))
+    | Ok request ->
+       Router.dispatch_embeddings ?peer_context store ~authorization request
        >|= Result.map (fun response -> Embeddings_response response))
 ;;
 

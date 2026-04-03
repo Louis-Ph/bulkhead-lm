@@ -7,6 +7,21 @@ type provider_kind =
   | Alibaba_openai
   | Moonshot_openai
   | Aegis_peer
+  | Aegis_ssh_peer
+
+type ssh_transport =
+  { destination : string
+  ; host : string
+  ; remote_worker_command : string
+  ; remote_config_path : string option
+  ; remote_switch : string option
+  ; remote_jobs : int
+  ; options : string list
+  }
+
+type backend_target =
+  | Http_target of string
+  | Ssh_target of ssh_transport
 
 type persistence =
   { sqlite_path : string option
@@ -17,7 +32,7 @@ type backend =
   { provider_id : string
   ; provider_kind : provider_kind
   ; upstream_model : string
-  ; api_base : string
+  ; target : backend_target
   ; api_key_env : string
   }
 
@@ -51,13 +66,34 @@ let provider_kind_of_string = function
   | "alibaba_openai" -> Ok Alibaba_openai
   | "moonshot_openai" -> Ok Moonshot_openai
   | "aegis_peer" -> Ok Aegis_peer
+  | "aegis_ssh_peer" -> Ok Aegis_ssh_peer
   | value -> Error (Fmt.str "Unsupported provider kind: %s" value)
 ;;
 
 let is_openai_compatible_kind = function
-  | Openai_compat | Google_openai | Alibaba_openai | Moonshot_openai | Aegis_peer ->
-    true
+  | Openai_compat
+  | Google_openai
+  | Alibaba_openai
+  | Moonshot_openai
+  | Aegis_peer
+  | Aegis_ssh_peer -> true
   | Anthropic -> false
+;;
+
+let backend_http_api_base = function
+  | { target = Http_target api_base; _ } -> Some api_base
+  | _ -> None
+;;
+
+let backend_ssh_transport = function
+  | { target = Ssh_target transport; _ } -> Some transport
+  | _ -> None
+;;
+
+let backend_target_label backend =
+  match backend.target with
+  | Http_target api_base -> api_base
+  | Ssh_target transport -> "ssh://" ^ transport.host
 ;;
 
 let resolve_path ~base_dir path =
@@ -106,6 +142,68 @@ let list_member name json =
   | _ -> []
 ;;
 
+let list_of_strings_member name json =
+  list_member name json
+  |> List.filter_map (function
+    | `String value -> Some value
+    | _ -> None)
+;;
+
+let parse_ssh_host destination json =
+  match string_member "host" json with
+  | Ok host when String.trim host <> "" -> Ok (String.trim host)
+  | _ ->
+    let trimmed = String.trim destination in
+    let without_scheme =
+      if String.starts_with ~prefix:"ssh://" trimmed
+      then String.sub trimmed 6 (String.length trimmed - 6)
+      else trimmed
+    in
+    let after_user =
+      match List.rev (String.split_on_char '@' without_scheme) with
+      | host :: _ -> host
+      | [] -> without_scheme
+    in
+    let host =
+      if String.starts_with ~prefix:"[" after_user
+      then (
+        match String.index_opt after_user ']' with
+        | Some index -> String.sub after_user 1 (index - 1)
+        | None -> after_user)
+      else (
+        match String.index_opt after_user ':' with
+        | Some index -> String.sub after_user 0 index
+        | None -> after_user)
+    in
+    if String.trim host = ""
+    then Error "ssh_transport.host"
+    else Ok (String.trim host)
+;;
+
+let parse_ssh_transport json =
+  string_member "destination" json
+  >>= fun destination ->
+  parse_ssh_host destination json
+  >>= fun host ->
+  string_member "remote_worker_command" json
+  >>= fun remote_worker_command ->
+  Ok
+    { destination = String.trim destination
+    ; host
+    ; remote_worker_command = String.trim remote_worker_command
+    ; remote_config_path =
+        (match object_member "remote_config_path" json with
+         | `String value when String.trim value <> "" -> Some (String.trim value)
+         | _ -> None)
+    ; remote_switch =
+        (match object_member "remote_switch" json with
+         | `String value when String.trim value <> "" -> Some (String.trim value)
+         | _ -> None)
+    ; remote_jobs = max 1 (int_member_with_default "remote_jobs" json ~default:1)
+    ; options = list_of_strings_member "options" json
+    }
+;;
+
 let parse_backend json =
   string_member "provider_id" json
   >>= fun provider_id ->
@@ -115,11 +213,21 @@ let parse_backend json =
   >>= fun provider_kind ->
   string_member "upstream_model" json
   >>= fun upstream_model ->
-  string_member "api_base" json
-  >>= fun api_base ->
+  let target_result =
+    match provider_kind with
+    | Aegis_ssh_peer ->
+      (match object_member "ssh_transport" json with
+       | `Assoc _ as ssh_json ->
+         parse_ssh_transport ssh_json |> Result.map (fun transport -> Ssh_target transport)
+       | _ -> Error "ssh_transport")
+    | _ ->
+      string_member "api_base" json |> Result.map (fun api_base -> Http_target api_base)
+  in
+  target_result
+  >>= fun target ->
   string_member "api_key_env" json
   >>= fun api_key_env ->
-  Ok { provider_id; provider_kind; upstream_model; api_base; api_key_env }
+  Ok { provider_id; provider_kind; upstream_model; target; api_key_env }
 ;;
 
 let parse_route json =

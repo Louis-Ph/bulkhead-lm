@@ -75,7 +75,7 @@ let default () =
       }
   ; egress =
       { deny_private_ranges = true
-      ; allowed_schemes = [ "https"; "http" ]
+      ; allowed_schemes = [ "https"; "http"; "ssh" ]
       ; blocked_hosts = [ "localhost"; "127.0.0.1"; "::1" ]
       }
   ; mesh =

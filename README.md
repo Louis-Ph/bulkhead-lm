@@ -136,9 +136,10 @@ The full guide is in [docs/SSH_REMOTE.md](docs/SSH_REMOTE.md).
 ## Peer mesh
 
 One AegisLM instance can use another AegisLM instance as an upstream LLM by
-declaring the backend as `aegis_peer`. This keeps the relationship explicit in
-config, still uses the OpenAI-compatible API surface, and adds bounded peer hop
-headers so accidental `A -> B -> A` loops fail closed instead of recursing.
+declaring the backend as `aegis_peer` for HTTP or `aegis_ssh_peer` for direct
+worker-over-SSH transport. Both keep the relationship explicit in config and
+both preserve bounded peer hop headers so accidental `A -> B -> A` loops fail
+closed instead of recursing.
 
 The full guide is in [docs/PEER_MESH.md](docs/PEER_MESH.md).
 
@@ -177,6 +178,7 @@ Example route families currently implemented:
 - `alibaba_openai`
 - `moonshot_openai`
 - `aegis_peer`
+- `aegis_ssh_peer`
 
 The bundled example config includes:
 

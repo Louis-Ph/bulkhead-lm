@@ -16,8 +16,41 @@ let virtual_key
   }
 ;;
 
-let backend ~provider_id ~provider_kind ~api_base ~upstream_model ~api_key_env () =
-  { Config.provider_id; provider_kind; api_base; upstream_model; api_key_env }
+let ssh_transport
+  ?(host = "peer.example.test")
+  ?remote_config_path
+  ?remote_switch
+  ?(remote_jobs = 1)
+  ?(options = [])
+  ~destination
+  ~remote_worker_command
+  ()
+  =
+  { Config.destination
+  ; host
+  ; remote_worker_command
+  ; remote_config_path
+  ; remote_switch
+  ; remote_jobs
+  ; options
+  }
+;;
+
+let backend
+  ?ssh_transport
+  ~provider_id
+  ~provider_kind
+  ~api_base
+  ~upstream_model
+  ~api_key_env
+  ()
+  =
+  let target =
+    match ssh_transport with
+    | Some transport -> Config.Ssh_target transport
+    | None -> Config.Http_target api_base
+  in
+  { Config.provider_id; provider_kind; target; upstream_model; api_key_env }
 ;;
 
 let route ~public_model ~backends () = { Config.public_model; backends }

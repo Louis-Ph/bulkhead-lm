@@ -15,6 +15,7 @@
 - `src/security/`: authentication, secret redaction, egress policy, and peer mesh hop control
 - `src/runtime/`: in-memory state, budget ledger, rate limiting, routing
 - `src/providers/`: upstream adapters by provider family
+- `src/providers/ssh_peer_protocol.ml`: JSONL-over-SSH envelope used by `aegis_ssh_peer`
 - `src/http/`: HTTP handlers and SSE serialization
 - `src/persistence/`: SQLite-backed persistence for keys, budgets, and audit events
 - `test/`: behavior, security, and concurrency invariants
@@ -29,7 +30,7 @@
 6. `Egress_policy` blocks loopback and private destinations before any upstream call.
 7. `Peer_mesh` validates inbound AegisLM hop headers before reflexive forwarding is allowed.
 8. Each upstream attempt is time-boxed by configured request timeout policy.
-9. The selected provider adapter rewrites the request for the upstream API.
+9. The selected provider adapter rewrites the request for the upstream API or the SSH worker protocol.
 10. `Budget_ledger` debits token usage after a successful response.
 11. The response is returned in OpenAI-compatible shape.
 
@@ -74,3 +75,4 @@
 - fail-closed egress defaults
 - no implicit propagation of client secrets to upstream providers
 - reflexive AegisLM peering is explicit as `aegis_peer`, with bounded hop count by policy
+- SSH peering is also explicit as `aegis_ssh_peer`, reusing the remote worker protocol instead of tunneling hidden HTTP

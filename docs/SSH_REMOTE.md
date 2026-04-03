@@ -6,6 +6,9 @@ as a separate microservice. The intended split is:
 - human operator: `scripts/remote_starter.sh`
 - programmatic caller: `scripts/remote_worker.sh`
 
+That same worker wrapper is also the transport used by `provider_kind = "aegis_ssh_peer"`
+when one AegisLM instance targets another directly over SSH.
+
 Both wrappers assume the repository already exists on the remote machine.
 Neither wrapper creates an `opam` switch or installs dependencies. They only:
 

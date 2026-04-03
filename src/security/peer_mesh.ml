@@ -53,3 +53,24 @@ let outbound_headers policy (context : context) =
     ; mesh.hop_count_header, string_of_int (context.hop_count + 1)
     ]
 ;;
+
+let to_yojson (context : context) =
+  `Assoc
+    [ "request_id", `String context.request_id
+    ; "hop_count", `Int context.hop_count
+    ]
+;;
+
+let of_yojson = function
+  | `Assoc fields ->
+    (match List.assoc_opt "request_id" fields, List.assoc_opt "hop_count" fields with
+     | Some (`String request_id), Some (`Int hop_count) when String.trim request_id <> "" && hop_count >= 0
+       ->
+       Ok { request_id = String.trim request_id; hop_count }
+     | Some (`String request_id), Some (`Intlit hop_count) when String.trim request_id <> "" ->
+       (match int_of_string_opt hop_count with
+        | Some parsed when parsed >= 0 -> Ok { request_id = String.trim request_id; hop_count = parsed }
+        | _ -> Error "hop_count")
+     | _ -> Error "mesh")
+  | _ -> Error "mesh"
+;;

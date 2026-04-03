@@ -28,6 +28,7 @@ let provider_kind_to_string = function
   | Config.Alibaba_openai -> "alibaba_openai"
   | Config.Moonshot_openai -> "moonshot_openai"
   | Config.Aegis_peer -> "aegis_peer"
+  | Config.Aegis_ssh_peer -> "aegis_ssh_peer"
 ;;
 
 let non_empty_env lookup name =

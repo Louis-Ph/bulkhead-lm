@@ -256,3 +256,40 @@ let embeddings_response_to_yojson (response : embeddings_response) =
           ] )
     ]
 ;;
+
+let parse_embedding json =
+  int_field "index" json
+  >>= fun index ->
+  let embedding =
+    match member "embedding" json with
+    | Some (`List values) ->
+      Ok
+        (List.filter_map (function
+           | `Float value -> Some value
+           | `Int value -> Some (float_of_int value)
+           | _ -> None) values)
+    | _ -> Error "embedding"
+  in
+  embedding >>= fun embedding -> Ok { index; embedding }
+;;
+
+let embeddings_response_of_yojson json =
+  string_field "model" json
+  >>= fun model ->
+  let usage_json = Option.value (member "usage" json) ~default:`Null in
+  usage_of_yojson usage_json
+  >>= fun usage ->
+  let data_values =
+    match member "data" json with
+    | Some (`List values) -> values
+    | _ -> []
+  in
+  let rec loop acc = function
+    | [] -> Ok (List.rev acc)
+    | item :: rest ->
+      (match parse_embedding item with
+       | Ok embedding -> loop (embedding :: acc) rest
+       | Error err -> Error err)
+  in
+  loop [] data_values >>= fun data -> Ok { model; data; usage }
+;;

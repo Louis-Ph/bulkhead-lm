@@ -38,14 +38,21 @@ let split_system_messages (messages : Openai_types.message list) =
     messages
 ;;
 
-let invoke_chat _peer_headers backend request =
+let invoke_chat _upstream_context backend request =
   if request.Openai_types.stream
   then Lwt.return (Error (Domain_error.unsupported_feature "anthropic streaming"))
   else (
     match api_key_from_env backend with
     | Error err -> Lwt.return (Error err)
     | Ok api_key ->
-      let uri = endpoint backend.Config.api_base in
+      let api_base =
+        match Config.backend_http_api_base backend with
+        | Some api_base -> api_base
+        | None ->
+          invalid_arg
+            ("anthropic provider requires an HTTP target for " ^ backend.Config.provider_id)
+      in
+      let uri = endpoint api_base in
       let system_messages, ordinary_messages = split_system_messages request.messages in
       let system =
         system_messages
@@ -153,15 +160,16 @@ let invoke_chat _peer_headers backend request =
                 (Fmt.str "Upstream status %d: %s" status body_string))))
 ;;
 
-let invoke_embeddings _peer_headers backend _request =
+let invoke_embeddings _upstream_context backend _request =
   Lwt.return
     (Error
        (Domain_error.unsupported_feature
           ("embeddings not available for anthropic provider " ^ backend.Config.provider_id)))
 ;;
 
-let invoke_chat_stream _peer_headers backend request =
-  invoke_chat [] backend { request with Openai_types.stream = false }
+let invoke_chat_stream _upstream_context backend request =
+  invoke_chat { Provider_client.peer_headers = []; peer_context = None } backend
+    { request with Openai_types.stream = false }
   >|= Result.map Provider_stream.of_chat_response
 ;;
 

@@ -21,10 +21,7 @@ let is_private_ipv6 host =
   || String.starts_with ~prefix:"fe80" lower
 ;;
 
-let ensure_allowed policy url =
-  let uri = Uri.of_string url in
-  let scheme = Uri.scheme uri |> Option.value ~default:"" |> String.lowercase_ascii in
-  let host = Uri.host uri |> Option.value ~default:"" |> String.lowercase_ascii in
+let ensure_host_allowed policy ~scheme ~host =
   if host = ""
   then Error (Domain_error.provider_denied "Provider URL must include a host.")
   else if not (List.mem scheme policy.Security_policy.egress.allowed_schemes)
@@ -40,4 +37,18 @@ let ensure_allowed policy url =
       (Domain_error.provider_denied
          (Fmt.str "Private or loopback destination blocked: %s" host))
   else Ok ()
+;;
+
+let ensure_http_allowed policy url =
+  let uri = Uri.of_string url in
+  let scheme = Uri.scheme uri |> Option.value ~default:"" |> String.lowercase_ascii in
+  let host = Uri.host uri |> Option.value ~default:"" |> String.lowercase_ascii in
+  ensure_host_allowed policy ~scheme ~host
+;;
+
+let ensure_allowed policy (backend : Config.backend) =
+  match backend.target with
+  | Config.Http_target api_base -> ensure_http_allowed policy api_base
+  | Config.Ssh_target transport ->
+    ensure_host_allowed policy ~scheme:"ssh" ~host:(String.lowercase_ascii transport.host)
 ;;
