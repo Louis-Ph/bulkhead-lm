@@ -73,6 +73,14 @@ let jobs_term =
   Cmdliner.Arg.(value & opt int 4 & info [ "jobs" ] ~docv:"N" ~doc)
 ;;
 
+let starter_output_term =
+  let doc = "Path where the interactive starter should write its personal JSON config." in
+  Cmdliner.Arg.(
+    value
+    & opt string "config/starter.gateway.json"
+    & info [ "starter-output" ] ~docv:"FILE" ~doc)
+;;
+
 let load_store config_path =
   match Aegis_lm.Config.load config_path with
   | Error err -> Error ("Configuration error: " ^ err)
@@ -114,6 +122,45 @@ let resolve_authorization store ?authorization ?api_key () =
   | Error error -> Error error
 ;;
 
+let print_call_response as_json response =
+  if as_json
+  then
+    print_endline
+      (Aegis_lm.Terminal_client.response_to_yojson response |> Yojson.Safe.to_string)
+  else print_endline (Aegis_lm.Terminal_client.text_of_response response)
+;;
+
+let run_ask_request store ~authorization ~as_json request =
+  if request.Aegis_lm.Openai_types.stream && as_json
+  then
+    Lwt.return
+      (write_error
+         (Aegis_lm.Domain_error.invalid_request
+            "ask does not support combining --stream with --json."))
+  else if request.Aegis_lm.Openai_types.stream
+  then
+    Aegis_lm.Terminal_client.run_ask_stream
+      store
+      ~authorization
+      request
+      ~on_delta:(fun chunk ->
+        print_string chunk;
+        flush stdout;
+        Lwt.return_unit)
+    >|= function
+    | Error error -> write_error error
+    | Ok _ ->
+      print_newline ();
+      0
+  else
+    Aegis_lm.Terminal_client.run_ask store ~authorization request
+    >|= function
+    | Error error -> write_error error
+    | Ok response ->
+      print_call_response as_json response;
+      0
+;;
+
 let run_ask config_path authorization api_key model system stream as_json max_tokens prompt =
   match load_store config_path with
   | Error err ->
@@ -130,53 +177,20 @@ let run_ask config_path authorization api_key model system stream as_json max_to
          Lwt.return
            (write_error (Aegis_lm.Domain_error.invalid_request err))
        | Ok prompt ->
-         (match resolve_authorization store ?authorization ?api_key () with
-          | Error error -> Lwt.return (write_error error)
-          | Ok authorization ->
-            (match
-               Aegis_lm.Terminal_client.build_ask_request
-                 store
-                 ?model
-                 ?system
-                 ?max_tokens
-                 ~stream
-                 prompt
-             with
-             | Error error -> Lwt.return (write_error error)
-             | Ok request ->
-               if stream && as_json
-               then
-                 Lwt.return
-                   (write_error
-                      (Aegis_lm.Domain_error.invalid_request
-                         "ask does not support combining --stream with --json."))
-               else if stream
-               then
-                 Aegis_lm.Terminal_client.run_ask_stream
-                   store
-                   ~authorization
-                   request
-                   ~on_delta:(fun chunk ->
-                     print_string chunk;
-                     flush stdout;
-                     Lwt.return_unit)
-                 >|= function
-                 | Error error -> write_error error
-                 | Ok _ ->
-                   print_newline ();
-                   0
-               else
-                 Aegis_lm.Terminal_client.run_ask store ~authorization request
-                 >|= function
-                 | Error error -> write_error error
-                 | Ok response ->
-                   if as_json
-                   then
-                     print_endline
-                       (Aegis_lm.Terminal_client.response_to_yojson response
-                        |> Yojson.Safe.to_string)
-                   else print_endline (Aegis_lm.Terminal_client.text_of_response response);
-                   0))))
+         match resolve_authorization store ?authorization ?api_key () with
+         | Error error -> Lwt.return (write_error error)
+         | Ok authorization ->
+           (match
+              Aegis_lm.Terminal_client.build_ask_request
+                store
+                ?model
+                ?system
+                ?max_tokens
+                ~stream
+                prompt
+            with
+            | Error error -> Lwt.return (write_error error)
+            | Ok request -> run_ask_request store ~authorization ~as_json request))
 ;;
 
 let run_call config_path authorization api_key kind request_json =
@@ -237,6 +251,13 @@ let run_worker config_path authorization api_key jobs =
         (Aegis_lm.Terminal_worker.run_stdio store ?authorization ?api_key ~jobs () >|= fun () -> 0))
 ;;
 
+let run_starter config_path starter_output =
+  Aegis_lm.Starter_wizard.run
+    ~base_config_path:config_path
+    ~starter_output_path:starter_output
+    ()
+;;
+
 let ask_cmd =
   let doc = "Human-friendly terminal prompt mode with sensible defaults." in
   Cmdliner.Cmd.v
@@ -279,11 +300,28 @@ let worker_cmd =
       $ jobs_term)
 ;;
 
+let starter_cmd =
+  let doc =
+    "Interactive beginner-friendly starter that can build a personal config and launch a local terminal session."
+  in
+  Cmdliner.Cmd.v
+    (Cmdliner.Cmd.info "starter" ~doc)
+    Cmdliner.Term.(const run_starter $ config_term $ starter_output_term)
+;;
+
 let cmd =
   let doc = "Programmable terminal client and worker for AegisLM" in
   Cmdliner.Cmd.group
     (Cmdliner.Cmd.info "aegislm-client" ~doc)
-    [ ask_cmd; call_cmd; worker_cmd ]
+    [ ask_cmd; call_cmd; worker_cmd; starter_cmd ]
 ;;
 
-let () = exit (Cmdliner.Cmd.eval cmd)
+let () =
+  Sys.catch_break true;
+  let code =
+    try Cmdliner.Cmd.eval cmd with
+    | Sys.Break ->
+      prerr_endline "Interrupted.";
+      130
+  in
+  exit code

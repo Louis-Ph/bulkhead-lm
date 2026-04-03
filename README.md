@@ -12,6 +12,7 @@ It targets the same operating problem as LiteLLM-style gateways, but with a stri
 - fail-closed network posture for loopback and common private ranges
 - stable gateway-level SSE contract even when providers differ
 - programmable terminal client with a human-facing `ask` mode and a JSONL worker mode
+- clone-and-run Mac starter with local-switch bootstrap and guided first-run setup
 - OCaml codebase with clear separation between domain, runtime, security, providers, HTTP, and persistence layers
 
 ## Current capabilities
@@ -40,6 +41,31 @@ You can also override the listen port:
 ```bash
 dune exec aegislm -- --config config/example.gateway.json --port 4200
 ```
+
+## Mac starter
+
+On a MacBook, the simplest entry point is the starter script:
+
+```bash
+./run.sh
+```
+
+or, if you prefer the Mac-style launcher:
+
+```bash
+./start-macos-client.command
+```
+
+The starter:
+
+- sources `~/.zshrc.secret` or `~/.zshrc.secrets` when present
+- prefers a project-local opam switch to avoid mixed-compiler breakage
+- can offer Homebrew and opam bootstrap steps instead of dropping raw OCaml build errors on a beginner
+- reuses your configured provider keys from the shell environment
+- asks which configured model you want to use now
+- can build a personal portable JSON config at `config/starter.gateway.json`
+- shows masked environment and provider readiness state from inside the REPL
+- drops you into a simple terminal session with `/model`, `/models`, `/swap`, `/providers`, `/env`, `/config`, `/help`, and `/quit`
 
 ## Terminal client
 
@@ -156,6 +182,8 @@ Use the Beijing DashScope base instead of the international base when you intent
 ## Architecture at a glance
 
 ```text
+start-macos-client.command
+
 bin/
   client.ml
   main.ml
@@ -175,6 +203,11 @@ docs/
   ARCHITECTURE.md
   COMPLIANCE_US_CN.md
   SECURITY.md
+
+scripts/
+  integration_matrix.sh
+  macos_starter.sh
+  smoke_openai.sh
 
 src/
   client/
@@ -246,6 +279,7 @@ dune build @runtest
 - Moonshot is currently modeled as chat-only in the provider schema
 - there is no admin UI or hot-reload control plane yet
 - the worker protocol is currently JSONL over stdio rather than a binary IPC protocol
+- the guided starter is currently optimized for macOS shell habits and secrets stored in `zsh` startup files
 - military or sovereign-environment compliance still requires deployment hardening, supply-chain evidence, identity integration, and formal assessment artifacts
 
 ## License

@@ -866,8 +866,8 @@ let terminal_client_infers_first_route_for_ask_test _switch () =
   let config =
     Aegis_lm.Config_test_support.sample_config
       ~routes:
-        [ Aegis_lm.Config_test_support.route ~public_model:"first-route" ()
-        ; Aegis_lm.Config_test_support.route ~public_model:"second-route" ()
+        [ Aegis_lm.Config_test_support.route ~public_model:"first-route" ~backends:[] ()
+        ; Aegis_lm.Config_test_support.route ~public_model:"second-route" ~backends:[] ()
         ]
       ()
   in
@@ -962,7 +962,22 @@ let worker_processes_requests_with_bounded_parallelism_test _switch () =
   let store =
     Aegis_lm.Runtime_state.create
       ~provider_factory:(fun _ -> provider)
-      (Aegis_lm.Config_test_support.sample_config ())
+      (Aegis_lm.Config_test_support.sample_config
+         ~routes:
+           [ Aegis_lm.Config_test_support.route
+               ~public_model:"gpt-4o-mini"
+               ~backends:
+                 [ Aegis_lm.Config_test_support.backend
+                     ~provider_id:"worker-primary"
+                     ~provider_kind:Aegis_lm.Config.Openai_compat
+                     ~api_base:"https://api.example.test/v1"
+                     ~upstream_model:"worker-model"
+                     ~api_key_env:"WORKER_KEY"
+                     ()
+                 ]
+               ()
+           ]
+         ())
   in
   let lines =
     [ {|{"id":"job-1","request":{"model":"gpt-4o-mini","messages":[{"role":"user","content":"one"}]}}|}
@@ -989,6 +1004,186 @@ let worker_processes_requests_with_bounded_parallelism_test _switch () =
   Alcotest.(check bool) "job-1 kept" true (contains_job "job-1");
   Alcotest.(check bool) "job-2 kept" true (contains_job "job-2");
   Alcotest.(check bool) "job-3 kept" true (contains_job "job-3");
+  Lwt.return_unit
+;;
+
+let starter_profile_marks_route_ready_from_env_lookup_test _switch () =
+  let config =
+    Aegis_lm.Config_test_support.sample_config
+      ~routes:
+        [ Aegis_lm.Config_test_support.route
+            ~public_model:"claude-sonnet"
+            ~backends:
+              [ Aegis_lm.Config_test_support.backend
+                  ~provider_id:"anthropic-primary"
+                  ~provider_kind:Aegis_lm.Config.Anthropic
+                  ~api_base:"https://api.anthropic.com/v1"
+                  ~upstream_model:"claude-sonnet-4-5-20250929"
+                  ~api_key_env:"ANTHROPIC_API_KEY"
+                  ()
+              ]
+            ()
+        ]
+      ()
+  in
+  let statuses =
+    Aegis_lm.Starter_profile.route_statuses
+      ~lookup:(function
+        | "ANTHROPIC_API_KEY" -> Some "present"
+        | _ -> None)
+      config
+  in
+  match statuses with
+  | [ status ] ->
+    Alcotest.(check bool) "route ready when env exists" true status.ready;
+    Lwt.return_unit
+  | _ -> Alcotest.fail "expected one route status"
+;;
+
+let starter_profile_writes_portable_config_json_test _switch () =
+  let presets =
+    Aegis_lm.Starter_profile.presets
+    |> List.filter (fun (preset : Aegis_lm.Starter_profile.provider_preset) ->
+      List.mem preset.Aegis_lm.Starter_profile.public_model [ "claude-sonnet"; "qwen-plus" ])
+  in
+  let json =
+    Aegis_lm.Starter_profile.config_json
+      ~selected_presets:presets
+      ~virtual_key_name:"local-dev"
+      ~token_plaintext:"sk-local"
+      ~daily_token_budget:50000
+      ~requests_per_minute:30
+      ~sqlite_path:"../var/aegislm.sqlite"
+      ()
+  in
+  match json with
+  | `Assoc fields ->
+    let routes =
+      match List.assoc_opt "routes" fields with
+      | Some (`List values) -> values
+      | _ -> []
+    in
+    let virtual_keys =
+      match List.assoc_opt "virtual_keys" fields with
+      | Some (`List values) -> values
+      | _ -> []
+    in
+    Alcotest.(check int) "two routes written" 2 (List.length routes);
+    Alcotest.(check int) "one virtual key written" 1 (List.length virtual_keys);
+    Lwt.return_unit
+  | _ -> Alcotest.fail "expected starter config object"
+;;
+
+let starter_profile_masks_environment_values_test _switch () =
+  let statuses =
+    Aegis_lm.Starter_profile.env_statuses
+      ~lookup:(function
+        | "OPENAI_API_KEY" -> Some "sk-test-secret"
+        | _ -> None)
+      ()
+  in
+  match
+    List.find_opt
+      (fun (status : Aegis_lm.Starter_profile.env_status) ->
+        String.equal status.name "OPENAI_API_KEY")
+      statuses
+  with
+  | Some status ->
+    Alcotest.(check bool) "env present" true status.present;
+    Alcotest.(check (option string))
+      "env masked"
+      (Some "sk-t********et")
+      status.masked_value;
+    Lwt.return_unit
+  | None -> Alcotest.fail "expected OPENAI_API_KEY status"
+;;
+
+let starter_profile_splits_ready_and_missing_routes_test _switch () =
+  let config =
+    Aegis_lm.Config_test_support.sample_config
+      ~routes:
+        [ Aegis_lm.Config_test_support.route
+            ~public_model:"claude-sonnet"
+            ~backends:
+              [ Aegis_lm.Config_test_support.backend
+                  ~provider_id:"anthropic-primary"
+                  ~provider_kind:Aegis_lm.Config.Anthropic
+                  ~api_base:"https://api.anthropic.com/v1"
+                  ~upstream_model:"claude-sonnet-4-5-20250929"
+                  ~api_key_env:"ANTHROPIC_API_KEY"
+                  ()
+              ]
+            ()
+        ; Aegis_lm.Config_test_support.route
+            ~public_model:"gpt-5-mini"
+            ~backends:
+              [ Aegis_lm.Config_test_support.backend
+                  ~provider_id:"openai-primary"
+                  ~provider_kind:Aegis_lm.Config.Openai_compat
+                  ~api_base:"https://api.openai.com/v1"
+                  ~upstream_model:"gpt-5-mini"
+                  ~api_key_env:"OPENAI_API_KEY"
+                  ()
+              ]
+            ()
+        ]
+      ()
+  in
+  let ready, missing =
+    Aegis_lm.Starter_profile.route_statuses
+      ~lookup:(function
+        | "ANTHROPIC_API_KEY" -> Some "present"
+        | _ -> None)
+      config
+    |> Aegis_lm.Starter_profile.split_route_statuses
+  in
+  Alcotest.(check int) "one ready route" 1 (List.length ready);
+  Alcotest.(check int) "one missing route" 1 (List.length missing);
+  Lwt.return_unit
+;;
+
+let starter_session_parses_beginner_commands_test _switch () =
+  (match Aegis_lm.Starter_session.parse_command "/env" with
+   | Aegis_lm.Starter_session.Show_env -> ()
+   | _ -> Alcotest.fail "expected /env command");
+  (match Aegis_lm.Starter_session.parse_command "/providers" with
+   | Aegis_lm.Starter_session.Show_providers -> ()
+   | _ -> Alcotest.fail "expected /providers command");
+  (match Aegis_lm.Starter_session.parse_command "/swap claude-sonnet" with
+   | Aegis_lm.Starter_session.Swap_model model ->
+     Alcotest.(check string) "swap target" "claude-sonnet" model
+   | _ -> Alcotest.fail "expected /swap command");
+  (match Aegis_lm.Starter_session.parse_command "/swap" with
+   | Aegis_lm.Starter_session.Invalid _ -> ()
+   | _ -> Alcotest.fail "expected invalid /swap without argument");
+  Lwt.return_unit
+;;
+
+let starter_session_tracks_streaming_state_test _switch () =
+  let state =
+    Aegis_lm.Starter_session.create
+      ~model:"claude-sonnet"
+      ~config_path:"config/starter.gateway.json"
+  in
+  let streaming_state, effect = Aegis_lm.Starter_session.step state "Hello there" in
+  (match effect with
+   | Aegis_lm.Starter_session.Begin_prompt "Hello there" -> ()
+   | _ -> Alcotest.fail "expected prompt execution effect");
+  (match Aegis_lm.Starter_session.current_model streaming_state with
+   | Some "claude-sonnet" -> ()
+   | _ -> Alcotest.fail "expected streaming model context");
+  let busy_state, busy_effect = Aegis_lm.Starter_session.step streaming_state "/env" in
+  (match busy_effect with
+   | Aegis_lm.Starter_session.Print_message message ->
+     Alcotest.(check string)
+       "busy message"
+       Aegis_lm.Starter_constants.Text.busy_message
+       message
+   | _ -> Alcotest.fail "expected busy message");
+  let resumed_state = Aegis_lm.Starter_session.interrupt_stream busy_state in
+  (match resumed_state with
+   | Aegis_lm.Starter_session.Ready _ -> ()
+   | _ -> Alcotest.fail "expected ready state after interrupt");
   Lwt.return_unit
 ;;
 
@@ -1081,6 +1276,30 @@ let tests =
       "worker processes requests with bounded parallelism"
       `Quick
       worker_processes_requests_with_bounded_parallelism_test
+  ; Alcotest_lwt.test_case
+      "starter profile marks route ready from env lookup"
+      `Quick
+      starter_profile_marks_route_ready_from_env_lookup_test
+  ; Alcotest_lwt.test_case
+      "starter profile writes portable config json"
+      `Quick
+      starter_profile_writes_portable_config_json_test
+  ; Alcotest_lwt.test_case
+      "starter profile masks environment values"
+      `Quick
+      starter_profile_masks_environment_values_test
+  ; Alcotest_lwt.test_case
+      "starter profile splits ready and missing routes"
+      `Quick
+      starter_profile_splits_ready_and_missing_routes_test
+  ; Alcotest_lwt.test_case
+      "starter session parses beginner commands"
+      `Quick
+      starter_session_parses_beginner_commands_test
+  ; Alcotest_lwt.test_case
+      "starter session tracks streaming state"
+      `Quick
+      starter_session_tracks_streaming_state_test
   ]
 ;;
 

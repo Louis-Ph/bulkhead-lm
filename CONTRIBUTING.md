@@ -38,6 +38,9 @@ dune exec aegislm -- --config config/example.gateway.json
 
 - behavior changes should include or update tests in `test/`
 - public-facing behavior changes should update `README.md` and the relevant docs
+- beginner entrypoints under `scripts/` and `.command` launchers should stay thin wrappers around the library-backed client flow
+- starter command names, defaults, and help text should stay centralized in `src/client/starter_constants.ml`
+- starter REPL changes should preserve the explicit state machine in `src/client/starter_session.ml`
 - provider additions should update the config schema, example config, and smoke or integration scripts when appropriate
 
 ## Pull requests

@@ -4,6 +4,8 @@
 
 - `config/`: hierarchical instance configuration and default policy catalogs
 - `src/client/`: direct terminal client and JSONL worker mode over the shared runtime
+- `run.sh`: clone-and-run macOS-first wrapper that hands off to the guided starter
+- `scripts/macos_starter.sh`: beginner-oriented macOS launcher that sources local shell secrets before entering the client
 - `src/domain/`: business types, OpenAI-compatible JSON parsing, normalized errors
 - `src/security/`: authentication, secret redaction, egress policy
 - `src/runtime/`: in-memory state, budget ledger, rate limiting, routing
@@ -36,6 +38,9 @@
 - `aegislm-client ask` dispatches directly against the shared runtime without starting the HTTP server
 - `aegislm-client call` accepts one JSON request on stdin and returns one JSON response on stdout
 - `aegislm-client worker` keeps one runtime store alive and processes JSONL requests with bounded concurrency
+- `aegislm-client starter` is an interactive wizard that can write a portable config JSON and then launch a local terminal session
+- `Starter_constants` centralizes the public starter command strings and defaults
+- `Starter_session` models the starter REPL as a finite-state machine with explicit `Ready`, `Streaming`, and `Closed` states
 - `ask` and `call` are isolated per-process invocations, while `worker` is the mode intended to coordinate many concurrent local jobs through one runtime instance
 - worker outputs are serialized under a dedicated stdout lock so parallel jobs do not interleave their JSON lines
 - shared rate-limit, budget, and persistence state remain protected by the existing `Mutex` and SQLite locking strategy
