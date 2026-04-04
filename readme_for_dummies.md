@@ -21,6 +21,7 @@ Then AegisLM asks you simple questions and opens a chat.
 | macOS MacBook | Local install on the Mac |
 | Ubuntu computer | Local install on Ubuntu |
 | Windows computer | Use WSL Ubuntu, then follow the Ubuntu steps inside WSL |
+| Chromebook / ChromeOS | Best path: use the Linux Terminal if available, or use SSH to a machine already running AegisLM |
 | FreeBSD machine | Local install on FreeBSD |
 | Android phone | Best path: connect by SSH to another machine already running AegisLM |
 | Tablet or iPad | Best path: connect by SSH to another machine already running AegisLM |
@@ -210,6 +211,59 @@ If you want a fast answer instead of a big comparison, pick one of these:
 4. "I want a machine in the cloud and a premium model":
    small Ubuntu VM plus OpenAI or Anthropic key.
 
+## Why ChromeOS, Android, and tablets are actually great for this
+
+This is one of the nicest things about AegisLM:
+your small device does not need to be the big machine.
+
+It can become a tiny control room.
+
+That means:
+
+1. Your Chromebook, phone, or tablet stays simple and light.
+2. Your API keys can stay on the remote machine instead of living on the mobile device.
+3. You can chat from the sofa, school desk, train, hotel, or garden.
+4. You do not need to rebuild the whole project on every small device.
+5. If the remote machine is stronger, the experience is usually smoother.
+
+Research snapshot for this mobile-and-ChromeOS section: 2026-04-04.
+
+## ChromeOS: the easy path that feels smart
+
+A Chromebook can be a very nice AegisLM control machine.
+
+Google officially says many Chromebooks can turn on a Linux development environment, and that this gives you a Debian environment with a Terminal app.
+
+That means two easy paths:
+
+1. If Linux is available on your Chromebook:
+   use the built-in Terminal and connect to your AegisLM machine with SSH.
+2. If Linux is not available or is blocked by school or work policy:
+   use another machine for AegisLM and keep the Chromebook as the safe front door.
+
+Very simple ChromeOS path:
+
+1. Open Settings.
+2. Go to `About ChromeOS`, then `Developers`.
+3. Turn on `Linux development environment` if your device allows it.
+4. Open the Terminal app.
+5. Run:
+
+```bash
+ssh -t your-user@your-machine 'aegislm-starter'
+```
+
+Why this is attractive:
+
+1. The Chromebook stays clean.
+2. The heavy work stays on the remote machine.
+3. Your API keys do not need to sit on the Chromebook.
+4. This is usually much easier than trying to turn a Chromebook into a full server.
+
+Official links:
+- [Set up Linux on your Chromebook](https://support.google.com/chromebook/answer/9145439?hl=en)
+- [Back up and restore Linux files on Chromebook](https://support.google.com/chromebook/answer/9592813?hl=en)
+
 ## macOS: easiest local start
 
 1. Open the Terminal app.
@@ -353,6 +407,25 @@ ssh -t your-user@your-machine 'aegislm-starter'
 Advanced note:
 Android local install may be possible with advanced tools, but that is not the simple path for this guide.
 
+Why Android is attractive:
+
+1. Your phone becomes a pocket terminal for your own AI machine.
+2. The expensive or private things stay on the remote machine.
+3. If you lose the phone, you can cut access on the server side.
+4. You can keep chatting almost anywhere.
+
+Easy Android safety rules:
+
+1. Keep your phone updated.
+2. Use a screen lock.
+3. If your device supports theft protection, turn it on.
+4. Prefer SSH key login if your SSH app offers it.
+5. Only connect to machines you own or trust.
+
+Official links:
+- [Check & update your Android version](https://support.google.com/pixelphone/answer/7680439?hl=en)
+- [Protect your personal data against theft](https://support.google.com/android/answer/15146908?hl=en)
+
 ## Tablet or iPad: easiest path
 
 Same idea as Android.
@@ -370,6 +443,47 @@ Or, if the machine has a packaged install:
 ```bash
 ssh -t your-user@your-machine 'aegislm-starter'
 ```
+
+Why tablets are attractive:
+
+1. Big screen, simple touch use.
+2. Great with a tiny Bluetooth keyboard.
+3. You keep the real server and the real API keys somewhere safer.
+4. It feels much easier than turning the tablet itself into a server.
+
+Easy iPad and tablet safety rules:
+
+1. Turn on a passcode.
+2. Turn on Face ID or Touch ID if your device supports it.
+3. Keep the tablet updated.
+4. Use an SSH app from the official app store, not a random download.
+5. If the app offers key-based SSH login, prefer that over a reused weak password.
+
+Official links:
+- [Use a passcode with your iPhone, iPad, or iPod touch](https://support.apple.com/en-us/119586)
+- [How to download iPadOS 18](https://support.apple.com/en-afri/104986)
+
+## The safest easy remote-access pattern
+
+If you want the best mix of easy and safe, do this:
+
+1. Install AegisLM on one real machine:
+   Mac, Ubuntu, WSL Ubuntu, FreeBSD, or one small cloud Ubuntu VM.
+2. Put the API keys only on that machine.
+3. Access that machine from Chromebook, Android, or tablet with SSH.
+4. If possible, use SSH keys instead of a reusable password.
+5. Launch:
+
+```bash
+ssh -t your-user@your-machine 'aegislm-starter'
+```
+
+This is attractive because:
+
+1. The small device feels magical and easy.
+2. The secret keys stay in one place.
+3. If the mobile device changes, your AegisLM machine does not need to be rebuilt.
+4. You can revoke access in one place if needed.
 
 ## What happens when `./run.sh` starts
 
