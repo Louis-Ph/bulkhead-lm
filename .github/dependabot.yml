@@ -1,0 +1,15 @@
+# Dependabot currently covers the GitHub Actions workflow dependencies in this
+# repository. The OCaml/opam dependency graph is managed separately because
+# Dependabot does not currently support opam manifests.
+version: 2
+updates:
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 5
+    labels:
+      - ci
+      - dependencies
+    commit-message:
+      prefix: "ci"
