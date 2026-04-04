@@ -1,0 +1,10 @@
+# Default code ownership
+* @Louis-Ph
+
+# Governance-sensitive surfaces
+/.github/ @Louis-Ph
+/config/ @Louis-Ph
+/docs/ @Louis-Ph
+/scripts/ @Louis-Ph
+/src/ @Louis-Ph
+/test/ @Louis-Ph

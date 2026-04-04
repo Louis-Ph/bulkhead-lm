@@ -357,6 +357,7 @@ Detailed references:
 
 - contribution guide: [CONTRIBUTING.md](CONTRIBUTING.md)
 - code of conduct: [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md)
+- repository settings guide: [docs/GITHUB_REPOSITORY_SETTINGS.md](docs/GITHUB_REPOSITORY_SETTINGS.md)
 - support process: [SUPPORT.md](SUPPORT.md)
 - vulnerability reporting: [SECURITY.md](SECURITY.md)
 
