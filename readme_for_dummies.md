@@ -98,6 +98,118 @@ If you want the simplest first success, try this order:
 3. If you already have an OpenAI or Anthropic key on your own account, use that.
 4. If you have no cloud key and your computer is strong enough, ask an adult to help with Ollama.
 
+## If you want a cloud machine fast
+
+Good news:
+you do not need a giant server.
+
+For AegisLM, a small Ubuntu machine is often enough if your model is in the cloud and your API key talks to the model provider.
+
+Research snapshot for this cloud-offers section: 2026-04-04.
+
+The easy idea is:
+
+1. Start one small cloud machine.
+2. Connect with SSH.
+3. Clone AegisLM.
+4. Put one API key in your secret file.
+5. Run `./run.sh`.
+
+## Cloud shortcut: the fun, easy choices
+
+These are not promises.
+They are easy places to look first, on the official pages checked on 2026-04-04.
+
+1. Oracle Cloud Free Tier.
+   This is one of the most tempting paths if you want a small remote Linux machine without paying right away.
+   Oracle says its Free Tier starts with a trial credit and also includes Always Free services.
+   This is often a strong beginner path for "I want my own small Ubuntu box in the cloud."
+   Official link: [Oracle Cloud Free Tier](https://www.oracle.com/cloud/free/)
+
+2. Azure free account.
+   This is a good path if you want lots of tutorials and a big friendly portal.
+   Microsoft says its Azure free account includes a $200 credit for 30 days, free monthly amounts for some services, and many always-free services.
+   Microsoft also says signup uses phone and card verification, even though the free account itself should not charge you unless you move to pay-as-you-go.
+   Official link: [Azure free account](https://azure.microsoft.com/free/)
+
+3. AWS Free Tier.
+   This is a good path if you want the biggest cloud ecosystem and lots of examples.
+   AWS says new customers can get up to $200 in credits, with a free plan for up to 6 months and 30+ always-free services.
+   This is a strong path if you want a famous cloud and do not mind a bigger control panel.
+   Official link: [AWS Free Tier](https://aws.amazon.com/free/)
+
+4. Alibaba Cloud start-for-free pages.
+   This is worth checking if you want another big cloud, especially if Alibaba Cloud is a good regional fit for you.
+   The important thing to understand is that Alibaba Cloud free access is often product-by-product, not one giant universal promise.
+   Some free-trial pages also require identity checks, and some services require a payment method to stay eligible.
+   Official links:
+   [Alibaba Cloud start for free](https://www.alibabacloud.com/campaign/free-trial)
+   [Alibaba Cloud OSS free quota example](https://www.alibabacloud.com/help/en/oss/free-quota-for-new-users)
+
+5. OpenAI API.
+   OpenAI is not where you rent the Ubuntu machine.
+   OpenAI is where you buy the model brain.
+   So the easy combo is:
+   one small cloud machine from AWS, Azure, Oracle, or Alibaba Cloud, plus one OpenAI API key.
+   OpenAI also says promo service credits are non-transferable and may expire, so use only your own account and do not treat credits like money.
+   Official links:
+   [OpenAI API pricing](https://openai.com/api/pricing/)
+   [OpenAI service credit terms](https://openai.com/policies/service-credit-terms/)
+
+## Very important reserve for cloud promotions
+
+Cloud offers are powerful, but they are not toys.
+
+1. This is not legal advice.
+2. I cannot promise that a free offer will still exist when you read this.
+3. I cannot promise that your country, age, card, or identity will be accepted.
+4. Many cloud offers are only for new customers.
+5. Many cloud offers require phone verification, card verification, identity verification, or region checks.
+6. Never make extra accounts to reset a free trial.
+7. Never use someone else's card or identity.
+8. If you are a child, ask an adult before typing card details anywhere.
+9. Before you click "Create", check the official pricing page one more time and look for what happens after the trial ends.
+
+## The easiest cloud recipe for AegisLM
+
+If you want one simple cloud plan that is easy to understand, do this:
+
+1. Choose one Ubuntu virtual machine from Oracle Cloud, Azure, AWS, or Alibaba Cloud.
+2. Choose one model API key from Gemini, Mistral, OpenAI, Anthropic, or another provider already supported by AegisLM.
+3. Connect to the machine with SSH.
+4. Run:
+
+```bash
+sudo apt update
+sudo apt install -y git
+git clone https://github.com/Louis-Ph/aegis-lm.git
+cd aegis-lm
+printf '%s\n' 'export GOOGLE_API_KEY="paste-your-key-here"' >> ~/.bashrc.secret
+./run.sh
+```
+
+5. Choose a model marked `[ready]`.
+6. Start chatting.
+
+If your cloud machine already has AegisLM packaged and installed, the path can be even shorter:
+
+```bash
+aegislm-starter
+```
+
+## The easiest cloud combos
+
+If you want a fast answer instead of a big comparison, pick one of these:
+
+1. Cheapest feeling:
+   Oracle Cloud Free Tier plus Gemini or Mistral.
+2. Biggest beginner ecosystem:
+   Azure or AWS plus Gemini or OpenAI.
+3. "I want the model only, not the server":
+   keep AegisLM on your own MacBook and only buy an API key.
+4. "I want a machine in the cloud and a premium model":
+   small Ubuntu VM plus OpenAI or Anthropic key.
+
 ## macOS: easiest local start
 
 1. Open the Terminal app.
