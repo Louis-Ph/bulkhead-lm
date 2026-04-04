@@ -97,6 +97,8 @@ let completion_candidates ~context input =
 let hint_for_input input =
   if input = ""
   then Some (" Type /help for commands", LNoise.Cyan, false)
+  else if prefix_matches ~prefix:Starter_constants.Command.file input
+  then Some (" <path-to-local-text-file>", LNoise.Yellow, false)
   else if prefix_matches ~prefix:Starter_constants.Command.admin input
   then Some (" <plain-language admin request>", LNoise.Yellow, false)
   else if prefix_matches ~prefix:Starter_constants.Command.package input
@@ -113,7 +115,7 @@ let initialize () =
   then (
     initialized := true;
     LNoise.catch_break true;
-    LNoise.set_multiline true;
+    LNoise.set_multiline Starter_constants.Defaults.line_editor_multiline;
     LNoise.set_completion_callback (fun line completions ->
       completion_candidates ~context:!context line
       |> List.iter (LNoise.add_completion completions));

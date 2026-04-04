@@ -269,8 +269,9 @@ It can:
 2. Show which models are ready.
 3. Let you choose a model.
 4. Open a simple chat.
-5. Help configure AegisLM with `/admin`.
-6. Help build a distributable package with `/package`.
+5. Let you attach a local text file with `/file PATH`.
+6. Help configure AegisLM with `/admin`.
+7. Help build a distributable package with `/package`.
 
 ## Your first chat
 
@@ -290,9 +291,13 @@ what can you do for me?
 
 ```text
 /help
+/tools
 /models
 /providers
 /env
+/file README.md
+/files
+/clearfiles
 /admin enable only safe local file access in this repository
 /package
 /quit

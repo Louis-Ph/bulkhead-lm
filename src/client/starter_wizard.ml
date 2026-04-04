@@ -373,6 +373,7 @@ let print_help state =
     (if Starter_session.conversation_enabled state
      then Starter_constants.Text.memory_enabled
      else Starter_constants.Text.memory_disabled);
+  print_wrapped Starter_constants.Text.tools_intro;
   print_wrapped_lines Starter_constants.Text.command_help_lines
 ;;
 
@@ -385,7 +386,8 @@ let print_models store =
 ;;
 
 let starter_commands () =
-  [ Starter_constants.Command.admin
+  [ Starter_constants.Command.tools
+  ; Starter_constants.Command.admin
   ; Starter_constants.Command.package
   ; Starter_constants.Command.plan
   ; Starter_constants.Command.apply
@@ -398,6 +400,9 @@ let starter_commands () =
   ; Starter_constants.Command.forget
   ; Starter_constants.Command.providers
   ; Starter_constants.Command.env
+  ; Starter_constants.Command.file
+  ; Starter_constants.Command.files
+  ; Starter_constants.Command.clearfiles
   ; Starter_constants.Command.thread
   ; Starter_constants.Command.swap
   ; Starter_constants.Command.quit
@@ -435,6 +440,35 @@ let print_env_statuses () =
       | Some value -> print_line (Fmt.str "  %s=%s" status.name value)
       | None -> print_line (Fmt.str "  %s=(not set)" status.name))
     statuses
+;;
+
+let print_tools_help () = print_wrapped_lines Starter_constants.Text.tool_help_lines
+
+let print_pending_files runtime =
+  match runtime.Starter_runtime.pending_attachments with
+  | [] -> print_wrapped Starter_constants.Text.files_empty
+  | attachments -> Starter_attachment.render_lines attachments |> print_lines
+;;
+
+let attach_local_file runtime path =
+  match
+    Starter_attachment.load
+      ~max_bytes:Starter_constants.Defaults.attachment_max_bytes
+      path
+  with
+  | Ok attachment ->
+    let runtime =
+      Starter_runtime.set_pending_attachments runtime (runtime.pending_attachments @ [ attachment ])
+    in
+    print_wrapped (Starter_constants.Text.file_attached attachment.display_path);
+    print_wrapped Starter_constants.Text.files_will_be_used;
+    runtime
+  | Error message ->
+    let lowered = String.lowercase_ascii message in
+    if String.starts_with ~prefix:"binary files are not supported" lowered
+    then print_wrapped Starter_constants.Text.binary_file_rejected
+    else print_wrapped message;
+    runtime
 ;;
 
 let print_memory_status state runtime =
@@ -589,7 +623,7 @@ let reload_after_config_apply state config_path =
 
 let prompt_input model =
   try
-    (match Starter_terminal.read_line ~record_history:true ~prompt:(Fmt.str "\n%s> " model) () with
+    (match Starter_terminal.read_line ~record_history:true ~prompt:(Fmt.str "%s> " model) () with
     | Some line -> line
     | None -> Starter_constants.Command.quit)
   with
@@ -601,9 +635,22 @@ let prompt_input model =
 ;;
 
 let request_messages state runtime prompt : Openai_types.message list =
+  let capability_message : Openai_types.message =
+    { Openai_types.role = "system"
+    ; content = Starter_constants.Text.assistant_capabilities_system_prompt
+    }
+  in
+  let prompt =
+    Starter_attachment.inject_into_prompt runtime.Starter_runtime.pending_attachments prompt
+  in
   if Starter_session.conversation_enabled state
-  then Starter_conversation.request_messages runtime.Starter_runtime.conversation ~pending_user:prompt
-  else [ ({ Openai_types.role = "user"; content = prompt } : Openai_types.message) ]
+  then
+    capability_message
+    :: Starter_conversation.request_messages runtime.Starter_runtime.conversation ~pending_user:prompt
+  else
+    [ capability_message
+    ; ({ Openai_types.role = "user"; content = prompt } : Openai_types.message)
+    ]
 ;;
 
 let run_stream_messages store ~authorization ~model messages =
@@ -725,6 +772,9 @@ let rec repl store ~authorization state runtime =
   | Starter_session.Show_help ->
     print_help next_state;
     repl store ~authorization next_state runtime
+  | Starter_session.Show_tools_panel ->
+    print_tools_help ();
+    repl store ~authorization next_state runtime
   | Starter_session.Begin_admin_request goal ->
     let model =
       match Starter_session.current_model next_state with
@@ -791,6 +841,19 @@ let rec repl store ~authorization state runtime =
   | Starter_session.List_env ->
     print_env_statuses ();
     repl store ~authorization next_state runtime
+  | Starter_session.Attach_local_file path ->
+    let runtime = attach_local_file runtime path in
+    repl store ~authorization next_state runtime
+  | Starter_session.List_pending_files ->
+    print_pending_files runtime;
+    repl store ~authorization next_state runtime
+  | Starter_session.Reset_pending_files ->
+    print_wrapped Starter_constants.Text.files_cleared;
+    repl
+      store
+      ~authorization
+      next_state
+      (Starter_runtime.clear_pending_attachments runtime)
   | Starter_session.Update_thread enabled ->
     print_wrapped
       (if enabled
@@ -823,7 +886,10 @@ let rec repl store ~authorization state runtime =
     let resumed_state, runtime =
       match run_stream_messages store ~authorization ~model messages with
       | Stream_completed response ->
-        let runtime = remember_exchange next_state runtime ~user:prompt response in
+        let runtime =
+          remember_exchange next_state runtime ~user:prompt response
+          |> Starter_runtime.clear_pending_attachments
+        in
         Starter_session.finish_stream next_state, runtime
       | Stream_interrupted ->
         print_line Starter_constants.Text.interrupted_message;

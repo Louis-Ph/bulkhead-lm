@@ -1766,6 +1766,9 @@ let starter_profile_splits_ready_and_missing_routes_test _switch () =
 ;;
 
 let starter_session_parses_beginner_commands_test _switch () =
+  (match Aegis_lm.Starter_session.parse_command "/tools" with
+   | Aegis_lm.Starter_session.Show_tools -> ()
+   | _ -> Alcotest.fail "expected /tools command");
   (match Aegis_lm.Starter_session.parse_command "/admin enable local file access in this repo" with
    | Aegis_lm.Starter_session.Admin_request goal ->
      Alcotest.(check string)
@@ -1794,6 +1797,19 @@ let starter_session_parses_beginner_commands_test _switch () =
   (match Aegis_lm.Starter_session.parse_command "/providers" with
    | Aegis_lm.Starter_session.Show_providers -> ()
    | _ -> Alcotest.fail "expected /providers command");
+  (match Aegis_lm.Starter_session.parse_command "/file README.md" with
+   | Aegis_lm.Starter_session.Attach_file path ->
+     Alcotest.(check string) "file path" "README.md" path
+   | _ -> Alcotest.fail "expected /file command");
+  (match Aegis_lm.Starter_session.parse_command "/file" with
+   | Aegis_lm.Starter_session.Invalid _ -> ()
+   | _ -> Alcotest.fail "expected invalid /file without argument");
+  (match Aegis_lm.Starter_session.parse_command "/files" with
+   | Aegis_lm.Starter_session.Show_pending_files -> ()
+   | _ -> Alcotest.fail "expected /files command");
+  (match Aegis_lm.Starter_session.parse_command "/clearfiles" with
+   | Aegis_lm.Starter_session.Clear_pending_files -> ()
+   | _ -> Alcotest.fail "expected /clearfiles command");
   (match Aegis_lm.Starter_session.parse_command "/swap claude-sonnet" with
    | Aegis_lm.Starter_session.Swap_model model ->
      Alcotest.(check string) "swap target" "claude-sonnet" model
@@ -1815,7 +1831,37 @@ let starter_session_parses_beginner_commands_test _switch () =
    | _ -> Alcotest.fail "expected /thread off command");
   (match Aegis_lm.Starter_session.parse_command "/thread maybe" with
    | Aegis_lm.Starter_session.Invalid _ -> ()
-   | _ -> Alcotest.fail "expected invalid /thread argument");
+  | _ -> Alcotest.fail "expected invalid /thread argument");
+  Lwt.return_unit
+;;
+
+let starter_attachment_injects_file_content_into_prompt_test _switch () =
+  let contains ~sub text =
+    let sub_len = String.length sub in
+    let text_len = String.length text in
+    let rec loop index =
+      if index + sub_len > text_len
+      then false
+      else if String.sub text index sub_len = sub
+      then true
+      else loop (index + 1)
+    in
+    loop 0
+  in
+  let attachment =
+    { Aegis_lm.Starter_attachment.absolute_path = "/tmp/example.txt"
+    ; display_path = "/tmp/example.txt"
+    ; content = "alpha\nbeta"
+    ; truncated = false
+    ; byte_count = 10
+    }
+  in
+  let prompt =
+    Aegis_lm.Starter_attachment.inject_into_prompt [ attachment ] "summarize this"
+  in
+  Alcotest.(check bool) "mentions file path" true (contains ~sub:"/tmp/example.txt" prompt);
+  Alcotest.(check bool) "mentions file content" true (contains ~sub:"alpha\nbeta" prompt);
+  Alcotest.(check bool) "mentions user request" true (contains ~sub:"summarize this" prompt);
   Lwt.return_unit
 ;;
 
@@ -1937,7 +1983,7 @@ let starter_conversation_request_messages_include_summary_test _switch () =
 let starter_terminal_completes_commands_and_models_test _switch () =
   let context =
     { Aegis_lm.Starter_terminal.commands =
-        [ "/help"; "/models"; "/memory"; "/swap"; "/thread"; "/quit" ]
+        [ "/help"; "/models"; "/memory"; "/swap"; "/thread"; "/quit"; "/tools"; "/file" ]
     ; models = [ "claude-sonnet"; "gpt-5-mini" ]
     }
   in
@@ -1962,6 +2008,13 @@ let starter_terminal_completes_commands_and_models_test _switch () =
     "thread completion"
     [ "/thread on"; "/thread off" ]
     thread_candidates;
+  let tool_candidates =
+    Aegis_lm.Starter_terminal.completion_candidates ~context "/to"
+  in
+  Alcotest.(check (list string))
+    "tools command completion"
+    [ "/tools" ]
+    tool_candidates;
   Lwt.return_unit
 ;;
 
@@ -2349,6 +2402,10 @@ let tests =
       "starter session parses beginner commands"
       `Quick
       starter_session_parses_beginner_commands_test
+  ; Alcotest_lwt.test_case
+      "starter attachment injects file content into prompt"
+      `Quick
+      starter_attachment_injects_file_content_into_prompt_test
   ; Alcotest_lwt.test_case
       "admin assistant parses structured plan text"
       `Quick

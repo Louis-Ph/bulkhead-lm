@@ -1,6 +1,7 @@
 type command =
   | Empty
   | Help
+  | Show_tools
   | Admin_request of string
   | Package_request
   | Show_admin_plan
@@ -13,6 +14,9 @@ type command =
   | Forget_memory
   | Show_providers
   | Show_env
+  | Attach_file of string
+  | Show_pending_files
+  | Clear_pending_files
   | Quit
   | Set_thread of bool
   | Swap_model of string
@@ -33,6 +37,7 @@ type t =
 type effect =
   | Noop
   | Show_help
+  | Show_tools_panel
   | Begin_admin_request of string
   | Begin_package_request
   | Show_pending_admin_plan
@@ -45,6 +50,9 @@ type effect =
   | Reset_memory
   | List_providers
   | List_env
+  | Attach_local_file of string
+  | List_pending_files
+  | Reset_pending_files
   | Update_thread of bool
   | Exit
   | Print_message of string
@@ -67,10 +75,13 @@ let parse_command input =
   let admin_prefix = Starter_constants.Command.admin ^ " " in
   let swap_prefix = Starter_constants.Command.swap ^ " " in
   let thread_prefix = Starter_constants.Command.thread ^ " " in
+  let file_prefix = Starter_constants.Command.file ^ " " in
   if trimmed = ""
   then Empty
   else if String.equal trimmed Starter_constants.Command.help
   then Help
+  else if String.equal trimmed Starter_constants.Command.tools
+  then Show_tools
   else if String.equal trimmed Starter_constants.Command.package
   then Package_request
   else if String.equal trimmed Starter_constants.Command.plan
@@ -93,12 +104,18 @@ let parse_command input =
   then Show_providers
   else if String.equal trimmed Starter_constants.Command.env
   then Show_env
+  else if String.equal trimmed Starter_constants.Command.files
+  then Show_pending_files
+  else if String.equal trimmed Starter_constants.Command.clearfiles
+  then Clear_pending_files
   else if String.equal trimmed Starter_constants.Command.quit
   then Quit
   else if String.equal trimmed Starter_constants.Command.thread
   then Invalid Starter_constants.Text.thread_usage
   else if String.equal trimmed Starter_constants.Command.swap
   then Invalid Starter_constants.Text.swap_usage
+  else if String.equal trimmed Starter_constants.Command.file
+  then Invalid Starter_constants.Text.file_usage
   else if String.equal trimmed Starter_constants.Command.admin
   then Invalid Starter_constants.Text.admin_usage
   else if String.starts_with ~prefix:admin_prefix trimmed
@@ -118,6 +135,11 @@ let parse_command input =
     let offset = String.length swap_prefix in
     let model = String.sub trimmed offset (String.length trimmed - offset) |> String.trim in
     if model = "" then Invalid Starter_constants.Text.swap_usage else Swap_model model
+  else if String.starts_with ~prefix:file_prefix trimmed
+  then
+    let offset = String.length file_prefix in
+    let path = String.sub trimmed offset (String.length trimmed - offset) |> String.trim in
+    if path = "" then Invalid Starter_constants.Text.file_usage else Attach_file path
   else Prompt trimmed
 ;;
 
@@ -128,6 +150,7 @@ let step state input =
     Streaming context, Print_message Starter_constants.Text.busy_message
   | Ready context, Empty -> Ready context, Noop
   | Ready context, Help -> Ready context, Show_help
+  | Ready context, Show_tools -> Ready context, Show_tools_panel
   | Ready context, Admin_request goal -> Streaming context, Begin_admin_request goal
   | Ready context, Package_request -> Streaming context, Begin_package_request
   | Ready context, Show_admin_plan -> Ready context, Show_pending_admin_plan
@@ -140,6 +163,9 @@ let step state input =
   | Ready context, Forget_memory -> Ready context, Reset_memory
   | Ready context, Show_providers -> Ready context, List_providers
   | Ready context, Show_env -> Ready context, List_env
+  | Ready context, Attach_file path -> Ready context, Attach_local_file path
+  | Ready context, Show_pending_files -> Ready context, List_pending_files
+  | Ready context, Clear_pending_files -> Ready context, Reset_pending_files
   | Ready context, Set_thread enabled ->
     Ready { context with conversation_enabled = enabled }, Update_thread enabled
   | Ready _, Quit -> Closed, Exit

@@ -1,5 +1,6 @@
 module Command = struct
   let help = "/help"
+  let tools = "/tools"
   let admin = "/admin"
   let package = "/package"
   let plan = "/plan"
@@ -15,6 +16,9 @@ module Command = struct
   let thread = "/thread"
   let quit = "/quit"
   let swap = "/swap"
+  let file = "/file"
+  let files = "/files"
+  let clearfiles = "/clearfiles"
 end
 
 module Defaults = struct
@@ -29,6 +33,8 @@ module Defaults = struct
   let conversation_compress_threshold_chars = 6_000
   let conversation_turn_excerpt_chars = 220
   let conversation_summary_max_chars = 2_200
+  let attachment_max_bytes = 32_000
+  let line_editor_multiline = false
 end
 
 module Text = struct
@@ -51,6 +57,7 @@ module Text = struct
 
   let command_help_lines =
     [ "Commands:"
+    ; "  /tools      show the most useful starter actions, including file insertion"
     ; "  /admin TEXT ask the assistant to prepare a safe admin plan"
     ; "  /package    build a distributable package for this operating system"
     ; "  /plan       show the pending admin plan"
@@ -65,9 +72,22 @@ module Text = struct
     ; "  /thread off disable conversation memory"
     ; "  /providers  show ready and missing providers from the current config"
     ; "  /env        show relevant environment variables in masked form"
+    ; "  /file PATH  attach one local text file to the next prompt"
+    ; "  /files      list files attached to the next prompt"
+    ; "  /clearfiles remove attached files before the next prompt"
     ; "  /config     show the current config path"
     ; "  /help       show this help"
     ; "  /quit       exit the starter"
+    ]
+  ;;
+
+  let tool_help_lines =
+    [ "Simple starter tools:"
+    ; "  /file PATH  read one local text file and attach it to the next prompt"
+    ; "  /files      show which files are attached right now"
+    ; "  /clearfiles clear those attached files"
+    ; "  /admin ...  ask the assistant to change AegisLM or local settings safely"
+    ; "  /package    build a distributable package for this operating system"
     ]
   ;;
 
@@ -76,9 +96,19 @@ module Text = struct
   let interrupted_message = "Interrupted. The starter is ready for another command."
   let terminal_ready =
     "Line editing is enabled: arrows, history, and tab completion are available in the starter."
+  let tools_intro = "Use /file PATH to send one local text file with your next question."
+  let assistant_capabilities_system_prompt =
+    "You are the assistant inside the AegisLM starter terminal. The user can use local starter commands such as /help, /tools, /file PATH, /files, /clearfiles, /admin TEXT, /package, /model, /models, /swap NAME, /providers, /env, /memory, /thread on, /thread off, and /quit. If the user asks how to send a file, explain /file PATH and /files instead of saying file upload is impossible."
   let swap_usage = "/swap expects a configured public model name, for example: /swap claude-sonnet"
   let thread_usage = "/thread expects on or off, for example: /thread off"
   let admin_usage = Admin_assistant_constants.Text.usage
+  let file_usage = "/file expects a readable local file path, for example: /file README.md"
+  let file_attached path = Fmt.str "Attached for the next prompt: %s" path
+  let files_cleared = "Attached files were cleared."
+  let files_empty = "No file is attached right now."
+  let files_will_be_used = "The next normal prompt will include the attached file content."
+  let binary_file_rejected =
+    "Binary files are not supported by /file yet. Use /admin if you need a more advanced local workflow."
   let package_intro = Starter_packaging_constants.Text.package_intro
   let memory_enabled = "Conversation memory is enabled."
   let memory_disabled = "Conversation memory is disabled. New prompts are sent without thread history."
