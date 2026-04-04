@@ -25,6 +25,7 @@ let provider_kind_to_string = function
   | Config.Openai_compat -> "openai_compat"
   | Config.Anthropic -> "anthropic"
   | Config.Google_openai -> "google_openai"
+  | Config.Ollama_openai -> "ollama_openai"
   | Config.Alibaba_openai -> "alibaba_openai"
   | Config.Moonshot_openai -> "moonshot_openai"
   | Config.Aegis_peer -> "aegis_peer"

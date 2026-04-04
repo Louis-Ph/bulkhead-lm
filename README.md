@@ -247,6 +247,7 @@ Example route families currently implemented:
 - `openai_compat`
 - `anthropic`
 - `google_openai`
+- `ollama_openai`
 - `alibaba_openai`
 - `moonshot_openai`
 - `aegis_peer`
@@ -259,6 +260,27 @@ The bundled example config includes:
 - `gemini-2.5-flash` via Google's OpenAI-compatible interface
 - `qwen-plus` via Alibaba Model Studio OpenAI-compatible mode
 - `kimi-k2.5` via Moonshot's OpenAI-compatible interface
+
+Ollama is also supported through its OpenAI-compatible interface, for example on `http://127.0.0.1:11434/v1` with a local model such as `llama3.2`.
+
+It is not enabled in the bundled example config because the default fail-closed egress policy blocks loopback and private-range upstreams. To use Ollama intentionally, relax the egress policy for your deployment and add a route such as:
+
+```json
+{
+  "public_model": "llama3.2-local",
+  "backends": [
+    {
+      "provider_id": "ollama-local",
+      "provider_kind": "ollama_openai",
+      "upstream_model": "llama3.2",
+      "api_base": "http://127.0.0.1:11434/v1",
+      "api_key_env": "OLLAMA_API_KEY"
+    }
+  ]
+}
+```
+
+Set `OLLAMA_API_KEY=ollama` when using that interface. Ollama documents that this key is required by client tooling but ignored by the local server.
 
 Use the Beijing DashScope base instead of the international base when you intentionally deploy against the mainland China region.
 
