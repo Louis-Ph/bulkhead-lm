@@ -232,16 +232,24 @@ reset_build_log() {
   BUILD_LOG=""
 }
 
-find_local_client_runner() {
+find_packaged_client_runner() {
   if [ -x "$ROOT_DIR/bin/aegislm-client" ]; then
     printf '%s\n' "$ROOT_DIR/bin/aegislm-client"
     return 0
   fi
+  return 1
+}
+
+find_built_client_runner() {
   if [ -x "$ROOT_DIR/_build/default/bin/client.exe" ]; then
     printf '%s\n' "$ROOT_DIR/_build/default/bin/client.exe"
     return 0
   fi
   return 1
+}
+
+find_local_client_runner() {
+  find_built_client_runner || find_packaged_client_runner
 }
 
 ensure_project_buildable() {
@@ -323,7 +331,14 @@ run_with_local_switch() {
 
 starter_exec_client() {
   cd "$ROOT_DIR"
-  client_runner=$(find_local_client_runner || true)
+  client_runner=$(find_built_client_runner || true)
+  if [ -n "$client_runner" ]; then
+    exec "$client_runner" starter \
+      --config "$DEFAULT_CONFIG" \
+      --starter-output "$STARTER_OUTPUT" \
+      "$@"
+  fi
+  client_runner=$(find_packaged_client_runner || true)
   if [ -n "$client_runner" ]; then
     exec "$client_runner" starter \
       --config "$DEFAULT_CONFIG" \
@@ -345,7 +360,7 @@ starter_main() {
     platform_validate_host || exit 1
   fi
 
-  if find_local_client_runner >/dev/null 2>&1; then
+  if find_packaged_client_runner >/dev/null 2>&1; then
     starter_exec_client "$@"
   fi
 
