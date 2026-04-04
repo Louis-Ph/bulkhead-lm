@@ -69,6 +69,7 @@ The starter:
 - can offer Homebrew, `apt`, or `pkg` bootstrap steps instead of dropping raw OCaml build errors on a beginner
 - reuses your configured provider keys from the shell environment
 - asks which configured model you want to use now
+- can generate a starter config that expands one provider key into several curated model routes for that provider
 - can build a personal portable JSON config at `config/starter.gateway.json`
 - uses real line editing in the human starter: left/right arrows, in-line edits, history recall, and tab completion
 - keeps a followed conversation thread by default and compresses older turns into a shorter memory summary when the session grows
@@ -282,16 +283,16 @@ Example route families currently implemented:
 - `aegis_peer`
 - `aegis_ssh_peer`
 
-The bundled example config includes:
+The bundled example config now exposes several curated public routes per cloud provider, so one upstream provider key can unlock several routed models. The current example includes:
 
-- `gpt-5-mini` via OpenAI
-- `claude-sonnet` via Anthropic
-- `gemini-2.5-flash` via Google's OpenAI-compatible interface
-- `mistral-small` via Mistral's API
-- `qwen-plus` via Alibaba Model Studio OpenAI-compatible mode
-- `kimi-k2.5` via Moonshot's OpenAI-compatible interface
+- OpenAI: `gpt-5`, `gpt-5-mini`, `gpt-5-nano`
+- Anthropic: `claude-opus`, `claude-sonnet`, `claude-haiku`
+- Google Gemini: `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`
+- Mistral: `mistral-medium`, `mistral-small`, `codestral`
+- Alibaba Qwen: `qwen-max`, `qwen-plus`, `qwen-turbo`
+- Moonshot Kimi: `kimi-latest`, `kimi-k2`, `kimi-k2.5`
 
-Mistral is supported through its API at `https://api.mistral.ai/v1`. The bundled example uses `mistral-small-latest` behind the public route `mistral-small`.
+These curated route families were last aligned with official provider docs on `2026-04-04`. They are not a claim that AegisLM enumerates every upstream model a provider may ever expose.
 
 Ollama is also supported through its OpenAI-compatible interface, for example on `http://127.0.0.1:11434/v1` with a local model such as `llama3.2`.
 

@@ -45,6 +45,7 @@ module Text = struct
 
   let builder_intro_lines =
     [ "The generated JSON is portable across operating systems: it stores env var names, not upstream secrets."
+    ; "Selecting one provider includes several curated model routes for that provider key."
     ]
   ;;
 

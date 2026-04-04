@@ -1656,6 +1656,71 @@ let starter_profile_masks_environment_values_test _switch () =
   | None -> Alcotest.fail "expected OPENAI_API_KEY status"
 ;;
 
+let starter_profile_exposes_multiple_models_per_provider_test _switch () =
+  let counts =
+    Aegis_lm.Starter_profile.presets
+    |> List.fold_left
+         (fun acc (preset : Aegis_lm.Starter_profile.provider_preset) ->
+           let current =
+             match List.assoc_opt preset.provider_key acc with
+             | Some value -> value
+             | None -> 0
+           in
+           (preset.provider_key, current + 1)
+           :: List.remove_assoc preset.provider_key acc)
+         []
+  in
+  let expect provider_key =
+    match List.assoc_opt provider_key counts with
+    | Some count -> Alcotest.(check bool) provider_key true (count >= 3)
+    | None -> Alcotest.failf "missing provider family %s" provider_key
+  in
+  List.iter expect [ "anthropic"; "openai"; "google"; "mistral"; "alibaba"; "moonshot" ];
+  Lwt.return_unit
+;;
+
+let example_gateway_exposes_multiple_models_per_provider_test _switch () =
+  let project_root = Filename.dirname (Filename.dirname (Filename.dirname (Sys.getcwd ()))) in
+  let example_path =
+    Filename.concat (Filename.concat project_root "config") "example.gateway.json"
+  in
+  match Aegis_lm.Config.load example_path with
+  | Error err -> Alcotest.failf "failed to load example config: %s" err
+  | Ok config ->
+    let counts =
+      config.Aegis_lm.Config.routes
+      |> List.fold_left
+           (fun acc (route : Aegis_lm.Config.route) ->
+             match route.backends with
+             | backend :: _ ->
+               let key =
+                 match backend.provider_kind with
+                 | Aegis_lm.Config.Anthropic -> "anthropic"
+                 | Aegis_lm.Config.Openai_compat -> "openai"
+                 | Aegis_lm.Config.Google_openai -> "google"
+                 | Aegis_lm.Config.Mistral_openai -> "mistral"
+                 | Aegis_lm.Config.Alibaba_openai -> "alibaba"
+                 | Aegis_lm.Config.Moonshot_openai -> "moonshot"
+                 | _ -> "other"
+               in
+               let current =
+                 match List.assoc_opt key acc with
+                 | Some value -> value
+                 | None -> 0
+               in
+               (key, current + 1) :: List.remove_assoc key acc
+             | [] -> acc)
+           []
+    in
+    let expect provider_key =
+      match List.assoc_opt provider_key counts with
+      | Some count -> Alcotest.(check bool) provider_key true (count >= 3)
+      | None -> Alcotest.failf "example config missing provider family %s" provider_key
+    in
+    List.iter expect [ "anthropic"; "openai"; "google"; "mistral"; "alibaba"; "moonshot" ];
+    Lwt.return_unit
+;;
+
 let starter_profile_splits_ready_and_missing_routes_test _switch () =
   let config =
     Aegis_lm.Config_test_support.sample_config
@@ -2268,6 +2333,14 @@ let tests =
       "starter profile masks environment values"
       `Quick
       starter_profile_masks_environment_values_test
+  ; Alcotest_lwt.test_case
+      "starter profile exposes multiple models per provider"
+      `Quick
+      starter_profile_exposes_multiple_models_per_provider_test
+  ; Alcotest_lwt.test_case
+      "example gateway exposes multiple models per provider"
+      `Quick
+      example_gateway_exposes_multiple_models_per_provider_test
   ; Alcotest_lwt.test_case
       "starter profile splits ready and missing routes"
       `Quick

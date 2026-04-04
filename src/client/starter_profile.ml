@@ -1,5 +1,7 @@
 type provider_preset =
-  { key : string
+  { provider_key : string
+  ; key : string
+  ; provider_label : string
   ; label : string
   ; public_model : string
   ; provider_id : string
@@ -33,6 +35,40 @@ let provider_kind_to_string = function
   | Config.Aegis_ssh_peer -> "aegis_ssh_peer"
 ;;
 
+let normalize_id_part value =
+  let buffer = Buffer.create (String.length value) in
+  let push_dash_if_needed () =
+    if Buffer.length buffer > 0 && Buffer.nth buffer (Buffer.length buffer - 1) <> '-'
+    then Buffer.add_char buffer '-'
+  in
+  String.iter
+    (fun ch ->
+      match ch with
+      | 'a' .. 'z' | '0' .. '9' -> Buffer.add_char buffer ch
+      | 'A' .. 'Z' -> Buffer.add_char buffer (Char.lowercase_ascii ch)
+      | _ -> push_dash_if_needed ())
+    value;
+  let normalized = Buffer.contents buffer in
+  let length = String.length normalized in
+  let rec left index =
+    if index >= length
+    then length
+    else if normalized.[index] = '-'
+    then left (index + 1)
+    else index
+  in
+  let rec right index =
+    if index < 0
+    then -1
+    else if normalized.[index] = '-'
+    then right (index - 1)
+    else index
+  in
+  let start = left 0 in
+  let stop = right (length - 1) in
+  if start > stop then "model" else String.sub normalized start (stop - start + 1)
+;;
+
 let non_empty_env lookup name =
   match lookup name with
   | Some value when String.trim value <> "" -> true
@@ -47,62 +83,32 @@ let trimmed_env_value lookup name =
   | None -> None
 ;;
 
+let preset_of_family_model (family : Starter_model_catalog.provider_family) model =
+  let normalized_model = normalize_id_part model.Starter_model_catalog.public_model in
+  { provider_key = family.key
+  ; key = family.key ^ ":" ^ model.key
+  ; provider_label = family.label
+  ; label = Fmt.str "%s %s" family.label model.label
+  ; public_model = model.public_model
+  ; provider_id = Fmt.str "%s-%s" family.provider_id_prefix normalized_model
+  ; provider_kind = family.provider_kind
+  ; upstream_model = model.upstream_model
+  ; api_base = family.api_base
+  ; api_key_env = family.api_key_env
+  }
+;;
+
+let provider_families = Starter_model_catalog.provider_families
+
 let presets =
-  [ { key = "anthropic"
-    ; label = "Anthropic Claude Sonnet"
-    ; public_model = "claude-sonnet"
-    ; provider_id = "anthropic-primary"
-    ; provider_kind = Config.Anthropic
-    ; upstream_model = "claude-sonnet-4-5-20250929"
-    ; api_base = "https://api.anthropic.com/v1"
-    ; api_key_env = "ANTHROPIC_API_KEY"
-    }
-  ; { key = "openai"
-    ; label = "OpenAI GPT-5 mini"
-    ; public_model = "gpt-5-mini"
-    ; provider_id = "openai-primary"
-    ; provider_kind = Config.Openai_compat
-    ; upstream_model = "gpt-5-mini"
-    ; api_base = "https://api.openai.com/v1"
-    ; api_key_env = "OPENAI_API_KEY"
-    }
-  ; { key = "google"
-    ; label = "Google Gemini 2.5 Flash"
-    ; public_model = "gemini-2.5-flash"
-    ; provider_id = "google-primary"
-    ; provider_kind = Config.Google_openai
-    ; upstream_model = "gemini-2.5-flash"
-    ; api_base = "https://generativelanguage.googleapis.com/v1beta/openai/"
-    ; api_key_env = "GOOGLE_API_KEY"
-    }
-  ; { key = "mistral"
-    ; label = "Mistral Small"
-    ; public_model = "mistral-small"
-    ; provider_id = "mistral-primary"
-    ; provider_kind = Config.Mistral_openai
-    ; upstream_model = "mistral-small-latest"
-    ; api_base = "https://api.mistral.ai/v1"
-    ; api_key_env = "MISTRAL_API_KEY"
-    }
-  ; { key = "alibaba"
-    ; label = "Alibaba Qwen Plus"
-    ; public_model = "qwen-plus"
-    ; provider_id = "alibaba-primary"
-    ; provider_kind = Config.Alibaba_openai
-    ; upstream_model = "qwen-plus"
-    ; api_base = "https://dashscope-intl.aliyuncs.com/compatible-mode/v1"
-    ; api_key_env = "DASHSCOPE_API_KEY"
-    }
-  ; { key = "moonshot"
-    ; label = "Moonshot Kimi K2.5"
-    ; public_model = "kimi-k2.5"
-    ; provider_id = "moonshot-primary"
-    ; provider_kind = Config.Moonshot_openai
-    ; upstream_model = "kimi-k2.5"
-    ; api_base = "https://api.moonshot.ai/v1"
-    ; api_key_env = "MOONSHOT_API_KEY"
-    }
-  ]
+  provider_families
+  |> List.concat_map (fun (family : Starter_model_catalog.provider_family) ->
+    List.map (preset_of_family_model family) family.models)
+;;
+
+let presets_for_provider_key provider_key =
+  presets
+  |> List.filter (fun (preset : provider_preset) -> String.equal preset.provider_key provider_key)
 ;;
 
 let preset_is_ready ?(lookup = Sys.getenv_opt) (preset : provider_preset) =
@@ -138,7 +144,8 @@ let client_env_names = [ "AEGISLM_API_KEY"; "AEGISLM_AUTHORIZATION" ]
 
 let relevant_env_names () =
   client_env_names
-  @ (presets |> List.map (fun (preset : provider_preset) -> preset.api_key_env))
+  @ (provider_families
+    |> List.map (fun (family : Starter_model_catalog.provider_family) -> family.api_key_env))
   |> List.sort_uniq String.compare
 ;;
 

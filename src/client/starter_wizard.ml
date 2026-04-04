@@ -210,33 +210,44 @@ let build_starter_config ~output_path =
   print_wrapped Starter_constants.Text.builder_title;
   print_wrapped_lines Starter_constants.Text.builder_intro_lines;
   let selected_presets =
-    Starter_profile.presets
-    |> List.filter_map (fun preset ->
-      let ready = Starter_profile.preset_is_ready preset in
+    Starter_profile.provider_families
+    |> List.concat_map (fun (family : Starter_model_catalog.provider_family) ->
+      let family_presets = Starter_profile.presets_for_provider_key family.key in
+      let sample_models =
+        family_presets
+        |> List.map (fun (preset : Starter_profile.provider_preset) -> preset.public_model)
+        |> String.concat ", "
+      in
+      let ready = Starter_profile.non_empty_env Sys.getenv_opt family.api_key_env in
       let default = ready in
       let label =
         if ready
         then
           Fmt.str
-            "Include %s (detected via %s)"
-            (Starter_profile.preset_summary preset)
-            preset.api_key_env
+            "Include %s (%d model routes: %s, detected via %s)"
+            family.label
+            (List.length family_presets)
+            sample_models
+            family.api_key_env
         else
           Fmt.str
-            "Include %s (no %s detected yet)"
-            (Starter_profile.preset_summary preset)
-            preset.api_key_env
+            "Include %s (%d model routes: %s, no %s detected yet)"
+            family.label
+            (List.length family_presets)
+            sample_models
+            family.api_key_env
       in
       if prompt_yes_no ~default label
       then (
         let api_key_env =
           if ready
-          then preset.api_key_env
-          else prompt ~default:preset.api_key_env (Fmt.str "Environment variable for %s" preset.label)
+          then family.api_key_env
+          else prompt ~default:family.api_key_env (Fmt.str "Environment variable for %s" family.label)
         in
         if not ready then maybe_capture_session_key api_key_env;
-        Some (Starter_profile.preset_with_api_key_env preset api_key_env))
-      else None)
+        family_presets
+        |> List.map (fun preset -> Starter_profile.preset_with_api_key_env preset api_key_env))
+      else [])
   in
   if selected_presets = []
   then Error "No provider was selected."
