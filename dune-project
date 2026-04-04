@@ -11,7 +11,7 @@
 
 (maintainers "Louis-Ph")
 
-(license Proprietary)
+(license Apache-2.0)
 
 (package
  (name aegis_lm)

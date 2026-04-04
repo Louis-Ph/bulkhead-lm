@@ -7,6 +7,12 @@ changes. Contributions are welcome, but they should preserve the design goals of
 the repository instead of adding convenience layers that hide control flow or
 security behavior.
 
+## Licensing
+
+- this repository is licensed under Apache-2.0
+- by intentionally submitting a contribution for inclusion in AegisLM, you agree that it may be distributed under the Apache License 2.0, consistent with Section 5 of [LICENSE](LICENSE)
+- if you are contributing on behalf of an employer or another rights holder, make sure you are authorized to do so before opening the pull request
+
 ## Before you start
 
 - open an issue before large features, new provider families, or major refactors

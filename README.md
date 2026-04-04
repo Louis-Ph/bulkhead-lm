@@ -393,4 +393,4 @@ dune build @runtest
 
 ## License
 
-This repository currently ships under a proprietary license. See [LICENSE](LICENSE).
+AegisLM is licensed under the Apache License 2.0. See [LICENSE](LICENSE).

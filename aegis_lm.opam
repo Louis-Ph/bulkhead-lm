@@ -5,7 +5,7 @@ description:
   "A hierarchical, security-first OCaml LLM gateway with routing, budgets, virtual keys, and provider adapters."
 maintainer: ["Louis-Ph"]
 authors: ["Louis-Ph"]
-license: "Proprietary"
+license: "Apache-2.0"
 homepage: "https://github.com/Louis-Ph/aegis-lm"
 bug-reports: "https://github.com/Louis-Ph/aegis-lm/issues"
 depends: [
