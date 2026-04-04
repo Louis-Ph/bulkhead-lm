@@ -19,6 +19,9 @@ module Command = struct
   let file = "/file"
   let files = "/files"
   let clearfiles = "/clearfiles"
+  let explore = "/explore"
+  let open_file = "/open"
+  let run = "/run"
 end
 
 module Defaults = struct
@@ -35,6 +38,8 @@ module Defaults = struct
   let conversation_summary_max_chars = 2_200
   let attachment_max_bytes = 32_000
   let line_editor_multiline = false
+  let local_tool_file_preview_chars = 12_000
+  let local_tool_exec_preview_chars = 12_000
 end
 
 module Text = struct
@@ -75,6 +80,9 @@ module Text = struct
     ; "  /file PATH  attach one local text file to the next prompt"
     ; "  /files      list files attached to the next prompt"
     ; "  /clearfiles remove attached files before the next prompt"
+    ; "  /explore    list a directory inside the allowed local roots"
+    ; "  /open PATH  show one local text file inside the allowed local roots"
+    ; "  /run CMD    execute one local command inside the allowed working roots"
     ; "  /config     show the current config path"
     ; "  /help       show this help"
     ; "  /quit       exit the starter"
@@ -86,6 +94,9 @@ module Text = struct
     ; "  /file PATH  read one local text file and attach it to the next prompt"
     ; "  /files      show which files are attached right now"
     ; "  /clearfiles clear those attached files"
+    ; "  /explore .  list files and folders in the current allowed root"
+    ; "  /open PATH  preview one local text file"
+    ; "  /run CMD    execute one local command without a shell"
     ; "  /admin ...  ask the assistant to change AegisLM or local settings safely"
     ; "  /package    build a distributable package for this operating system"
     ]
@@ -98,11 +109,14 @@ module Text = struct
     "Line editing is enabled: arrows, history, and tab completion are available in the starter."
   let tools_intro = "Use /file PATH to send one local text file with your next question."
   let assistant_capabilities_system_prompt =
-    "You are the assistant inside the AegisLM starter terminal. The user can use local starter commands such as /help, /tools, /file PATH, /files, /clearfiles, /admin TEXT, /package, /model, /models, /swap NAME, /providers, /env, /memory, /thread on, /thread off, and /quit. If the user asks how to send a file, explain /file PATH and /files instead of saying file upload is impossible."
+    "You are the assistant inside the AegisLM starter terminal. The user can use local starter commands such as /help, /tools, /file PATH, /files, /clearfiles, /explore PATH, /open PATH, /run CMD, /admin TEXT, /package, /model, /models, /swap NAME, /providers, /env, /memory, /thread on, /thread off, and /quit. If the user asks how to send a file, explain /file PATH and /files instead of saying file upload is impossible. If the user asks to inspect local files or run a local command, mention /explore, /open, or /run."
   let swap_usage = "/swap expects a configured public model name, for example: /swap claude-sonnet"
   let thread_usage = "/thread expects on or off, for example: /thread off"
   let admin_usage = Admin_assistant_constants.Text.usage
   let file_usage = "/file expects a readable local file path, for example: /file README.md"
+  let explore_usage = "/explore expects a directory path or defaults to ., for example: /explore src"
+  let open_usage = "/open expects a readable local file path, for example: /open README.md"
+  let run_usage = "/run expects a command, for example: /run /bin/ls -la"
   let file_attached path = Fmt.str "Attached for the next prompt: %s" path
   let files_cleared = "Attached files were cleared."
   let files_empty = "No file is attached right now."

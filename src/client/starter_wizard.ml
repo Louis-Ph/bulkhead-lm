@@ -403,6 +403,9 @@ let starter_commands () =
   ; Starter_constants.Command.file
   ; Starter_constants.Command.files
   ; Starter_constants.Command.clearfiles
+  ; Starter_constants.Command.explore
+  ; Starter_constants.Command.open_file
+  ; Starter_constants.Command.run
   ; Starter_constants.Command.thread
   ; Starter_constants.Command.swap
   ; Starter_constants.Command.quit
@@ -469,6 +472,12 @@ let attach_local_file runtime path =
     then print_wrapped Starter_constants.Text.binary_file_rejected
     else print_wrapped message;
     runtime
+;;
+
+let run_local_tool_lines lines =
+  match lines with
+  | [] -> print_line ""
+  | _ -> print_lines lines
 ;;
 
 let print_memory_status state runtime =
@@ -854,6 +863,15 @@ let rec repl store ~authorization state runtime =
       ~authorization
       next_state
       (Starter_runtime.clear_pending_attachments runtime)
+  | Starter_session.Explore_local_path path ->
+    run_local_tool_lines (Starter_local_tools.explore store ~authorization path);
+    repl store ~authorization next_state runtime
+  | Starter_session.Open_local_path path ->
+    run_local_tool_lines (Starter_local_tools.open_file store ~authorization path);
+    repl store ~authorization next_state runtime
+  | Starter_session.Run_local_command command ->
+    run_local_tool_lines (Starter_local_tools.run_command store ~authorization command);
+    repl store ~authorization next_state runtime
   | Starter_session.Update_thread enabled ->
     print_wrapped
       (if enabled

@@ -17,6 +17,9 @@ type command =
   | Attach_file of string
   | Show_pending_files
   | Clear_pending_files
+  | Explore_path of string
+  | Open_path of string
+  | Run_command of string
   | Quit
   | Set_thread of bool
   | Swap_model of string
@@ -53,6 +56,9 @@ type effect =
   | Attach_local_file of string
   | List_pending_files
   | Reset_pending_files
+  | Explore_local_path of string
+  | Open_local_path of string
+  | Run_local_command of string
   | Update_thread of bool
   | Exit
   | Print_message of string
@@ -76,6 +82,9 @@ let parse_command input =
   let swap_prefix = Starter_constants.Command.swap ^ " " in
   let thread_prefix = Starter_constants.Command.thread ^ " " in
   let file_prefix = Starter_constants.Command.file ^ " " in
+  let explore_prefix = Starter_constants.Command.explore ^ " " in
+  let open_prefix = Starter_constants.Command.open_file ^ " " in
+  let run_prefix = Starter_constants.Command.run ^ " " in
   if trimmed = ""
   then Empty
   else if String.equal trimmed Starter_constants.Command.help
@@ -108,6 +117,12 @@ let parse_command input =
   then Show_pending_files
   else if String.equal trimmed Starter_constants.Command.clearfiles
   then Clear_pending_files
+  else if String.equal trimmed Starter_constants.Command.explore
+  then Explore_path "."
+  else if String.equal trimmed Starter_constants.Command.open_file
+  then Invalid Starter_constants.Text.open_usage
+  else if String.equal trimmed Starter_constants.Command.run
+  then Invalid Starter_constants.Text.run_usage
   else if String.equal trimmed Starter_constants.Command.quit
   then Quit
   else if String.equal trimmed Starter_constants.Command.thread
@@ -140,6 +155,21 @@ let parse_command input =
     let offset = String.length file_prefix in
     let path = String.sub trimmed offset (String.length trimmed - offset) |> String.trim in
     if path = "" then Invalid Starter_constants.Text.file_usage else Attach_file path
+  else if String.starts_with ~prefix:explore_prefix trimmed
+  then
+    let offset = String.length explore_prefix in
+    let path = String.sub trimmed offset (String.length trimmed - offset) |> String.trim in
+    if path = "" then Explore_path "." else Explore_path path
+  else if String.starts_with ~prefix:open_prefix trimmed
+  then
+    let offset = String.length open_prefix in
+    let path = String.sub trimmed offset (String.length trimmed - offset) |> String.trim in
+    if path = "" then Invalid Starter_constants.Text.open_usage else Open_path path
+  else if String.starts_with ~prefix:run_prefix trimmed
+  then
+    let offset = String.length run_prefix in
+    let command = String.sub trimmed offset (String.length trimmed - offset) |> String.trim in
+    if command = "" then Invalid Starter_constants.Text.run_usage else Run_command command
   else Prompt trimmed
 ;;
 
@@ -166,6 +196,9 @@ let step state input =
   | Ready context, Attach_file path -> Ready context, Attach_local_file path
   | Ready context, Show_pending_files -> Ready context, List_pending_files
   | Ready context, Clear_pending_files -> Ready context, Reset_pending_files
+  | Ready context, Explore_path path -> Ready context, Explore_local_path path
+  | Ready context, Open_path path -> Ready context, Open_local_path path
+  | Ready context, Run_command command -> Ready context, Run_local_command command
   | Ready context, Set_thread enabled ->
     Ready { context with conversation_enabled = enabled }, Update_thread enabled
   | Ready _, Quit -> Closed, Exit

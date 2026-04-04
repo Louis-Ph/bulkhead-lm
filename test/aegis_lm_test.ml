@@ -1810,6 +1810,21 @@ let starter_session_parses_beginner_commands_test _switch () =
   (match Aegis_lm.Starter_session.parse_command "/clearfiles" with
    | Aegis_lm.Starter_session.Clear_pending_files -> ()
    | _ -> Alcotest.fail "expected /clearfiles command");
+  (match Aegis_lm.Starter_session.parse_command "/explore src" with
+   | Aegis_lm.Starter_session.Explore_path path ->
+     Alcotest.(check string) "explore path" "src" path
+   | _ -> Alcotest.fail "expected /explore command");
+  (match Aegis_lm.Starter_session.parse_command "/explore" with
+   | Aegis_lm.Starter_session.Explore_path "." -> ()
+   | _ -> Alcotest.fail "expected /explore default path");
+  (match Aegis_lm.Starter_session.parse_command "/open README.md" with
+   | Aegis_lm.Starter_session.Open_path path ->
+     Alcotest.(check string) "open path" "README.md" path
+   | _ -> Alcotest.fail "expected /open command");
+  (match Aegis_lm.Starter_session.parse_command "/run /bin/ls -la" with
+   | Aegis_lm.Starter_session.Run_command command ->
+     Alcotest.(check string) "run command" "/bin/ls -la" command
+   | _ -> Alcotest.fail "expected /run command");
   (match Aegis_lm.Starter_session.parse_command "/swap claude-sonnet" with
    | Aegis_lm.Starter_session.Swap_model model ->
      Alcotest.(check string) "swap target" "claude-sonnet" model
@@ -1863,6 +1878,21 @@ let starter_attachment_injects_file_content_into_prompt_test _switch () =
   Alcotest.(check bool) "mentions file content" true (contains ~sub:"alpha\nbeta" prompt);
   Alcotest.(check bool) "mentions user request" true (contains ~sub:"summarize this" prompt);
   Lwt.return_unit
+;;
+
+let starter_local_tools_parse_exec_words_test _switch () =
+  match
+    Aegis_lm.Starter_local_tools.parse_exec_words
+      {|/bin/echo "hello world" 'again two' plain|}
+  with
+  | Error message -> Alcotest.failf "expected parsed command, got error: %s" message
+  | Ok plan ->
+    Alcotest.(check string) "command" "/bin/echo" plan.command;
+    Alcotest.(check (list string))
+      "args"
+      [ "hello world"; "again two"; "plain" ]
+      plan.args;
+    Lwt.return_unit
 ;;
 
 let starter_session_tracks_streaming_state_test _switch () =
@@ -1983,7 +2013,18 @@ let starter_conversation_request_messages_include_summary_test _switch () =
 let starter_terminal_completes_commands_and_models_test _switch () =
   let context =
     { Aegis_lm.Starter_terminal.commands =
-        [ "/help"; "/models"; "/memory"; "/swap"; "/thread"; "/quit"; "/tools"; "/file" ]
+        [ "/help"
+        ; "/models"
+        ; "/memory"
+        ; "/swap"
+        ; "/thread"
+        ; "/quit"
+        ; "/tools"
+        ; "/file"
+        ; "/explore"
+        ; "/open"
+        ; "/run"
+        ]
     ; models = [ "claude-sonnet"; "gpt-5-mini" ]
     }
   in
@@ -2015,6 +2056,13 @@ let starter_terminal_completes_commands_and_models_test _switch () =
     "tools command completion"
     [ "/tools" ]
     tool_candidates;
+  let run_candidates =
+    Aegis_lm.Starter_terminal.completion_candidates ~context "/r"
+  in
+  Alcotest.(check (list string))
+    "run command completion"
+    [ "/run" ]
+    run_candidates;
   Lwt.return_unit
 ;;
 
@@ -2406,6 +2454,10 @@ let tests =
       "starter attachment injects file content into prompt"
       `Quick
       starter_attachment_injects_file_content_into_prompt_test
+  ; Alcotest_lwt.test_case
+      "starter local tools parse exec words"
+      `Quick
+      starter_local_tools_parse_exec_words_test
   ; Alcotest_lwt.test_case
       "admin assistant parses structured plan text"
       `Quick

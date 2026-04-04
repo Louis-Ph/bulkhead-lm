@@ -270,8 +270,9 @@ It can:
 3. Let you choose a model.
 4. Open a simple chat.
 5. Let you attach a local text file with `/file PATH`.
-6. Help configure AegisLM with `/admin`.
-7. Help build a distributable package with `/package`.
+6. Let you explore folders with `/explore`, open a text file with `/open`, and run one safe local command with `/run`.
+7. Help configure AegisLM with `/admin`.
+8. Help build a distributable package with `/package`.
 
 ## Your first chat
 
@@ -298,6 +299,9 @@ what can you do for me?
 /file README.md
 /files
 /clearfiles
+/explore src
+/open README.md
+/run /bin/ls -la
 /admin enable only safe local file access in this repository
 /package
 /quit

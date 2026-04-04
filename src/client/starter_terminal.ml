@@ -99,6 +99,12 @@ let hint_for_input input =
   then Some (" Type /help for commands", LNoise.Cyan, false)
   else if prefix_matches ~prefix:Starter_constants.Command.file input
   then Some (" <path-to-local-text-file>", LNoise.Yellow, false)
+  else if prefix_matches ~prefix:Starter_constants.Command.explore input
+  then Some (" <directory-path>", LNoise.Yellow, false)
+  else if prefix_matches ~prefix:Starter_constants.Command.open_file input
+  then Some (" <file-path>", LNoise.Yellow, false)
+  else if prefix_matches ~prefix:Starter_constants.Command.run input
+  then Some (" <command and args>", LNoise.Yellow, false)
   else if prefix_matches ~prefix:Starter_constants.Command.admin input
   then Some (" <plain-language admin request>", LNoise.Yellow, false)
   else if prefix_matches ~prefix:Starter_constants.Command.package input
