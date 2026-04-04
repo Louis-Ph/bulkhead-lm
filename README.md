@@ -2,6 +2,8 @@
 
 [![CI](https://github.com/Louis-Ph/aegis-lm/actions/workflows/ci.yml/badge.svg)](https://github.com/Louis-Ph/aegis-lm/actions/workflows/ci.yml)
 
+New here? Start with the very simple guide: [readme_for_dummies.md](readme_for_dummies.md)
+
 AegisLM is a security-first LLM gateway written in OCaml. It exposes an OpenAI-compatible API, routes requests across explicit provider backends, and keeps routing, security policy, and error behavior in hierarchical JSON instead of ad-hoc runtime discovery.
 
 It targets multi-provider LLM gateway routing with a stricter design bias: explicit module boundaries, explicit provider registration, bounded fallback, fail-closed egress, and auditable request controls.
