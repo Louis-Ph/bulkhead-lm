@@ -21,10 +21,10 @@ Then AegisLM asks you simple questions and opens a chat.
 | macOS MacBook | Local install on the Mac |
 | Ubuntu computer | Local install on Ubuntu |
 | Windows computer | Use WSL Ubuntu, then follow the Ubuntu steps inside WSL |
-| Chromebook / ChromeOS | Best path: use the Linux Terminal if available, or use SSH to a machine already running AegisLM |
+| Chromebook / ChromeOS | Best path: use the Linux Terminal if available, or use SSH to a small cloud machine already running AegisLM |
 | FreeBSD machine | Local install on FreeBSD |
-| Android phone | Best path: connect by SSH to another machine already running AegisLM |
-| Tablet or iPad | Best path: connect by SSH to another machine already running AegisLM |
+| Android phone | Best path: connect by SSH to another machine, often a small cloud Ubuntu VM already running AegisLM |
+| Tablet or iPad | Best path: connect by SSH to another machine, often a small cloud Ubuntu VM already running AegisLM |
 
 ## Before you start: how to get a key cheaply or for free
 
@@ -211,6 +211,123 @@ If you want a fast answer instead of a big comparison, pick one of these:
 4. "I want a machine in the cloud and a premium model":
    small Ubuntu VM plus OpenAI or Anthropic key.
 
+## If your device cannot install anything, do this instead
+
+This is the rescue plan.
+
+It is also a surprisingly cool plan.
+
+You can keep using:
+
+1. a locked school Chromebook
+2. a work tablet
+3. a phone with little storage
+4. a shared family device
+
+and still get your own AegisLM machine.
+
+The trick is simple:
+
+1. rent or claim one small cloud Ubuntu machine with a promotional offer
+2. keep AegisLM and your API keys on that cloud machine
+3. reach it from your small device with SSH or a browser-based cloud console
+
+That way, your little device becomes a safe remote control, not the place where all the secrets live.
+
+Research snapshot for this no-install cloud-access section: 2026-04-04.
+
+## The most attractive no-install cloud pattern
+
+If you want the easiest idea to remember, it is this:
+
+1. Cloud machine:
+   one small Ubuntu VM on Oracle Cloud, AWS, Azure, or Alibaba Cloud
+2. Model:
+   one API key from Gemini, Mistral, OpenAI, Anthropic, or another AegisLM provider
+3. Access:
+   SSH app, Chromebook Terminal, or a cloud provider browser console
+4. Daily use:
+   run `aegislm-starter` on the cloud machine
+
+The attractive part is:
+
+1. Your phone, tablet, or Chromebook stays light.
+2. Your API keys stay in one place.
+3. You can reconnect from almost anywhere.
+4. If one device breaks, your AegisLM machine still exists.
+5. You do not need to reinstall everything every time.
+
+## The easiest secure access method
+
+The safest beginner-friendly pattern is usually:
+
+1. create the cloud machine once
+2. install AegisLM there once
+3. keep the API keys only there
+4. connect with SSH
+5. launch:
+
+```bash
+aegislm-starter
+```
+
+If you connect from another machine, the very short command is:
+
+```bash
+ssh -t your-user@your-cloud-machine 'aegislm-starter'
+```
+
+This is much better than copying API keys onto every phone, tablet, or borrowed computer.
+
+## If you cannot install even an SSH app
+
+This can still work.
+
+On some cloud providers, the browser itself can help you connect.
+
+Examples checked on 2026-04-04:
+
+1. AWS documents Session Manager, which can open an interactive browser shell on an EC2 instance.
+2. AWS also documents EC2 Instance Connect for secure SSH access.
+3. Alibaba Cloud documents Workbench, a browser-based remote connection tool for Linux instances.
+
+That means a browser alone may be enough to open your cloud machine, bootstrap AegisLM, and later keep using it.
+
+Official links:
+- [AWS Session Manager for EC2](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/connect-with-systems-manager-session-manager.html)
+- [AWS EC2 Instance Connect](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/ec2-instance-connect-methods.html)
+- [Alibaba Cloud Workbench](https://www.alibabacloud.com/help/doc-detail/163819.html)
+
+## The easy secure checklist
+
+If you use the cloud rescue plan, try to do these things:
+
+1. Prefer SSH keys over reusable passwords when the provider offers that path.
+2. Do not save API keys on the small device if you can avoid it.
+3. If the cloud provider lets you limit SSH to your own IP, do it.
+4. Do not open more ports than you need.
+5. Keep only one small machine at first.
+6. If your device is shared, log out after use.
+7. If your device is lost, revoke access from the cloud machine side.
+
+## One very easy cloud story
+
+Imagine this:
+
+1. You have only a Chromebook or tablet.
+2. You claim a cloud promotional Ubuntu machine.
+3. You open its browser console or connect with SSH.
+4. You clone AegisLM there.
+5. You put your API key in the secret file there.
+6. You run `./run.sh` once.
+7. After that, your daily command is only:
+
+```bash
+aegislm-starter
+```
+
+That is a very practical way to get "my own AI machine" without turning your little device into a server.
+
 ## Why ChromeOS, Android, and tablets are actually great for this
 
 This is one of the nicest things about AegisLM:
@@ -389,7 +506,7 @@ The easiest Android path is not a full local install.
 Do this instead:
 
 1. Have another machine already running AegisLM:
-   macOS, Ubuntu, WSL Ubuntu, or FreeBSD.
+   macOS, Ubuntu, WSL Ubuntu, FreeBSD, or one small cloud Ubuntu VM.
 2. Install any SSH app on Android.
 3. Connect to the other machine.
 4. Run:
@@ -431,7 +548,7 @@ Official links:
 Same idea as Android.
 
 1. Use any SSH app.
-2. Connect to a Mac, Ubuntu, WSL Ubuntu, or FreeBSD machine that already has AegisLM.
+2. Connect to a Mac, Ubuntu, WSL Ubuntu, FreeBSD, or small cloud Ubuntu machine that already has AegisLM.
 3. Run:
 
 ```bash
