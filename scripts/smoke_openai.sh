@@ -22,6 +22,8 @@ fi
 if [[ -z "$MODEL" ]]; then
   if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
     MODEL="claude-sonnet"
+  elif [[ -n "${MISTRAL_API_KEY:-}" ]]; then
+    MODEL="mistral-small"
   elif [[ -n "${DASHSCOPE_API_KEY:-}" ]]; then
     MODEL="qwen-plus"
   elif [[ -n "${MOONSHOT_API_KEY:-}" ]]; then

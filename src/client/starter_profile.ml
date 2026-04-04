@@ -25,6 +25,7 @@ let provider_kind_to_string = function
   | Config.Openai_compat -> "openai_compat"
   | Config.Anthropic -> "anthropic"
   | Config.Google_openai -> "google_openai"
+  | Config.Mistral_openai -> "mistral_openai"
   | Config.Ollama_openai -> "ollama_openai"
   | Config.Alibaba_openai -> "alibaba_openai"
   | Config.Moonshot_openai -> "moonshot_openai"
@@ -73,6 +74,15 @@ let presets =
     ; upstream_model = "gemini-2.5-flash"
     ; api_base = "https://generativelanguage.googleapis.com/v1beta/openai/"
     ; api_key_env = "GOOGLE_API_KEY"
+    }
+  ; { key = "mistral"
+    ; label = "Mistral Small"
+    ; public_model = "mistral-small"
+    ; provider_id = "mistral-primary"
+    ; provider_kind = Config.Mistral_openai
+    ; upstream_model = "mistral-small-latest"
+    ; api_base = "https://api.mistral.ai/v1"
+    ; api_key_env = "MISTRAL_API_KEY"
     }
   ; { key = "alibaba"
     ; label = "Alibaba Qwen Plus"

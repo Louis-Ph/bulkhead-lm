@@ -16,6 +16,7 @@
         "gpt-5-mini",
         "claude-sonnet",
         "gemini-2.5-flash",
+        "mistral-small",
         "qwen-plus",
         "kimi-k2.5"
       ]
@@ -55,6 +56,18 @@
           "upstream_model": "gemini-2.5-flash",
           "api_base": "https://generativelanguage.googleapis.com/v1beta/openai/",
           "api_key_env": "GOOGLE_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "mistral-small",
+      "backends": [
+        {
+          "provider_id": "mistral-primary",
+          "provider_kind": "mistral_openai",
+          "upstream_model": "mistral-small-latest",
+          "api_base": "https://api.mistral.ai/v1",
+          "api_key_env": "MISTRAL_API_KEY"
         }
       ]
     },

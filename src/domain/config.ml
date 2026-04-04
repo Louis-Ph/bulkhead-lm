@@ -4,6 +4,7 @@ type provider_kind =
   | Openai_compat
   | Anthropic
   | Google_openai
+  | Mistral_openai
   | Ollama_openai
   | Alibaba_openai
   | Moonshot_openai
@@ -64,6 +65,7 @@ let provider_kind_of_string = function
   | "openai_compat" -> Ok Openai_compat
   | "anthropic" -> Ok Anthropic
   | "google_openai" -> Ok Google_openai
+  | "mistral_openai" -> Ok Mistral_openai
   | "ollama_openai" -> Ok Ollama_openai
   | "alibaba_openai" -> Ok Alibaba_openai
   | "moonshot_openai" -> Ok Moonshot_openai
@@ -75,6 +77,7 @@ let provider_kind_of_string = function
 let is_openai_compatible_kind = function
   | Openai_compat
   | Google_openai
+  | Mistral_openai
   | Ollama_openai
   | Alibaba_openai
   | Moonshot_openai

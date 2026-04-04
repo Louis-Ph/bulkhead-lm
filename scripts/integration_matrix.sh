@@ -119,6 +119,14 @@ if [[ -n "${GOOGLE_API_KEY:-}" ]]; then
     '"object":"chat.completion"'
 fi
 
+if [[ -n "${MISTRAL_API_KEY:-}" ]]; then
+  assert_successful_json \
+    "mistral chat" \
+    "/v1/chat/completions" \
+    '{"model":"mistral-small","messages":[{"role":"user","content":"Reply with the single word OK."}]}' \
+    '"object":"chat.completion"'
+fi
+
 if [[ -n "${DASHSCOPE_API_KEY:-}" ]]; then
   assert_successful_json \
     "alibaba chat" \
@@ -146,6 +154,8 @@ fi
 STREAM_MODEL=""
 if [[ -n "${ANTHROPIC_API_KEY:-}" ]]; then
   STREAM_MODEL="claude-sonnet"
+elif [[ -n "${MISTRAL_API_KEY:-}" ]]; then
+  STREAM_MODEL="mistral-small"
 elif [[ -n "${DASHSCOPE_API_KEY:-}" ]]; then
   STREAM_MODEL="qwen-plus"
 elif [[ -n "${MOONSHOT_API_KEY:-}" ]]; then

@@ -673,6 +673,13 @@ let config_load_accepts_openai_compatible_provider_variants_test _switch () =
                 ; ( "backends"
                   , `List
                       [ `Assoc
+                          [ "provider_id", `String "mistral-primary"
+                          ; "provider_kind", `String "mistral_openai"
+                          ; "upstream_model", `String "mistral-small-latest"
+                          ; "api_base", `String "https://api.mistral.ai/v1"
+                          ; "api_key_env", `String "MISTRAL_API_KEY"
+                          ]
+                      ; `Assoc
                           [ "provider_id", `String "ollama-primary"
                           ; "provider_kind", `String "ollama_openai"
                           ; "upstream_model", `String "llama3.2"
@@ -732,7 +739,18 @@ let config_load_accepts_openai_compatible_provider_variants_test _switch () =
      match config.Aegis_lm.Config.routes with
      | [ route ] ->
        (match route.Aegis_lm.Config.backends with
-        | [ ollama; alibaba; moonshot; peer; ssh_peer ] ->
+        | [ mistral; ollama; alibaba; moonshot; peer; ssh_peer ] ->
+          Alcotest.(check bool)
+            "mistral kind parsed"
+            true
+            (match mistral.Aegis_lm.Config.provider_kind with
+             | Aegis_lm.Config.Mistral_openai -> true
+             | _ -> false);
+          Alcotest.(check bool)
+            "mistral kind is openai-compatible"
+            true
+            (Aegis_lm.Config.is_openai_compatible_kind
+               mistral.Aegis_lm.Config.provider_kind);
           Alcotest.(check bool)
             "ollama kind parsed"
             true
@@ -798,7 +816,7 @@ let config_load_accepts_openai_compatible_provider_variants_test _switch () =
                "machine-a.example.net"
                transport.host;
              Alcotest.(check int) "ssh remote jobs parsed" 2 transport.remote_jobs)
-        | _ -> Alcotest.fail "expected five backends")
+        | _ -> Alcotest.fail "expected six backends")
      | _ -> Alcotest.fail "expected one route");
   Lwt.return_unit
 ;;
@@ -837,6 +855,8 @@ let provider_registry_routes_new_openai_compatible_kinds_test _switch () =
         err.Aegis_lm.Domain_error.message;
       Lwt.return_unit
   in
+  assert_openai_compat Aegis_lm.Config.Mistral_openai "mistral-primary" "MISTRAL_TEST_KEY"
+  >>= fun () ->
   assert_openai_compat Aegis_lm.Config.Ollama_openai "ollama-primary" "OLLAMA_TEST_KEY"
   >>= fun () ->
   assert_openai_compat Aegis_lm.Config.Alibaba_openai "alibaba-primary" "DASHSCOPE_TEST_KEY"

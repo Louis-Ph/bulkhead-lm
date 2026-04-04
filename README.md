@@ -247,6 +247,7 @@ Example route families currently implemented:
 - `openai_compat`
 - `anthropic`
 - `google_openai`
+- `mistral_openai`
 - `ollama_openai`
 - `alibaba_openai`
 - `moonshot_openai`
@@ -258,8 +259,11 @@ The bundled example config includes:
 - `gpt-5-mini` via OpenAI
 - `claude-sonnet` via Anthropic
 - `gemini-2.5-flash` via Google's OpenAI-compatible interface
+- `mistral-small` via Mistral's API
 - `qwen-plus` via Alibaba Model Studio OpenAI-compatible mode
 - `kimi-k2.5` via Moonshot's OpenAI-compatible interface
+
+Mistral is supported through its API at `https://api.mistral.ai/v1`. The bundled example uses `mistral-small-latest` behind the public route `mistral-small`.
 
 Ollama is also supported through its OpenAI-compatible interface, for example on `http://127.0.0.1:11434/v1` with a local model such as `llama3.2`.
 
@@ -291,12 +295,13 @@ Use the Beijing DashScope base instead of the international base when you intent
 ./scripts/integration_matrix.sh
 ```
 
-`smoke_openai.sh` automatically selects, in order, `claude-sonnet`, `qwen-plus`, `kimi-k2.5`, `gemini-2.5-flash`, then `gpt-5-mini` when the corresponding provider key is present.
+`smoke_openai.sh` automatically selects, in order, `claude-sonnet`, `mistral-small`, `qwen-plus`, `kimi-k2.5`, `gemini-2.5-flash`, then `gpt-5-mini` when the corresponding provider key is present.
 
 `integration_matrix.sh` exercises:
 
 - Anthropic
 - Google Gemini through the official OpenAI-compatible interface
+- Mistral through its `/v1` API
 - Alibaba Model Studio through DashScope OpenAI-compatible mode
 - Moonshot Kimi through its OpenAI-compatible chat interface
 - OpenAI when the upstream key is available and has quota
