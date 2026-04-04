@@ -1,6 +1,7 @@
 module Command = struct
   let help = "/help"
   let admin = "/admin"
+  let package = "/package"
   let plan = "/plan"
   let apply = "/apply"
   let discard = "/discard"
@@ -50,6 +51,7 @@ module Text = struct
   let command_help_lines =
     [ "Commands:"
     ; "  /admin TEXT ask the assistant to prepare a safe admin plan"
+    ; "  /package    build a distributable package for this operating system"
     ; "  /plan       show the pending admin plan"
     ; "  /apply      apply the pending admin plan"
     ; "  /discard    drop the pending admin plan"
@@ -76,6 +78,7 @@ module Text = struct
   let swap_usage = "/swap expects a configured public model name, for example: /swap claude-sonnet"
   let thread_usage = "/thread expects on or off, for example: /thread off"
   let admin_usage = Admin_assistant_constants.Text.usage
+  let package_intro = Starter_packaging_constants.Text.package_intro
   let memory_enabled = "Conversation memory is enabled."
   let memory_disabled = "Conversation memory is disabled. New prompts are sent without thread history."
   let memory_cleared = "Conversation memory was cleared."
@@ -88,4 +91,5 @@ module Text = struct
   let admin_planning = Admin_assistant_constants.Text.planning
   let admin_applying = Admin_assistant_constants.Text.applying
   let admin_empty_plan = Admin_assistant_constants.Text.empty_plan
+  let package_failed = Starter_packaging_constants.Text.package_failed
 end

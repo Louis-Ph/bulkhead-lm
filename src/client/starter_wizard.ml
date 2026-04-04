@@ -375,6 +375,7 @@ let print_models store =
 
 let starter_commands () =
   [ Starter_constants.Command.admin
+  ; Starter_constants.Command.package
   ; Starter_constants.Command.plan
   ; Starter_constants.Command.apply
   ; Starter_constants.Command.discard
@@ -443,6 +444,106 @@ let print_pending_admin_plan runtime =
   match runtime.Starter_runtime.pending_admin_plan with
   | None -> print_wrapped Starter_constants.Text.no_admin_plan
   | Some pending_plan -> print_lines (Admin_assistant.render_pending_plan pending_plan)
+;;
+
+let prompt_non_empty ?default label =
+  let rec loop () =
+    let value = prompt ?default label |> String.trim in
+    if value = ""
+    then (
+      print_line "Please enter a value.";
+      loop ())
+    else value
+  in
+  loop ()
+;;
+
+let prompt_package_request config_path =
+  match Starter_packaging.detect_host_os () with
+  | Error message ->
+    print_wrapped message;
+    None
+  | Ok host_os ->
+    print_line "";
+    print_wrapped Starter_constants.Text.package_intro;
+    let defaults = Starter_packaging.default_request ~config_path host_os in
+    let package_name =
+      prompt_non_empty ~default:defaults.package_name "System package name"
+      |> Starter_packaging.normalize_token
+    in
+    let display_name =
+      prompt_non_empty ~default:defaults.display_name "Display name"
+    in
+    let version =
+      prompt_non_empty ~default:defaults.version "Package version"
+      |> Starter_packaging.normalize_version
+    in
+    let maintainer =
+      prompt_non_empty ~default:defaults.maintainer "Maintainer"
+    in
+    let description =
+      prompt_non_empty ~default:defaults.description "Short description"
+    in
+    let install_root =
+      prompt_non_empty ~default:defaults.install_root "Install root"
+    in
+    let wrapper_dir =
+      prompt_non_empty ~default:defaults.wrapper_dir "Wrapper directory"
+    in
+    let artifact_dir =
+      prompt_non_empty ~default:defaults.artifact_dir "Artifact directory"
+    in
+    let config_source =
+      prompt_non_empty ~default:defaults.config_source "Config file to bundle"
+    in
+    let identifier =
+      match defaults.identifier with
+      | Some default_identifier ->
+        Some (prompt_non_empty ~default:default_identifier "Package identifier")
+      | None -> None
+    in
+    Some
+      { Starter_packaging.host_os
+      ; package_name
+      ; display_name
+      ; version
+      ; maintainer
+      ; description
+      ; install_root
+      ; wrapper_dir
+      ; artifact_dir
+      ; config_source
+      ; identifier
+      }
+;;
+
+let run_package_request request =
+  let root_dir = Sys.getcwd () in
+  let on_output line =
+    print_endline line;
+    flush stdout;
+    Lwt.return_unit
+  in
+  Lwt_main.run (Starter_packaging.run_build ~root_dir request ~on_output)
+;;
+
+let rec run_guided_package_build config_path =
+  match prompt_package_request config_path with
+  | None -> ()
+  | Some request ->
+    print_line "";
+    print_lines (Starter_packaging.request_summary request);
+    if prompt_yes_no ~default:true "Start the package build now?"
+    then (
+      let result = run_package_request request in
+      match result.artifact_path, result.exit_code with
+      | Some artifact_path, 0 ->
+        print_wrapped (Starter_packaging_constants.Text.package_done artifact_path)
+      | _ ->
+        print_wrapped Starter_constants.Text.package_failed;
+        if prompt_yes_no ~default:true "Adjust the packaging settings and retry now?"
+        then run_guided_package_build config_path)
+    else ()
 ;;
 
 let refresh_store config_path =
@@ -627,6 +728,14 @@ let rec repl store ~authorization state runtime =
       | Error err ->
         print_wrapped (Domain_error.to_string err);
         Starter_session.finish_stream next_state, runtime
+    in
+    repl store ~authorization resumed_state runtime
+  | Starter_session.Begin_package_request ->
+    let resumed_state =
+      (match Starter_session.current_config_path next_state with
+       | Some config_path -> run_guided_package_build config_path
+       | None -> ());
+      Starter_session.finish_stream next_state
     in
     repl store ~authorization resumed_state runtime
   | Starter_session.Show_pending_admin_plan ->

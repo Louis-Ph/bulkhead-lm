@@ -71,8 +71,9 @@ The starter:
 - uses real line editing in the human starter: left/right arrows, in-line edits, history recall, and tab completion
 - keeps a followed conversation thread by default and compresses older turns into a shorter memory summary when the session grows
 - includes an administrative assistant that prepares explicit plans before changing AegisLM config or attempting local system actions
+- includes a guided packaging flow that can build a distributable package for macOS, Ubuntu, or FreeBSD from the same assistant terminal
 - shows masked environment and provider readiness state from inside the REPL
-- drops you into a simple terminal session with `/admin`, `/plan`, `/apply`, `/discard`, `/model`, `/models`, `/swap`, `/memory`, `/forget`, `/thread on|off`, `/providers`, `/env`, `/config`, `/help`, and `/quit`
+- drops you into a simple terminal session with `/admin`, `/package`, `/plan`, `/apply`, `/discard`, `/model`, `/models`, `/swap`, `/memory`, `/forget`, `/thread on|off`, `/providers`, `/env`, `/config`, `/help`, and `/quit`
 
 Admin assistant flow inside the starter:
 
@@ -83,6 +84,20 @@ Admin assistant flow inside the starter:
 ```
 
 The assistant uses the selected model together with the active AegisLM config, the referenced security policy, local repository documentation, and bounded local system context. It proposes structured config changes first and only falls back to `ops`-style filesystem or command actions when configuration alone is not enough.
+
+Guided packaging inside the starter:
+
+```text
+/package
+```
+
+The packaging flow detects the current supported OS, walks through package metadata step by step, bundles the selected gateway config, then launches the native package build:
+
+- macOS: `.pkg`
+- Ubuntu: `.deb`
+- FreeBSD: `.pkg`
+
+On an installed tree, the starter now prefers bundled binaries directly. On a source checkout, it falls back to `dune` as before.
 
 ## Terminal client
 

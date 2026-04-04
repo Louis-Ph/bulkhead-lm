@@ -2,6 +2,7 @@ type command =
   | Empty
   | Help
   | Admin_request of string
+  | Package_request
   | Show_admin_plan
   | Apply_admin_plan
   | Discard_admin_plan
@@ -33,6 +34,7 @@ type effect =
   | Noop
   | Show_help
   | Begin_admin_request of string
+  | Begin_package_request
   | Show_pending_admin_plan
   | Execute_pending_admin_plan
   | Drop_pending_admin_plan
@@ -69,6 +71,8 @@ let parse_command input =
   then Empty
   else if String.equal trimmed Starter_constants.Command.help
   then Help
+  else if String.equal trimmed Starter_constants.Command.package
+  then Package_request
   else if String.equal trimmed Starter_constants.Command.plan
   then Show_admin_plan
   else if String.equal trimmed Starter_constants.Command.apply
@@ -125,6 +129,7 @@ let step state input =
   | Ready context, Empty -> Ready context, Noop
   | Ready context, Help -> Ready context, Show_help
   | Ready context, Admin_request goal -> Streaming context, Begin_admin_request goal
+  | Ready context, Package_request -> Streaming context, Begin_package_request
   | Ready context, Show_admin_plan -> Ready context, Show_pending_admin_plan
   | Ready context, Apply_admin_plan -> Ready context, Execute_pending_admin_plan
   | Ready context, Discard_admin_plan -> Ready context, Drop_pending_admin_plan

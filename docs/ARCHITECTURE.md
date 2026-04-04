@@ -12,6 +12,8 @@
 - `scripts/remote_starter.sh`: remote human wrapper for SSH sessions with a TTY
 - `scripts/remote_worker.sh`: remote machine wrapper for JSONL worker traffic over SSH without a TTY
 - `scripts/remote_install.sh`: remote bootstrap wrapper that can serve a local installer or a filtered repo archive over SSH
+- `scripts/package_common.sh`: common staging and wrapper helpers for distributable package builds
+- `scripts/build_dist_package.sh`: native package builder for macOS, Ubuntu, and FreeBSD
 - `src/domain/`: business types, OpenAI-compatible JSON parsing, normalized errors
 - `src/security/`: authentication, secret redaction, egress policy, and peer mesh hop control
 - `src/runtime/`: in-memory state, budget ledger, rate limiting, routing
@@ -49,12 +51,14 @@
 - `aegislm-client starter` is an interactive wizard that can write a portable config JSON and then launch a local terminal session
 - `Admin_assistant` builds structured admin plans from the selected model, local AegisLM docs, and the active config files
 - `Admin_assistant_plan` keeps config-edit and system-action steps in a typed format before anything is applied
+- `Starter_packaging` owns host detection, package defaults, and the live package-build runner used by the starter
 - `Terminal_ops` owns the structured `ops` protocol for filesystem and command requests under explicit security-policy roots
 - `Starter_constants` centralizes the public starter command strings and defaults
 - `Starter_conversation` keeps a compressed local transcript and converts older turns into a shorter summary message
 - `Starter_runtime` isolates mutable starter session data, such as conversation memory and pending admin plans, from the finite-state command parser
 - `Starter_session` models the starter REPL as a finite-state machine with explicit `Ready`, `Streaming`, and `Closed` states plus explicit admin-plan effects
 - `Starter_terminal` owns human-facing line editing, persistent history, and slash-command/model completion
+- `/package` is a guided starter flow that builds a distributable OS-native package from either a source checkout or an installed AegisLM tree
 - `ask` and `call` are isolated per-process invocations, while `worker` is the mode intended to coordinate many concurrent local jobs through one runtime instance
 - worker outputs are serialized under a dedicated stdout lock so parallel jobs do not interleave their JSON lines
 - shared rate-limit, budget, and persistence state remain protected by the existing `Mutex` and SQLite locking strategy

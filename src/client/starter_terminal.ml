@@ -99,6 +99,8 @@ let hint_for_input input =
   then Some (" Type /help for commands", LNoise.Cyan, false)
   else if prefix_matches ~prefix:Starter_constants.Command.admin input
   then Some (" <plain-language admin request>", LNoise.Yellow, false)
+  else if prefix_matches ~prefix:Starter_constants.Command.package input
+  then Some (" build a local distributable package", LNoise.Yellow, false)
   else if prefix_matches ~prefix:Starter_constants.Command.swap input
   then Some (" <model>", LNoise.Yellow, false)
   else if prefix_matches ~prefix:Starter_constants.Command.thread input

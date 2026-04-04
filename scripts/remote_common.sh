@@ -71,6 +71,10 @@ aegislm_remote_find_client_runner() {
     printf 'bin:%s\n' "${AEGISLM_REMOTE_CLIENT_BIN}"
     return 0
   fi
+  if [ -x "${AEGISLM_REMOTE_ROOT_DIR}/bin/aegislm-client" ]; then
+    printf 'bin:%s\n' "${AEGISLM_REMOTE_ROOT_DIR}/bin/aegislm-client"
+    return 0
+  fi
   if [ -x "${AEGISLM_REMOTE_ROOT_DIR}/_build/default/bin/client.exe" ]; then
     printf 'bin:%s\n' "${AEGISLM_REMOTE_ROOT_DIR}/_build/default/bin/client.exe"
     return 0

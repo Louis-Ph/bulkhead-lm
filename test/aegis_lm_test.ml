@@ -1711,6 +1711,9 @@ let starter_session_parses_beginner_commands_test _switch () =
   (match Aegis_lm.Starter_session.parse_command "/admin" with
    | Aegis_lm.Starter_session.Invalid _ -> ()
    | _ -> Alcotest.fail "expected invalid /admin without argument");
+  (match Aegis_lm.Starter_session.parse_command "/package" with
+   | Aegis_lm.Starter_session.Package_request -> ()
+   | _ -> Alcotest.fail "expected /package command");
   (match Aegis_lm.Starter_session.parse_command "/plan" with
    | Aegis_lm.Starter_session.Show_admin_plan -> ()
    | _ -> Alcotest.fail "expected /plan command");
@@ -1915,6 +1918,60 @@ let starter_terminal_history_file_prefers_override_test _switch () =
     "history fallback path"
     "/Users/example/.aegislm/starter.history"
     fallback;
+  Lwt.return_unit
+;;
+
+let starter_packaging_detects_supported_hosts_test _switch () =
+  (match
+     Aegis_lm.Starter_packaging.host_os_of_values
+       ~uname_s:"Darwin"
+       ~os_release:""
+   with
+   | Ok Aegis_lm.Starter_packaging.Macos -> ()
+   | _ -> Alcotest.fail "expected macos host detection");
+  (match
+     Aegis_lm.Starter_packaging.host_os_of_values
+       ~uname_s:"Linux"
+       ~os_release:"ID=ubuntu\nNAME=Ubuntu\n"
+   with
+   | Ok Aegis_lm.Starter_packaging.Ubuntu -> ()
+   | _ -> Alcotest.fail "expected ubuntu host detection");
+  (match
+     Aegis_lm.Starter_packaging.host_os_of_values
+       ~uname_s:"FreeBSD"
+       ~os_release:""
+   with
+   | Ok Aegis_lm.Starter_packaging.Freebsd -> ()
+   | _ -> Alcotest.fail "expected freebsd host detection");
+  Lwt.return_unit
+;;
+
+let starter_packaging_defaults_are_os_specific_test _switch () =
+  let mac_request =
+    Aegis_lm.Starter_packaging.default_request
+      ~config_path:"config/example.gateway.json"
+      Aegis_lm.Starter_packaging.Macos
+  in
+  let ubuntu_request =
+    Aegis_lm.Starter_packaging.default_request
+      ~config_path:"config/example.gateway.json"
+      Aegis_lm.Starter_packaging.Ubuntu
+  in
+  let freebsd_request =
+    Aegis_lm.Starter_packaging.default_request
+      ~config_path:"config/example.gateway.json"
+      Aegis_lm.Starter_packaging.Freebsd
+  in
+  Alcotest.(check string) "mac install root" "/opt/aegis-lm" mac_request.install_root;
+  Alcotest.(check string) "ubuntu wrapper dir" "/usr/bin" ubuntu_request.wrapper_dir;
+  Alcotest.(check string)
+    "freebsd install root"
+    "/usr/local/lib/aegis-lm"
+    freebsd_request.install_root;
+  Alcotest.(check string)
+    "freebsd package format"
+    ".pkg"
+    (Aegis_lm.Starter_packaging.package_format_label Aegis_lm.Starter_packaging.Freebsd);
   Lwt.return_unit
 ;;
 
@@ -2255,6 +2312,14 @@ let tests =
       "starter terminal history file prefers override"
       `Quick
       starter_terminal_history_file_prefers_override_test
+  ; Alcotest_lwt.test_case
+      "starter packaging detects supported hosts"
+      `Quick
+      starter_packaging_detects_supported_hosts_test
+  ; Alcotest_lwt.test_case
+      "starter packaging defaults are os specific"
+      `Quick
+      starter_packaging_defaults_are_os_specific_test
   ]
 ;;
 

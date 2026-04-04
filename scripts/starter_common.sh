@@ -232,6 +232,18 @@ reset_build_log() {
   BUILD_LOG=""
 }
 
+find_local_client_runner() {
+  if [ -x "$ROOT_DIR/bin/aegislm-client" ]; then
+    printf '%s\n' "$ROOT_DIR/bin/aegislm-client"
+    return 0
+  fi
+  if [ -x "$ROOT_DIR/_build/default/bin/client.exe" ]; then
+    printf '%s\n' "$ROOT_DIR/_build/default/bin/client.exe"
+    return 0
+  fi
+  return 1
+}
+
 ensure_project_buildable() {
   install_prompt=$1
   if build_client; then
@@ -311,6 +323,13 @@ run_with_local_switch() {
 
 starter_exec_client() {
   cd "$ROOT_DIR"
+  client_runner=$(find_local_client_runner || true)
+  if [ -n "$client_runner" ]; then
+    exec "$client_runner" starter \
+      --config "$DEFAULT_CONFIG" \
+      --starter-output "$STARTER_OUTPUT" \
+      "$@"
+  fi
   exec dune exec aegislm-client -- starter \
     --config "$DEFAULT_CONFIG" \
     --starter-output "$STARTER_OUTPUT" \
@@ -324,6 +343,10 @@ starter_main() {
 
   if has_hook platform_validate_host; then
     platform_validate_host || exit 1
+  fi
+
+  if find_local_client_runner >/dev/null 2>&1; then
+    starter_exec_client "$@"
   fi
 
   ensure_opam
