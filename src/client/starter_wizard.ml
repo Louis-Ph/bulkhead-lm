@@ -365,6 +365,8 @@ let print_help state =
   print_wrapped_lines Starter_constants.Text.command_help_lines
 ;;
 
+let print_lines lines = List.iter print_wrapped lines
+
 let print_models store =
   print_line "";
   print_line "Configured models:";
@@ -372,7 +374,11 @@ let print_models store =
 ;;
 
 let starter_commands () =
-  [ Starter_constants.Command.help
+  [ Starter_constants.Command.admin
+  ; Starter_constants.Command.plan
+  ; Starter_constants.Command.apply
+  ; Starter_constants.Command.discard
+  ; Starter_constants.Command.help
   ; Starter_constants.Command.config
   ; Starter_constants.Command.model
   ; Starter_constants.Command.models
@@ -431,6 +437,42 @@ let print_memory_status state runtime =
   print_wrapped (Fmt.str "Compressed summary chars: %d" stats.summary_char_count);
   print_wrapped
     (Fmt.str "Estimated context chars currently sent: %d" stats.estimated_context_chars)
+;;
+
+let print_pending_admin_plan runtime =
+  match runtime.Starter_runtime.pending_admin_plan with
+  | None -> print_wrapped Starter_constants.Text.no_admin_plan
+  | Some pending_plan -> print_lines (Admin_assistant.render_pending_plan pending_plan)
+;;
+
+let refresh_store config_path =
+  match load_store config_path with
+  | Error message -> Error message
+  | Ok loaded ->
+    update_terminal_context loaded.store;
+    Ok loaded
+;;
+
+let resolve_active_model store state =
+  match Starter_session.current_model state with
+  | Some model ->
+    (match ensure_ready_model store model with
+     | Ok ready_model -> Ok ready_model
+     | Error _ -> choose_model store)
+  | None -> choose_model store
+;;
+
+let reload_after_config_apply state config_path =
+  match refresh_store config_path with
+  | Error message -> Error message
+  | Ok loaded ->
+    (match resolve_authorization loaded.store with
+     | Error err -> Error (Domain_error.to_string err)
+     | Ok authorization ->
+       (match resolve_active_model loaded.store state with
+        | Error message -> Error message
+        | Ok model ->
+          Ok (loaded.store, authorization, Starter_session.set_model state model)))
 ;;
 
 let prompt_input model =
@@ -502,6 +544,56 @@ let remember_exchange state runtime ~user response =
     Starter_runtime.update_conversation runtime conversation)
 ;;
 
+let plan_admin_request store ~authorization ~model ~config_path goal =
+  print_wrapped Starter_constants.Text.admin_planning;
+  Lwt_main.run
+    (Admin_assistant.prepare_plan store ~authorization ~model ~config_path goal)
+;;
+
+let apply_admin_plan store ~authorization ~config_path state runtime =
+  match runtime.Starter_runtime.pending_admin_plan with
+  | None ->
+    print_wrapped Starter_constants.Text.no_admin_plan;
+    store, authorization, state, runtime
+  | Some pending_plan ->
+    print_wrapped Starter_constants.Text.admin_applying;
+    (match Admin_assistant.apply_config_edits ~config_path pending_plan.plan with
+     | Error err ->
+       print_wrapped (Domain_error.to_string err);
+       store, authorization, Starter_session.finish_stream state, runtime
+     | Ok config_lines ->
+       if config_lines <> [] then print_lines config_lines;
+       let store, authorization, state =
+         if pending_plan.plan.Admin_assistant_plan.config_ops = []
+         then store, authorization, Starter_session.finish_stream state
+         else
+           (match reload_after_config_apply (Starter_session.finish_stream state) config_path with
+            | Ok (store, authorization, state) -> store, authorization, state
+            | Error message ->
+              print_wrapped message;
+              store, authorization, Starter_session.finish_stream state)
+       in
+       let runtime = Starter_runtime.clear_pending_admin_plan runtime in
+       let runtime =
+         if pending_plan.plan.Admin_assistant_plan.config_ops = []
+            && pending_plan.plan.Admin_assistant_plan.system_ops = []
+         then (
+           print_wrapped Starter_constants.Text.admin_empty_plan;
+           runtime)
+         else runtime
+       in
+       (match
+          Lwt_main.run
+            (Admin_assistant.apply_system_ops store ~authorization pending_plan.plan)
+        with
+        | Ok system_lines ->
+          if system_lines <> [] then print_lines system_lines;
+          store, authorization, state, runtime
+        | Error err ->
+          print_wrapped (Domain_error.to_string err);
+          store, authorization, state, runtime))
+;;
+
 let rec repl store ~authorization state runtime =
   let active_model =
     match Starter_session.current_model state with
@@ -521,6 +613,42 @@ let rec repl store ~authorization state runtime =
   | Starter_session.Show_help ->
     print_help next_state;
     repl store ~authorization next_state runtime
+  | Starter_session.Begin_admin_request goal ->
+    let model =
+      match Starter_session.current_model next_state with
+      | Some model -> model
+      | None -> ""
+    in
+    let resumed_state, runtime =
+      match plan_admin_request store ~authorization ~model ~config_path:(Starter_session.current_config_path next_state |> Option.value ~default:"") goal with
+      | Ok pending_plan ->
+        print_lines (Admin_assistant.render_pending_plan pending_plan);
+        Starter_session.finish_stream next_state, Starter_runtime.set_pending_admin_plan runtime (Some pending_plan)
+      | Error err ->
+        print_wrapped (Domain_error.to_string err);
+        Starter_session.finish_stream next_state, runtime
+    in
+    repl store ~authorization resumed_state runtime
+  | Starter_session.Show_pending_admin_plan ->
+    print_pending_admin_plan runtime;
+    repl store ~authorization next_state runtime
+  | Starter_session.Execute_pending_admin_plan ->
+    let store, authorization, state, runtime =
+      apply_admin_plan
+        store
+        ~authorization
+        ~config_path:(Starter_session.current_config_path next_state |> Option.value ~default:"")
+        next_state
+        runtime
+    in
+    repl store ~authorization state runtime
+  | Starter_session.Drop_pending_admin_plan ->
+    print_wrapped Starter_constants.Text.admin_discarded;
+    repl
+      store
+      ~authorization
+      next_state
+      (Starter_runtime.clear_pending_admin_plan runtime)
   | Starter_session.Show_config_path path ->
     print_line path;
     repl store ~authorization next_state runtime

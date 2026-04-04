@@ -97,6 +97,8 @@ let completion_candidates ~context input =
 let hint_for_input input =
   if input = ""
   then Some (" Type /help for commands", LNoise.Cyan, false)
+  else if prefix_matches ~prefix:Starter_constants.Command.admin input
+  then Some (" <plain-language admin request>", LNoise.Yellow, false)
   else if prefix_matches ~prefix:Starter_constants.Command.swap input
   then Some (" <model>", LNoise.Yellow, false)
   else if prefix_matches ~prefix:Starter_constants.Command.thread input

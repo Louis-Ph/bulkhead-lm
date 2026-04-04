@@ -1,6 +1,10 @@
 type command =
   | Empty
   | Help
+  | Admin_request of string
+  | Show_admin_plan
+  | Apply_admin_plan
+  | Discard_admin_plan
   | Show_config
   | Choose_model
   | Show_models
@@ -28,6 +32,10 @@ type t =
 type effect =
   | Noop
   | Show_help
+  | Begin_admin_request of string
+  | Show_pending_admin_plan
+  | Execute_pending_admin_plan
+  | Drop_pending_admin_plan
   | Show_config_path of string
   | Select_model
   | List_models
@@ -54,12 +62,19 @@ let conversation_enabled state = Option.value (Option.map (fun context -> contex
 
 let parse_command input =
   let trimmed = String.trim input in
+  let admin_prefix = Starter_constants.Command.admin ^ " " in
   let swap_prefix = Starter_constants.Command.swap ^ " " in
   let thread_prefix = Starter_constants.Command.thread ^ " " in
   if trimmed = ""
   then Empty
   else if String.equal trimmed Starter_constants.Command.help
   then Help
+  else if String.equal trimmed Starter_constants.Command.plan
+  then Show_admin_plan
+  else if String.equal trimmed Starter_constants.Command.apply
+  then Apply_admin_plan
+  else if String.equal trimmed Starter_constants.Command.discard
+  then Discard_admin_plan
   else if String.equal trimmed Starter_constants.Command.config
   then Show_config
   else if String.equal trimmed Starter_constants.Command.model
@@ -80,6 +95,13 @@ let parse_command input =
   then Invalid Starter_constants.Text.thread_usage
   else if String.equal trimmed Starter_constants.Command.swap
   then Invalid Starter_constants.Text.swap_usage
+  else if String.equal trimmed Starter_constants.Command.admin
+  then Invalid Starter_constants.Text.admin_usage
+  else if String.starts_with ~prefix:admin_prefix trimmed
+  then
+    let offset = String.length admin_prefix in
+    let goal = String.sub trimmed offset (String.length trimmed - offset) |> String.trim in
+    if goal = "" then Invalid Starter_constants.Text.admin_usage else Admin_request goal
   else if String.starts_with ~prefix:thread_prefix trimmed
   then (
     let offset = String.length thread_prefix in
@@ -102,6 +124,10 @@ let step state input =
     Streaming context, Print_message Starter_constants.Text.busy_message
   | Ready context, Empty -> Ready context, Noop
   | Ready context, Help -> Ready context, Show_help
+  | Ready context, Admin_request goal -> Streaming context, Begin_admin_request goal
+  | Ready context, Show_admin_plan -> Ready context, Show_pending_admin_plan
+  | Ready context, Apply_admin_plan -> Ready context, Execute_pending_admin_plan
+  | Ready context, Discard_admin_plan -> Ready context, Drop_pending_admin_plan
   | Ready context, Show_config -> Ready context, Show_config_path context.config_path
   | Ready context, Choose_model -> Ready context, Select_model
   | Ready context, Show_models -> Ready context, List_models

@@ -61,6 +61,13 @@ type t =
   ; virtual_keys : virtual_key list
   }
 
+type resolved_paths =
+  { gateway_config_path : string
+  ; security_policy_path : string option
+  ; error_catalog_path : string option
+  ; providers_schema_path : string option
+  }
+
 let provider_kind_of_string = function
   | "openai_compat" -> Ok Openai_compat
   | "anthropic" -> Ok Anthropic
@@ -291,6 +298,21 @@ let load_aux_file json ~base_dir ~field =
   match string_member field json with
   | Ok path -> Yojson.Safe.from_file (resolve_path ~base_dir path)
   | Error _ -> `Assoc []
+;;
+
+let resolve_related_paths path =
+  let json = Yojson.Safe.from_file path in
+  let base_dir = Filename.dirname path in
+  let resolve_optional field =
+    match string_member field json with
+    | Ok relative_or_absolute -> Some (resolve_path ~base_dir relative_or_absolute)
+    | Error _ -> None
+  in
+  { gateway_config_path = path
+  ; security_policy_path = resolve_optional "security_policy_file"
+  ; error_catalog_path = resolve_optional "error_catalog_file"
+  ; providers_schema_path = resolve_optional "providers_schema_file"
+  }
 ;;
 
 let load path =

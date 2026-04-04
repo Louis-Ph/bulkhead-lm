@@ -1,5 +1,9 @@
 module Command = struct
   let help = "/help"
+  let admin = "/admin"
+  let plan = "/plan"
+  let apply = "/apply"
+  let discard = "/discard"
   let config = "/config"
   let model = "/model"
   let models = "/models"
@@ -32,6 +36,7 @@ module Text = struct
   let intro_lines =
     [ "This path is for Mac terminal beginners."
     ; "It can reuse the repository example config, or build a personal portable JSON config that only references environment variables."
+    ; "It also includes an administrative assistant for AegisLM configuration and safe local operations."
     ]
   ;;
 
@@ -44,6 +49,10 @@ module Text = struct
 
   let command_help_lines =
     [ "Commands:"
+    ; "  /admin TEXT ask the assistant to prepare a safe admin plan"
+    ; "  /plan       show the pending admin plan"
+    ; "  /apply      apply the pending admin plan"
+    ; "  /discard    drop the pending admin plan"
     ; "  /model      choose another configured model"
     ; "  /models     list configured models"
     ; "  /swap NAME  switch directly to a configured model"
@@ -66,9 +75,17 @@ module Text = struct
     "Line editing is enabled: arrows, history, and tab completion are available in the starter."
   let swap_usage = "/swap expects a configured public model name, for example: /swap claude-sonnet"
   let thread_usage = "/thread expects on or off, for example: /thread off"
+  let admin_usage = Admin_assistant_constants.Text.usage
   let memory_enabled = "Conversation memory is enabled."
   let memory_disabled = "Conversation memory is disabled. New prompts are sent without thread history."
   let memory_cleared = "Conversation memory was cleared."
   let compression_notice archived =
     Fmt.str "Conversation memory compressed: %d older turns were summarized." archived
+  ;;
+
+  let no_admin_plan = Admin_assistant_constants.Text.no_plan
+  let admin_discarded = Admin_assistant_constants.Text.discarded
+  let admin_planning = Admin_assistant_constants.Text.planning
+  let admin_applying = Admin_assistant_constants.Text.applying
+  let admin_empty_plan = Admin_assistant_constants.Text.empty_plan
 end

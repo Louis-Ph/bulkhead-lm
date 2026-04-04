@@ -1214,6 +1214,13 @@ let with_temp_dir prefix f =
       Lwt.return_unit)
 ;;
 
+let repo_root () =
+  Sys.getcwd ()
+  |> Filename.dirname
+  |> Filename.dirname
+  |> Filename.dirname
+;;
+
 let write_fixture_file path content =
   let channel = open_out_bin path in
   Fun.protect
@@ -1694,6 +1701,25 @@ let starter_profile_splits_ready_and_missing_routes_test _switch () =
 ;;
 
 let starter_session_parses_beginner_commands_test _switch () =
+  (match Aegis_lm.Starter_session.parse_command "/admin enable local file access in this repo" with
+   | Aegis_lm.Starter_session.Admin_request goal ->
+     Alcotest.(check string)
+       "admin goal"
+       "enable local file access in this repo"
+       goal
+   | _ -> Alcotest.fail "expected /admin command");
+  (match Aegis_lm.Starter_session.parse_command "/admin" with
+   | Aegis_lm.Starter_session.Invalid _ -> ()
+   | _ -> Alcotest.fail "expected invalid /admin without argument");
+  (match Aegis_lm.Starter_session.parse_command "/plan" with
+   | Aegis_lm.Starter_session.Show_admin_plan -> ()
+   | _ -> Alcotest.fail "expected /plan command");
+  (match Aegis_lm.Starter_session.parse_command "/apply" with
+   | Aegis_lm.Starter_session.Apply_admin_plan -> ()
+   | _ -> Alcotest.fail "expected /apply command");
+  (match Aegis_lm.Starter_session.parse_command "/discard" with
+   | Aegis_lm.Starter_session.Discard_admin_plan -> ()
+   | _ -> Alcotest.fail "expected /discard command");
   (match Aegis_lm.Starter_session.parse_command "/env" with
    | Aegis_lm.Starter_session.Show_env -> ()
    | _ -> Alcotest.fail "expected /env command");
@@ -1892,6 +1918,162 @@ let starter_terminal_history_file_prefers_override_test _switch () =
   Lwt.return_unit
 ;;
 
+let admin_assistant_parses_plan_text_test _switch () =
+  let raw_response =
+    {|Plan follows:
+{"kid_summary":"Open safe local file access for this repository.","why":["AegisLM config comes first."],"warnings":["System actions remain bounded by policy."],"config_ops":[{"op":"set_json","target":"security_policy","path":"/client_ops/files/enabled","value":true},{"op":"append_json","target":"security_policy","path":"/client_ops/files/read_roots","value":"/tmp/aegis","unique":true}],"system_ops":[{"op":"list_dir","path":"."}]}
+|}
+  in
+  match Aegis_lm.Admin_assistant.parse_plan_text raw_response with
+  | Error err ->
+    Alcotest.failf
+      "expected admin plan parse success but got %s"
+      (Aegis_lm.Domain_error.to_string err)
+  | Ok plan ->
+    Alcotest.(check string)
+      "kid summary"
+      "Open safe local file access for this repository."
+      plan.Aegis_lm.Admin_assistant_plan.kid_summary;
+    Alcotest.(check int)
+      "config op count"
+      2
+      (List.length plan.Aegis_lm.Admin_assistant_plan.config_ops);
+    Alcotest.(check int)
+      "system op count"
+      1
+      (List.length plan.Aegis_lm.Admin_assistant_plan.system_ops);
+    Lwt.return_unit
+;;
+
+let starter_runtime_tracks_pending_admin_plan_test _switch () =
+  let pending_plan =
+    { Aegis_lm.Admin_assistant.goal = "enable local admin"
+    ; plan =
+        { Aegis_lm.Admin_assistant_plan.kid_summary = "Make the config easier."
+        ; why = [ "Because the user asked." ]
+        ; warnings = []
+        ; config_ops = []
+        ; system_ops = []
+        }
+    ; raw_response = "{}"
+    }
+  in
+  let runtime =
+    Aegis_lm.Starter_runtime.create ()
+    |> fun runtime -> Aegis_lm.Starter_runtime.set_pending_admin_plan runtime (Some pending_plan)
+  in
+  Alcotest.(check bool)
+    "pending plan stored"
+    true
+    (Option.is_some runtime.Aegis_lm.Starter_runtime.pending_admin_plan);
+  let runtime = Aegis_lm.Starter_runtime.clear_pending_admin_plan runtime in
+  Alcotest.(check bool)
+    "pending plan cleared"
+    false
+    (Option.is_some runtime.Aegis_lm.Starter_runtime.pending_admin_plan);
+  Lwt.return_unit
+;;
+
+let admin_assistant_applies_config_edits_test _switch () =
+  with_temp_dir "aegislm-admin-config" (fun root ->
+    let security_path = Filename.concat root "security.json" in
+    let gateway_path = Filename.concat root "gateway.json" in
+    Yojson.Safe.to_file
+      security_path
+      (Yojson.Safe.from_file
+         (Filename.concat (repo_root ()) "config/defaults/security_policy.json"));
+    Yojson.Safe.to_file
+      gateway_path
+      (`Assoc
+        [ "security_policy_file", `String "security.json"
+        ; ( "routes"
+          , `List
+              [ `Assoc
+                  [ "public_model", `String "starter-admin"
+                  ; ( "backends"
+                    , `List
+                        [ `Assoc
+                            [ "provider_id", `String "openai-primary"
+                            ; "provider_kind", `String "openai_compat"
+                            ; "upstream_model", `String "gpt-5-mini"
+                            ; "api_base", `String "https://api.example.test/v1"
+                            ; "api_key_env", `String "OPENAI_API_KEY"
+                            ] ] )
+                  ] ] )
+        ; ( "virtual_keys"
+          , `List
+              [ `Assoc
+                  [ "name", `String "local-dev"
+                  ; "token_plaintext", `String "sk-test"
+                  ; "daily_token_budget", `Int 1000
+                  ; "requests_per_minute", `Int 60
+                  ; "allowed_routes", `List [ `String "starter-admin" ]
+                  ] ] )
+        ] );
+    let plan =
+      { Aegis_lm.Admin_assistant_plan.kid_summary =
+          "Turn on local file admin only for this temporary directory."
+      ; why = [ "The config changes stay local." ]
+      ; warnings = []
+      ; config_ops =
+          [ Aegis_lm.Admin_assistant_plan.Set_json
+              { target = Aegis_lm.Admin_assistant_plan.Security_policy
+              ; path = "/client_ops/files/enabled"
+              ; value = `Bool true
+              }
+          ; Aegis_lm.Admin_assistant_plan.Append_json
+              { target = Aegis_lm.Admin_assistant_plan.Security_policy
+              ; path = "/client_ops/files/read_roots"
+              ; value = `String root
+              ; unique = true
+              }
+          ; Aegis_lm.Admin_assistant_plan.Append_json
+              { target = Aegis_lm.Admin_assistant_plan.Security_policy
+              ; path = "/client_ops/files/write_roots"
+              ; value = `String root
+              ; unique = true
+              }
+          ; Aegis_lm.Admin_assistant_plan.Set_json
+              { target = Aegis_lm.Admin_assistant_plan.Gateway_config
+              ; path = "/routes/0/public_model"
+              ; value = `String "starter-admin-ready"
+              }
+          ]
+      ; system_ops = []
+      }
+    in
+    match Aegis_lm.Admin_assistant.apply_config_edits ~config_path:gateway_path plan with
+    | Error err ->
+      Alcotest.failf
+        "expected config edits success but got %s"
+        (Aegis_lm.Domain_error.to_string err)
+    | Ok applied_lines ->
+      Alcotest.(check bool) "applied lines reported" true (applied_lines <> []);
+      (match Aegis_lm.Config.load gateway_path with
+       | Error err -> Alcotest.failf "expected reloaded config success: %s" err
+       | Ok config ->
+         (match config.Aegis_lm.Config.routes with
+          | route :: _ ->
+            Alcotest.(check string)
+              "route renamed"
+              "starter-admin-ready"
+              route.public_model
+          | [] -> Alcotest.fail "expected one route");
+         Alcotest.(check bool)
+           "file ops enabled"
+           true
+           config.security_policy.client_ops.files.enabled;
+         Alcotest.(check bool)
+           "read root added"
+           true
+           (List.mem root config.security_policy.client_ops.files.read_roots);
+         Alcotest.(check bool)
+           "write root added"
+           true
+           (List.mem root config.security_policy.client_ops.files.write_roots));
+      Lwt.return_unit)
+;;
+
 let tests =
   [ Alcotest_lwt.test_case "redacts secrets recursively" `Quick secret_redaction_test
   ; Alcotest_lwt.test_case
@@ -2037,6 +2219,18 @@ let tests =
       "starter session parses beginner commands"
       `Quick
       starter_session_parses_beginner_commands_test
+  ; Alcotest_lwt.test_case
+      "admin assistant parses structured plan text"
+      `Quick
+      admin_assistant_parses_plan_text_test
+  ; Alcotest_lwt.test_case
+      "starter runtime tracks pending admin plan"
+      `Quick
+      starter_runtime_tracks_pending_admin_plan_test
+  ; Alcotest_lwt.test_case
+      "admin assistant applies config edits"
+      `Quick
+      admin_assistant_applies_config_edits_test
   ; Alcotest_lwt.test_case
       "starter session tracks streaming state"
       `Quick

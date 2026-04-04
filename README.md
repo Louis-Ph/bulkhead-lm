@@ -70,8 +70,19 @@ The starter:
 - can build a personal portable JSON config at `config/starter.gateway.json`
 - uses real line editing in the human starter: left/right arrows, in-line edits, history recall, and tab completion
 - keeps a followed conversation thread by default and compresses older turns into a shorter memory summary when the session grows
+- includes an administrative assistant that prepares explicit plans before changing AegisLM config or attempting local system actions
 - shows masked environment and provider readiness state from inside the REPL
-- drops you into a simple terminal session with `/model`, `/models`, `/swap`, `/memory`, `/forget`, `/thread on|off`, `/providers`, `/env`, `/config`, `/help`, and `/quit`
+- drops you into a simple terminal session with `/admin`, `/plan`, `/apply`, `/discard`, `/model`, `/models`, `/swap`, `/memory`, `/forget`, `/thread on|off`, `/providers`, `/env`, `/config`, `/help`, and `/quit`
+
+Admin assistant flow inside the starter:
+
+```text
+/admin enable local file operations only for this repository and explain each step simply
+/plan
+/apply
+```
+
+The assistant uses the selected model together with the active AegisLM config, the referenced security policy, local repository documentation, and bounded local system context. It proposes structured config changes first and only falls back to `ops`-style filesystem or command actions when configuration alone is not enough.
 
 ## Terminal client
 

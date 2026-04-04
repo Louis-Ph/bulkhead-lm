@@ -47,17 +47,20 @@
 - `aegislm-client call` accepts one JSON request on stdin and returns one JSON response on stdout
 - `aegislm-client worker` keeps one runtime store alive and processes JSONL requests with bounded concurrency
 - `aegislm-client starter` is an interactive wizard that can write a portable config JSON and then launch a local terminal session
+- `Admin_assistant` builds structured admin plans from the selected model, local AegisLM docs, and the active config files
+- `Admin_assistant_plan` keeps config-edit and system-action steps in a typed format before anything is applied
 - `Terminal_ops` owns the structured `ops` protocol for filesystem and command requests under explicit security-policy roots
 - `Starter_constants` centralizes the public starter command strings and defaults
 - `Starter_conversation` keeps a compressed local transcript and converts older turns into a shorter summary message
-- `Starter_runtime` isolates mutable starter session data, such as conversation memory, from the finite-state command parser
-- `Starter_session` models the starter REPL as a finite-state machine with explicit `Ready`, `Streaming`, and `Closed` states
+- `Starter_runtime` isolates mutable starter session data, such as conversation memory and pending admin plans, from the finite-state command parser
+- `Starter_session` models the starter REPL as a finite-state machine with explicit `Ready`, `Streaming`, and `Closed` states plus explicit admin-plan effects
 - `Starter_terminal` owns human-facing line editing, persistent history, and slash-command/model completion
 - `ask` and `call` are isolated per-process invocations, while `worker` is the mode intended to coordinate many concurrent local jobs through one runtime instance
 - worker outputs are serialized under a dedicated stdout lock so parallel jobs do not interleave their JSON lines
 - shared rate-limit, budget, and persistence state remain protected by the existing `Mutex` and SQLite locking strategy
 - `ops` requests reuse virtual-key auth and request-rate checks, but they are fail-closed until `security_policy.client_ops` enables explicit read, write, or exec roots
 - command execution is shell-free: callers send `command` plus `args`, and AegisLM applies timeout and output caps before returning a structured result
+- starter admin requests are plan-first: the model returns typed JSON, the user reviews it with `/plan`, and only `/apply` mutates config files or runs allowed local ops
 
 ## Concurrency model
 
