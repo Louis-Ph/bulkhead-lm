@@ -3,10 +3,10 @@ module Command = struct
 end
 
 module Defaults = struct
-  let package_name = "aegislm"
-  let display_name = "AegisLM"
+  let package_name = "bulkhead-lm"
+  let display_name = "BulkheadLM"
   let description =
-    "AegisLM secure OCaml gateway with starter, worker, and provider routing."
+    "BulkheadLM secure OCaml gateway with starter, worker, and provider routing."
   ;;
 
   let artifact_dir = "dist"

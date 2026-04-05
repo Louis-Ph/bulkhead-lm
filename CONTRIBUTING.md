@@ -1,6 +1,6 @@
-# Contributing to AegisLM
+# Contributing to BulkheadLM
 
-Thanks for taking the time to improve AegisLM.
+Thanks for taking the time to improve BulkheadLM.
 
 This project favors explicit hierarchy, operational clarity, and test-backed
 changes. Contributions are welcome, but they should preserve the design goals of
@@ -10,7 +10,7 @@ security behavior.
 ## Licensing
 
 - this repository is licensed under Apache-2.0
-- by intentionally submitting a contribution for inclusion in AegisLM, you agree that it may be distributed under the Apache License 2.0, consistent with Section 5 of [LICENSE](LICENSE)
+- by intentionally submitting a contribution for inclusion in BulkheadLM, you agree that it may be distributed under the Apache License 2.0, consistent with Section 5 of [LICENSE](LICENSE)
 - if you are contributing on behalf of an employer or another rights holder, make sure you are authorized to do so before opening the pull request
 
 ## Before you start
@@ -29,7 +29,7 @@ dune runtest
 Run the gateway locally with:
 
 ```bash
-dune exec aegislm -- --config config/example.gateway.json
+dune exec bulkhead-lm -- --config config/example.gateway.json
 ```
 
 ## Design expectations

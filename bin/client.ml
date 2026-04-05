@@ -14,7 +14,7 @@ let authorization_term =
 
 let api_key_term =
   let doc =
-    "Client API key token. Falls back to AEGISLM_API_KEY, AEGISLM_AUTHORIZATION, or a single plaintext token in config."
+    "Client API key token. Falls back to BULKHEAD_LM_API_KEY, BULKHEAD_LM_AUTHORIZATION, or a single plaintext token in config."
   in
   Cmdliner.Arg.(value & opt (some string) None & info [ "api-key" ] ~docv:"TOKEN" ~doc)
 ;;
@@ -51,16 +51,16 @@ let prompt_term =
 
 let kind_term =
   let kinds =
-    [ "chat", Aegis_lm.Terminal_client.Chat
-    ; "responses", Aegis_lm.Terminal_client.Responses
-    ; "embeddings", Aegis_lm.Terminal_client.Embeddings
-    ; "ops", Aegis_lm.Terminal_client.Ops
+    [ "chat", Bulkhead_lm.Terminal_client.Chat
+    ; "responses", Bulkhead_lm.Terminal_client.Responses
+    ; "embeddings", Bulkhead_lm.Terminal_client.Embeddings
+    ; "ops", Bulkhead_lm.Terminal_client.Ops
     ]
   in
   let doc = "One-shot or worker request kind." in
   Cmdliner.Arg.(
     value
-    & opt (enum kinds) Aegis_lm.Terminal_client.Chat
+    & opt (enum kinds) Bulkhead_lm.Terminal_client.Chat
     & info [ "kind" ] ~docv:"KIND" ~doc)
 ;;
 
@@ -83,10 +83,10 @@ let starter_output_term =
 ;;
 
 let load_store config_path =
-  match Aegis_lm.Config.load config_path with
+  match Bulkhead_lm.Config.load config_path with
   | Error err -> Error ("Configuration error: " ^ err)
   | Ok config ->
-    (match Aegis_lm.Runtime_state.create_result config with
+    (match Bulkhead_lm.Runtime_state.create_result config with
      | Error err -> Error ("Runtime initialization error: " ^ err)
      | Ok store -> Ok store)
 ;;
@@ -107,18 +107,18 @@ let require_text_input ?value ~description () =
 ;;
 
 let write_error error =
-  let json = Aegis_lm.Domain_error.to_openai_json error |> Yojson.Safe.to_string in
+  let json = Bulkhead_lm.Domain_error.to_openai_json error |> Yojson.Safe.to_string in
   prerr_endline json;
   1
 ;;
 
 let write_json_error error =
-  print_endline (Aegis_lm.Domain_error.to_openai_json error |> Yojson.Safe.to_string);
+  print_endline (Bulkhead_lm.Domain_error.to_openai_json error |> Yojson.Safe.to_string);
   1
 ;;
 
 let resolve_authorization store ?authorization ?api_key () =
-  match Aegis_lm.Terminal_client.resolve_authorization store ?authorization ?api_key () with
+  match Bulkhead_lm.Terminal_client.resolve_authorization store ?authorization ?api_key () with
   | Ok value -> Ok value
   | Error error -> Error error
 ;;
@@ -127,20 +127,20 @@ let print_call_response as_json response =
   if as_json
   then
     print_endline
-      (Aegis_lm.Terminal_client.response_to_yojson response |> Yojson.Safe.to_string)
-  else print_endline (Aegis_lm.Terminal_client.text_of_response response)
+      (Bulkhead_lm.Terminal_client.response_to_yojson response |> Yojson.Safe.to_string)
+  else print_endline (Bulkhead_lm.Terminal_client.text_of_response response)
 ;;
 
 let run_ask_request store ~authorization ~as_json request =
-  if request.Aegis_lm.Openai_types.stream && as_json
+  if request.Bulkhead_lm.Openai_types.stream && as_json
   then
     Lwt.return
       (write_error
-         (Aegis_lm.Domain_error.invalid_request
+         (Bulkhead_lm.Domain_error.invalid_request
             "ask does not support combining --stream with --json."))
-  else if request.Aegis_lm.Openai_types.stream
+  else if request.Bulkhead_lm.Openai_types.stream
   then
-    Aegis_lm.Terminal_client.run_ask_stream
+    Bulkhead_lm.Terminal_client.run_ask_stream
       store
       ~authorization
       request
@@ -154,7 +154,7 @@ let run_ask_request store ~authorization ~as_json request =
       print_newline ();
       0
   else
-    Aegis_lm.Terminal_client.run_ask store ~authorization request
+    Bulkhead_lm.Terminal_client.run_ask store ~authorization request
     >|= function
     | Error error -> write_error error
     | Ok response ->
@@ -176,13 +176,13 @@ let run_ask config_path authorization api_key model system stream as_json max_to
        >>= function
        | Error err ->
          Lwt.return
-           (write_error (Aegis_lm.Domain_error.invalid_request err))
+           (write_error (Bulkhead_lm.Domain_error.invalid_request err))
        | Ok prompt ->
          match resolve_authorization store ?authorization ?api_key () with
          | Error error -> Lwt.return (write_error error)
          | Ok authorization ->
            (match
-              Aegis_lm.Terminal_client.build_ask_request
+              Bulkhead_lm.Terminal_client.build_ask_request
                 store
                 ?model
                 ?system
@@ -208,14 +208,14 @@ let run_call config_path authorization api_key kind request_json =
        >>= function
        | Error err ->
          Lwt.return
-           (write_json_error (Aegis_lm.Domain_error.invalid_request err))
+           (write_json_error (Bulkhead_lm.Domain_error.invalid_request err))
        | Ok request_text ->
          let parsed =
            try Ok (Yojson.Safe.from_string request_text)
            with
            | Yojson.Json_error message ->
              Error
-               (Aegis_lm.Domain_error.invalid_request
+               (Bulkhead_lm.Domain_error.invalid_request
                   ("Invalid JSON request body: " ^ message))
          in
          (match parsed with
@@ -224,16 +224,16 @@ let run_call config_path authorization api_key kind request_json =
             (match resolve_authorization store ?authorization ?api_key () with
              | Error error -> Lwt.return (write_json_error error)
              | Ok authorization ->
-               Aegis_lm.Terminal_client.invoke_json store ~authorization ~kind json
+               Bulkhead_lm.Terminal_client.invoke_json store ~authorization ~kind json
                >|= function
                | Ok response ->
                  print_endline
-                   (Aegis_lm.Terminal_client.response_to_yojson response
+                   (Bulkhead_lm.Terminal_client.response_to_yojson response
                     |> Yojson.Safe.to_string);
                  0
                | Error error ->
                  print_endline
-                   (Aegis_lm.Domain_error.to_openai_json error |> Yojson.Safe.to_string);
+                   (Bulkhead_lm.Domain_error.to_openai_json error |> Yojson.Safe.to_string);
                  1)))
 ;;
 
@@ -249,11 +249,11 @@ let run_worker config_path authorization api_key jobs =
       1)
     else (
       Lwt_main.run
-        (Aegis_lm.Terminal_worker.run_stdio store ?authorization ?api_key ~jobs () >|= fun () -> 0))
+        (Bulkhead_lm.Terminal_worker.run_stdio store ?authorization ?api_key ~jobs () >|= fun () -> 0))
 ;;
 
 let run_starter config_path starter_output =
-  Aegis_lm.Starter_wizard.run
+  Bulkhead_lm.Starter_wizard.run
     ~base_config_path:config_path
     ~starter_output_path:starter_output
     ()
@@ -311,9 +311,9 @@ let starter_cmd =
 ;;
 
 let cmd =
-  let doc = "Programmable terminal client and worker for AegisLM" in
+  let doc = "Programmable terminal client and worker for BulkheadLM" in
   Cmdliner.Cmd.group
-    (Cmdliner.Cmd.info "aegislm-client" ~doc)
+    (Cmdliner.Cmd.info "bulkhead-lm-client" ~doc)
     [ ask_cmd; call_cmd; worker_cmd; starter_cmd ]
 ;;
 

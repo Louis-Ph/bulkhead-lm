@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT_DIR=${0:A:h:h}
 CONFIG_FILE="$ROOT_DIR/config/example.gateway.json"
-PORT="${AEGISLM_SMOKE_PORT:-4110}"
-MODEL="${AEGISLM_SMOKE_MODEL:-}"
+PORT="${BULKHEAD_LM_SMOKE_PORT:-4110}"
+MODEL="${BULKHEAD_LM_SMOKE_MODEL:-}"
 PID=""
 
 cleanup() {
@@ -38,7 +38,7 @@ if [[ -z "$MODEL" ]]; then
   fi
 fi
 
-dune exec ./bin/main.exe -- --config "$CONFIG_FILE" --port "$PORT" >/tmp/aegislm-smoke.log 2>&1 &
+dune exec ./bin/main.exe -- --config "$CONFIG_FILE" --port "$PORT" >/tmp/bulkhead-lm-smoke.log 2>&1 &
 PID=$!
 
 for _ in {1..20}; do
@@ -50,8 +50,8 @@ done
 
 if ! /usr/bin/curl -fsS "http://127.0.0.1:${PORT}/health" >/dev/null 2>&1; then
   print -u2 "Gateway did not become healthy."
-  if [[ -r /tmp/aegislm-smoke.log ]]; then
-    /bin/cat /tmp/aegislm-smoke.log >&2
+  if [[ -r /tmp/bulkhead-lm-smoke.log ]]; then
+    /bin/cat /tmp/bulkhead-lm-smoke.log >&2
   fi
   exit 1
 fi
@@ -66,7 +66,7 @@ post_json() {
   body_file=$(/usr/bin/mktemp)
   http_code=$(/usr/bin/curl -sS -o "$body_file" -w '%{http_code}' "http://127.0.0.1:${PORT}${path}" \
     -H "content-type: application/json" \
-    -H "authorization: Bearer sk-aegis-dev" \
+    -H "authorization: Bearer sk-bulkhead-lm-dev" \
     -d "$payload")
   body=$(<"$body_file")
   /bin/rm -f "$body_file"

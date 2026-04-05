@@ -1,21 +1,21 @@
 # Peer Mesh
 
-AegisLM can treat another AegisLM instance as an upstream LLM endpoint.
+BulkheadLM can treat another BulkheadLM instance as an upstream LLM endpoint.
 
 There are two explicit peer transports:
 
-- `aegis_peer`: HTTP OpenAI-compatible peering
-- `aegis_ssh_peer`: SSH transport over the existing JSONL worker protocol
+- `bulkhead_peer`: HTTP OpenAI-compatible peering
+- `bulkhead_ssh_peer`: SSH transport over the existing JSONL worker protocol
 
-Both participate in the same peer hop guard carried by AegisLM headers.
+Both participate in the same peer hop guard carried by BulkheadLM headers.
 
 ## When to use it
 
 - machine `B` should consume a model route exposed by machine `A`
-- you want one AegisLM to front another without writing a separate microservice
+- you want one BulkheadLM to front another without writing a separate microservice
 - you want bounded peer-to-peer forwarding instead of an unguarded OpenAI-style proxy chain
 
-If machine `B` does not have AegisLM installed yet, machine `A` can also serve a
+If machine `B` does not have BulkheadLM installed yet, machine `A` can also serve a
 local bootstrap installer over SSH via `scripts/remote_install.sh`. The bootstrap
 flow is documented in [SSH_REMOTE.md](SSH_REMOTE.md).
 
@@ -31,10 +31,10 @@ flow is documented in [SSH_REMOTE.md](SSH_REMOTE.md).
       "backends": [
         {
           "provider_id": "peer-a",
-          "provider_kind": "aegis_peer",
+          "provider_kind": "bulkhead_peer",
           "upstream_model": "claude-sonnet",
           "api_base": "https://machine-a.example.net:4100/v1",
-          "api_key_env": "AEGIS_MACHINE_A_KEY"
+          "api_key_env": "BULKHEAD_MACHINE_A_KEY"
         }
       ]
     }
@@ -42,7 +42,7 @@ flow is documented in [SSH_REMOTE.md](SSH_REMOTE.md).
 }
 ```
 
-`AEGIS_MACHINE_A_KEY` must contain a virtual key that machine `A` accepts.
+`BULKHEAD_MACHINE_A_KEY` must contain a virtual key that machine `A` accepts.
 
 ### SSH peer
 
@@ -54,16 +54,16 @@ flow is documented in [SSH_REMOTE.md](SSH_REMOTE.md).
       "backends": [
         {
           "provider_id": "peer-a-ssh",
-          "provider_kind": "aegis_ssh_peer",
+          "provider_kind": "bulkhead_ssh_peer",
           "upstream_model": "claude-sonnet",
-          "api_key_env": "AEGIS_MACHINE_A_KEY",
+          "api_key_env": "BULKHEAD_MACHINE_A_KEY",
           "ssh_transport": {
             "destination": "ops@machine-a.example.net",
             "host": "machine-a.example.net",
-            "remote_worker_command": "/opt/aegis-lm/scripts/remote_worker.sh",
-            "remote_config_path": "/etc/aegislm/gateway.json",
+            "remote_worker_command": "/opt/bulkhead-lm/scripts/remote_worker.sh",
+            "remote_config_path": "/etc/bulkhead-lm/gateway.json",
             "remote_jobs": 1,
-            "options": ["-i", "/Users/me/.ssh/aegis_mesh"]
+            "options": ["-i", "/Users/me/.ssh/bulkhead_lm_mesh"]
           }
         }
       ]
@@ -72,7 +72,7 @@ flow is documented in [SSH_REMOTE.md](SSH_REMOTE.md).
 }
 ```
 
-For `aegis_ssh_peer`, `api_key_env` is still the remote virtual key, but it is
+For `bulkhead_ssh_peer`, `api_key_env` is still the remote virtual key, but it is
 passed to the remote worker wrapper as `--api-key` rather than as an HTTP header.
 
 Then callers can use machine `B` as usual:
@@ -93,8 +93,8 @@ curl -s http://machine-b.example.net:4100/v1/chat/completions \
 
 Peer calls carry:
 
-- `x-aegislm-request-id`
-- `x-aegislm-hop-count`
+- `x-bulkhead-lm-request-id`
+- `x-bulkhead-lm-hop-count`
 
 By default, the security policy enables this peer mesh guard and sets:
 
@@ -124,6 +124,6 @@ egress is still a deployment security decision.
 
 ## SSH transport note
 
-`aegis_ssh_peer` opens one `ssh -T` session per upstream request in the current
+`bulkhead_ssh_peer` opens one `ssh -T` session per upstream request in the current
 implementation. That keeps the first transport simple and isolated, but it is
 not yet a pooled SSH connection manager.

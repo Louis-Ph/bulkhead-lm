@@ -5,7 +5,7 @@ technical control set and current hardening posture, see [docs/SECURITY.md](docs
 
 ## Supported versions
 
-Until `1.0.0`, AegisLM is maintained as a fast-moving early-stage project.
+Until `1.0.0`, BulkheadLM is maintained as a fast-moving early-stage project.
 
 | Version line | Supported |
 | --- | --- |
@@ -46,6 +46,6 @@ The most security-sensitive areas in this repository currently include:
 
 ## Operational note
 
-If you plan to run AegisLM in a regulated or high-assurance environment, review
+If you plan to run BulkheadLM in a regulated or high-assurance environment, review
 both [docs/SECURITY.md](docs/SECURITY.md) and
 [docs/COMPLIANCE_US_CN.md](docs/COMPLIANCE_US_CN.md) before deployment.

@@ -95,10 +95,10 @@ let resolve_authorization store ?authorization ?api_key () =
       (match api_key with
        | Some value -> normalize_authorization store value
        | None ->
-         (match non_empty_env "AEGISLM_AUTHORIZATION" with
+         (match non_empty_env "BULKHEAD_LM_AUTHORIZATION" with
           | Some value -> normalize_authorization store value
           | None ->
-            (match non_empty_env "AEGISLM_API_KEY" with
+            (match non_empty_env "BULKHEAD_LM_API_KEY" with
              | Some value -> normalize_authorization store value
              | None ->
                (match sole_plaintext_virtual_key store with
@@ -110,7 +110,7 @@ let resolve_authorization store ?authorization ?api_key () =
   | None ->
     Error
       (Domain_error.invalid_request
-         "No client authorization available. Provide --api-key, --authorization, AEGISLM_API_KEY, AEGISLM_AUTHORIZATION, or configure exactly one plaintext virtual key.")
+         "No client authorization available. Provide --api-key, --authorization, BULKHEAD_LM_API_KEY, BULKHEAD_LM_AUTHORIZATION, or configure exactly one plaintext virtual key.")
 ;;
 
 let resolve_model store ?model () =

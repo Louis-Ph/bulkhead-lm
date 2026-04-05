@@ -28,7 +28,7 @@ jobs:
         uses: ocaml/setup-ocaml@v3
         with:
           ocaml-compiler: 5.2
-          opam-local-packages: aegis_lm.opam
+          opam-local-packages: bulkhead_lm.opam
           opam-disable-sandboxing: true
           dune-cache: true
 

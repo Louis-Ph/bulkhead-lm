@@ -1,13 +1,13 @@
 (executable
  (name main)
- (public_name aegislm)
- (package aegis_lm)
+ (public_name bulkhead-lm)
+ (package bulkhead_lm)
  (modules main)
- (libraries aegis_lm cmdliner lwt.unix logs.fmt))
+ (libraries bulkhead_lm cmdliner lwt.unix logs.fmt))
 
 (executable
  (name client)
- (public_name aegislm-client)
- (package aegis_lm)
+ (public_name bulkhead-lm-client)
+ (package bulkhead_lm)
  (modules client)
- (libraries aegis_lm cmdliner lwt.unix logs.fmt))
+ (libraries bulkhead_lm cmdliner lwt.unix logs.fmt))

@@ -3,13 +3,13 @@
   "error_catalog_file": "defaults/error_catalog.json",
   "providers_schema_file": "defaults/providers.schema.json",
   "persistence": {
-    "sqlite_path": "../var/aegislm.sqlite",
+    "sqlite_path": "../var/bulkhead-lm.sqlite",
     "busy_timeout_ms": 5000
   },
   "virtual_keys": [
     {
       "name": "local-dev",
-      "token_plaintext": "sk-aegis-dev",
+      "token_plaintext": "sk-bulkhead-lm-dev",
       "daily_token_budget": 50000,
       "requests_per_minute": 30,
       "allowed_routes": [

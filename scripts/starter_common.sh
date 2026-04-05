@@ -1,12 +1,12 @@
 #!/bin/sh
 
-DEFAULT_CONFIG=${AEGISLM_BASE_CONFIG:-$ROOT_DIR/config/example.gateway.json}
-STARTER_OUTPUT=${AEGISLM_STARTER_OUTPUT:-$ROOT_DIR/config/starter.gateway.json}
-DEFAULT_OCAML_COMPILER=${AEGISLM_OCAML_COMPILER:-ocaml-base-compiler.5.2.1}
-USE_GLOBAL_SWITCH=${AEGISLM_USE_GLOBAL_SWITCH:-0}
-FORCE_LOCAL_SWITCH=${AEGISLM_FORCE_LOCAL_SWITCH:-0}
-DEFAULT_ENV_FILES="$HOME/.zshrc.secret:$HOME/.zshrc.secrets:$HOME/.bashrc.secret:$HOME/.bashrc.secrets:$HOME/.profile.secret:$HOME/.profile.secrets:$HOME/.config/aegislm/env"
-STARTER_ENV_FILES=${AEGISLM_STARTER_ENV_FILES:-$DEFAULT_ENV_FILES}
+DEFAULT_CONFIG=${BULKHEAD_LM_BASE_CONFIG:-$ROOT_DIR/config/example.gateway.json}
+STARTER_OUTPUT=${BULKHEAD_LM_STARTER_OUTPUT:-$ROOT_DIR/config/starter.gateway.json}
+DEFAULT_OCAML_COMPILER=${BULKHEAD_LM_OCAML_COMPILER:-ocaml-base-compiler.5.2.1}
+USE_GLOBAL_SWITCH=${BULKHEAD_LM_USE_GLOBAL_SWITCH:-0}
+FORCE_LOCAL_SWITCH=${BULKHEAD_LM_FORCE_LOCAL_SWITCH:-0}
+DEFAULT_ENV_FILES="$HOME/.zshrc.secret:$HOME/.zshrc.secrets:$HOME/.bashrc.secret:$HOME/.bashrc.secrets:$HOME/.profile.secret:$HOME/.profile.secrets:$HOME/.config/bulkhead-lm/env"
+STARTER_ENV_FILES=${BULKHEAD_LM_STARTER_ENV_FILES:-$DEFAULT_ENV_FILES}
 BUILD_LOG=""
 OPAM_BIN=""
 
@@ -45,7 +45,7 @@ prompt_yes_no() {
 
 ensure_build_log() {
   if [ -z "$BUILD_LOG" ]; then
-    BUILD_LOG=$(mktemp "${TMPDIR:-/tmp}/aegislm-starter.XXXXXX")
+    BUILD_LOG=$(mktemp "${TMPDIR:-/tmp}/bulkhead-lm-starter.XXXXXX")
   fi
 }
 
@@ -112,8 +112,8 @@ load_secret_files() {
 }
 
 find_opam() {
-  if [ -n "${AEGISLM_OPAM_BIN:-}" ] && [ -x "${AEGISLM_OPAM_BIN}" ]; then
-    OPAM_BIN=${AEGISLM_OPAM_BIN}
+  if [ -n "${BULKHEAD_LM_OPAM_BIN:-}" ] && [ -x "${BULKHEAD_LM_OPAM_BIN}" ]; then
+    OPAM_BIN=${BULKHEAD_LM_OPAM_BIN}
     return
   fi
 
@@ -233,8 +233,8 @@ reset_build_log() {
 }
 
 find_packaged_client_runner() {
-  if [ -x "$ROOT_DIR/bin/aegislm-client" ]; then
-    printf '%s\n' "$ROOT_DIR/bin/aegislm-client"
+  if [ -x "$ROOT_DIR/bin/bulkhead-lm-client" ]; then
+    printf '%s\n' "$ROOT_DIR/bin/bulkhead-lm-client"
     return 0
   fi
   return 1
@@ -345,7 +345,7 @@ starter_exec_client() {
       --starter-output "$STARTER_OUTPUT" \
       "$@"
   fi
-  exec dune exec aegislm-client -- starter \
+  exec dune exec bulkhead-lm-client -- starter \
     --config "$DEFAULT_CONFIG" \
     --starter-output "$STARTER_OUTPUT" \
     "$@"

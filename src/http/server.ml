@@ -337,7 +337,7 @@ let start store =
   let server = Cohttp_lwt_unix.Server.make ~callback:(callback store) () in
   Logs.app (fun m ->
     m
-      "AegisLM listening on http://%s:%d"
+      "BulkheadLM listening on http://%s:%d"
       store.Runtime_state.config.security_policy.server.listen_host
       port);
   Cohttp_lwt_unix.Server.create ~mode server

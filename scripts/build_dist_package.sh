@@ -1,15 +1,15 @@
 #!/bin/sh
 set -eu
 
-ROOT_DIR=${AEGISLM_PACKAGE_ROOT_DIR:-$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)}
+ROOT_DIR=${BULKHEAD_LM_PACKAGE_ROOT_DIR:-$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)}
 . "$ROOT_DIR/scripts/package_common.sh"
 
 OS_NAME=auto
-PACKAGE_NAME=aegislm
-DISPLAY_NAME="AegisLM"
+PACKAGE_NAME=bulkhead-lm
+DISPLAY_NAME="BulkheadLM"
 VERSION=""
-MAINTAINER="AegisLM"
-DESCRIPTION="AegisLM secure OCaml gateway."
+MAINTAINER="BulkheadLM"
+DESCRIPTION="BulkheadLM secure OCaml gateway."
 INSTALL_ROOT=""
 WRAPPER_DIR=""
 ARTIFACT_DIR="$ROOT_DIR/dist"
@@ -109,21 +109,21 @@ fi
 
 case "$OS_NAME" in
   macos)
-    [ -n "$INSTALL_ROOT" ] || INSTALL_ROOT=/opt/aegis-lm
+    [ -n "$INSTALL_ROOT" ] || INSTALL_ROOT=/opt/bulkhead-lm
     [ -n "$WRAPPER_DIR" ] || WRAPPER_DIR=/usr/local/bin
-    [ -n "$IDENTIFIER" ] || IDENTIFIER=io.github.louis-ph.aegislm
+    [ -n "$IDENTIFIER" ] || IDENTIFIER=io.github.louis-ph.bulkhead-lm
     [ -n "$VERSION" ] || VERSION=0.1.0
     ARTIFACT_NAME="${PACKAGE_NAME}-${VERSION}-macos.pkg"
     ;;
   ubuntu)
-    [ -n "$INSTALL_ROOT" ] || INSTALL_ROOT=/opt/aegis-lm
+    [ -n "$INSTALL_ROOT" ] || INSTALL_ROOT=/opt/bulkhead-lm
     [ -n "$WRAPPER_DIR" ] || WRAPPER_DIR=/usr/bin
     [ -n "$VERSION" ] || VERSION=0.1.0
     ARCHITECTURE=$(pkg_detect_ubuntu_arch)
     ARTIFACT_NAME="${PACKAGE_NAME}_${VERSION}_${ARCHITECTURE}.deb"
     ;;
   freebsd)
-    [ -n "$INSTALL_ROOT" ] || INSTALL_ROOT=/usr/local/lib/aegis-lm
+    [ -n "$INSTALL_ROOT" ] || INSTALL_ROOT=/usr/local/lib/bulkhead-lm
     [ -n "$WRAPPER_DIR" ] || WRAPPER_DIR=/usr/local/bin
     [ -n "$VERSION" ] || VERSION=0.1.0
     ARTIFACT_NAME="${PACKAGE_NAME}-${VERSION}.pkg"
@@ -148,9 +148,9 @@ pkg_ensure_dir "$PAYLOAD_ROOT"
 pkg_prepare_binaries "$ROOT_DIR"
 pkg_stage_runtime_tree "$ROOT_DIR" "$PAYLOAD_ROOT" "$INSTALL_ROOT" "$CONFIG_SOURCE"
 
-pkg_make_wrapper "$PAYLOAD_ROOT$WRAPPER_DIR/aegislm" "$INSTALL_ROOT/bin/aegislm"
-pkg_make_wrapper "$PAYLOAD_ROOT$WRAPPER_DIR/aegislm-client" "$INSTALL_ROOT/bin/aegislm-client"
-pkg_make_wrapper "$PAYLOAD_ROOT$WRAPPER_DIR/aegislm-starter" "$INSTALL_ROOT/run.sh"
+pkg_make_wrapper "$PAYLOAD_ROOT$WRAPPER_DIR/bulkhead-lm" "$INSTALL_ROOT/bin/bulkhead-lm"
+pkg_make_wrapper "$PAYLOAD_ROOT$WRAPPER_DIR/bulkhead-lm-client" "$INSTALL_ROOT/bin/bulkhead-lm-client"
+pkg_make_wrapper "$PAYLOAD_ROOT$WRAPPER_DIR/bulkhead-lm-starter" "$INSTALL_ROOT/run.sh"
 
 case "$OS_NAME" in
   macos)
@@ -174,7 +174,7 @@ Section: utils
 Priority: optional
 Architecture: $ARCHITECTURE
 Maintainer: $MAINTAINER
-Homepage: https://github.com/Louis-Ph/aegis-lm
+Homepage: https://github.com/Louis-Ph/bulkhead-lm
 Description: $DESCRIPTION
 EOF
     pkg_note "Building Ubuntu .deb package..."
@@ -193,7 +193,7 @@ version: "$VERSION"
 origin: local/$PACKAGE_NAME
 comment: "$DISPLAY_NAME"
 maintainer: "$MAINTAINER"
-www: "https://github.com/Louis-Ph/aegis-lm"
+www: "https://github.com/Louis-Ph/bulkhead-lm"
 abi: "$ABI"
 prefix: /
 desc: <<EOD

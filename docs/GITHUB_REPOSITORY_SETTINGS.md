@@ -1,12 +1,12 @@
 # GitHub Repository Settings
 
 This document captures the recommended GitHub-side configuration for the public
-`aegis-lm` repository so the UI settings, merge policy, and repo files stay
+`bulkhead-lm` repository so the UI settings, merge policy, and repo files stay
 aligned.
 
 ## General
 
-- repository name: `aegis-lm`
+- repository name: `bulkhead-lm`
 - default branch: `main`
 - template repository: off
 - release immutability: on

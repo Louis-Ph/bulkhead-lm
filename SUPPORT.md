@@ -18,7 +18,7 @@ When asking for help, include:
 
 ## Support expectations
 
-AegisLM is currently an early-stage project. Support is best-effort and review
+BulkheadLM is currently an early-stage project. Support is best-effort and review
 bandwidth may vary.
 
 Questions that are small, reproducible, and precise will be resolved faster than

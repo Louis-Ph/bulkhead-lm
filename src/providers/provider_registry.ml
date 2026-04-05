@@ -7,6 +7,6 @@ let make backend =
   | Config.Ollama_openai
   | Config.Alibaba_openai
   | Config.Moonshot_openai
-  | Config.Aegis_peer -> Openai_compat_provider.make ()
-  | Config.Aegis_ssh_peer -> Ssh_peer_provider.make ()
+  | Config.Bulkhead_peer -> Openai_compat_provider.make ()
+  | Config.Bulkhead_ssh_peer -> Ssh_peer_provider.make ()
 ;;

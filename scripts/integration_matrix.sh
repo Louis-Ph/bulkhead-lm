@@ -3,8 +3,8 @@ set -euo pipefail
 
 ROOT_DIR=${0:A:h:h}
 CONFIG_FILE="$ROOT_DIR/config/example.gateway.json"
-DB_FILE="$ROOT_DIR/var/aegislm.sqlite"
-PORT="${AEGISLM_MATRIX_PORT:-4115}"
+DB_FILE="$ROOT_DIR/var/bulkhead-lm.sqlite"
+PORT="${BULKHEAD_LM_MATRIX_PORT:-4115}"
 PID=""
 
 cleanup() {
@@ -21,7 +21,7 @@ fi
 
 start_gateway() {
   /bin/rm -f "$DB_FILE" "$DB_FILE-shm" "$DB_FILE-wal"
-  dune exec ./bin/main.exe -- --config "$CONFIG_FILE" --port "$PORT" >/tmp/aegislm-matrix.log 2>&1 &
+  dune exec ./bin/main.exe -- --config "$CONFIG_FILE" --port "$PORT" >/tmp/bulkhead-lm-matrix.log 2>&1 &
   PID=$!
   for _ in {1..30}; do
     if /usr/bin/curl -fsS "http://127.0.0.1:${PORT}/health" >/dev/null 2>&1; then
@@ -30,7 +30,7 @@ start_gateway() {
     sleep 0.5
   done
   print -u2 "Gateway did not become healthy."
-  /bin/cat /tmp/aegislm-matrix.log >&2
+  /bin/cat /tmp/bulkhead-lm-matrix.log >&2
   exit 1
 }
 
@@ -42,7 +42,7 @@ json_request() {
   status_code=$(/usr/bin/curl -sS -o "$body_file" -w '%{http_code}' \
     "http://127.0.0.1:${PORT}${path}" \
     -H "content-type: application/json" \
-    -H "authorization: Bearer sk-aegis-dev" \
+    -H "authorization: Bearer sk-bulkhead-lm-dev" \
     -d "$payload")
   body=$(<"$body_file")
   /bin/rm -f "$body_file"
@@ -83,7 +83,7 @@ assert_sse() {
   /usr/bin/curl -sS -D "$dump_file.headers" \
     "http://127.0.0.1:${PORT}${path}" \
     -H "content-type: application/json" \
-    -H "authorization: Bearer sk-aegis-dev" \
+    -H "authorization: Bearer sk-bulkhead-lm-dev" \
     -d "$payload" \
     > "$dump_file"
   /usr/bin/grep -qi 'content-type: text/event-stream' "$dump_file.headers"

@@ -1,14 +1,14 @@
-# AegisLM
+# BulkheadLM
 
-[![CI](https://github.com/Louis-Ph/aegis-lm/actions/workflows/ci.yml/badge.svg)](https://github.com/Louis-Ph/aegis-lm/actions/workflows/ci.yml)
+[![CI](https://github.com/Louis-Ph/bulkhead-lm/actions/workflows/ci.yml/badge.svg)](https://github.com/Louis-Ph/bulkhead-lm/actions/workflows/ci.yml)
 
 New here? Start with the very simple guide: [readme_for_dummies.md](readme_for_dummies.md)
 
-AegisLM is a security-first LLM gateway written in OCaml. It exposes an OpenAI-compatible API, routes requests across explicit provider backends, and keeps routing, security policy, and error behavior in hierarchical JSON instead of ad-hoc runtime discovery.
+BulkheadLM is a security-first LLM gateway written in OCaml. It exposes an OpenAI-compatible API, routes requests across explicit provider backends, and keeps routing, security policy, and error behavior in hierarchical JSON instead of ad-hoc runtime discovery.
 
 It targets multi-provider LLM gateway routing with a stricter design bias: explicit module boundaries, explicit provider registration, bounded fallback, fail-closed egress, and auditable request controls.
 
-## Why AegisLM
+## Why BulkheadLM
 
 - OpenAI-compatible client surface for `models`, `chat/completions`, `responses`, and `embeddings`
 - explicit provider hierarchy instead of blind proxying
@@ -36,15 +36,15 @@ Install dependencies, run the test suite, and start the gateway:
 ```bash
 opam install . --deps-only --with-test
 dune runtest
-dune exec aegislm -- --config config/example.gateway.json
+dune exec bulkhead-lm -- --config config/example.gateway.json
 ```
 
-The bundled example listens on `http://127.0.0.1:4100` and creates a local virtual key: `sk-aegis-dev`.
+The bundled example listens on `http://127.0.0.1:4100` and creates a local virtual key: `sk-bulkhead-lm-dev`.
 
 You can also override the listen port:
 
 ```bash
-dune exec aegislm -- --config config/example.gateway.json --port 4200
+dune exec bulkhead-lm -- --config config/example.gateway.json --port 4200
 ```
 
 ## Local starter
@@ -64,7 +64,7 @@ On macOS, you can also use the Finder-friendly launcher:
 The starter:
 
 - supports local first-run flows on macOS, Ubuntu, and FreeBSD through OS-specific wrappers behind the same `./run.sh` entrypoint
-- sources `~/.zshrc.secret`, `~/.zshrc.secrets`, `~/.bashrc.secret`, `~/.bashrc.secrets`, `~/.profile.secret`, `~/.profile.secrets`, and `~/.config/aegislm/env` when present
+- sources `~/.zshrc.secret`, `~/.zshrc.secrets`, `~/.bashrc.secret`, `~/.bashrc.secrets`, `~/.profile.secret`, `~/.profile.secrets`, and `~/.config/bulkhead-lm/env` when present
 - checks the current `opam` switch first and only offers a project-local fallback when the active toolchain is not coherent for this repo
 - can offer Homebrew, `apt`, or `pkg` bootstrap steps instead of dropping raw OCaml build errors on a beginner
 - reuses your configured provider keys from the shell environment
@@ -73,7 +73,7 @@ The starter:
 - can build a personal portable JSON config at `config/starter.gateway.json`
 - uses real line editing in the human starter: left/right arrows, in-line edits, history recall, and tab completion
 - keeps a followed conversation thread by default and compresses older turns into a shorter memory summary when the session grows
-- includes an administrative assistant that prepares explicit plans before changing AegisLM config or attempting local system actions
+- includes an administrative assistant that prepares explicit plans before changing BulkheadLM config or attempting local system actions
 - includes a guided packaging flow that can build a distributable package for macOS, Ubuntu, or FreeBSD from the same assistant terminal
 - shows masked environment and provider readiness state from inside the REPL
 - drops you into a simple terminal session with `/tools`, `/file PATH`, `/files`, `/clearfiles`, `/explore PATH`, `/open PATH`, `/run CMD`, `/admin`, `/package`, `/plan`, `/apply`, `/discard`, `/model`, `/models`, `/swap`, `/memory`, `/forget`, `/thread on|off`, `/providers`, `/env`, `/config`, `/help`, and `/quit`
@@ -86,7 +86,7 @@ Admin assistant flow inside the starter:
 /apply
 ```
 
-The assistant uses the selected model together with the active AegisLM config, the referenced security policy, local repository documentation, and bounded local system context. It proposes structured config changes first and only falls back to `ops`-style filesystem or command actions when configuration alone is not enough.
+The assistant uses the selected model together with the active BulkheadLM config, the referenced security policy, local repository documentation, and bounded local system context. It proposes structured config changes first and only falls back to `ops`-style filesystem or command actions when configuration alone is not enough.
 
 Guided packaging inside the starter:
 
@@ -104,15 +104,15 @@ On an installed tree, the starter now prefers bundled binaries directly. On a so
 
 ## Terminal client
 
-For direct terminal use without starting the HTTP gateway, use `aegislm-client`.
+For direct terminal use without starting the HTTP gateway, use `bulkhead-lm-client`.
 
 Human-facing prompt mode:
 
 ```bash
-dune exec aegislm-client -- ask \
+dune exec bulkhead-lm-client -- ask \
   --config config/example.gateway.json \
   --model gpt-5-mini \
-  "Summarize the value of AegisLM in one sentence."
+  "Summarize the value of BulkheadLM in one sentence."
 ```
 
 Programmatic one-shot mode:
@@ -120,7 +120,7 @@ Programmatic one-shot mode:
 ```bash
 printf '%s\n' \
   '{"model":"gpt-5-mini","messages":[{"role":"user","content":"Reply with OK."}]}' \
-  | dune exec aegislm-client -- call \
+  | dune exec bulkhead-lm-client -- call \
       --config config/example.gateway.json \
       --kind chat
 ```
@@ -128,7 +128,7 @@ printf '%s\n' \
 Long-running worker mode over JSONL with bounded parallelism:
 
 ```bash
-dune exec aegislm-client -- worker \
+dune exec bulkhead-lm-client -- worker \
   --config config/example.gateway.json \
   --jobs 4
 ```
@@ -158,14 +158,14 @@ Minimal policy example:
   "client_ops": {
     "files": {
       "enabled": true,
-      "read_roots": ["/srv/aegislm/workspace"],
-      "write_roots": ["/srv/aegislm/workspace"],
+      "read_roots": ["/srv/bulkhead-lm/workspace"],
+      "write_roots": ["/srv/bulkhead-lm/workspace"],
       "max_read_bytes": 1048576,
       "max_write_bytes": 1048576
     },
     "exec": {
       "enabled": true,
-      "working_roots": ["/srv/aegislm/workspace"],
+      "working_roots": ["/srv/bulkhead-lm/workspace"],
       "timeout_ms": 10000,
       "max_output_bytes": 65536
     }
@@ -178,7 +178,7 @@ One-shot directory listing:
 ```bash
 printf '%s\n' \
   '{"op":"list_dir","path":"."}' \
-  | dune exec aegislm-client -- call \
+  | dune exec bulkhead-lm-client -- call \
       --config config/example.gateway.json \
       --kind ops
 ```
@@ -188,7 +188,7 @@ One-shot file upload/write with base64:
 ```bash
 printf '%s\n' \
   '{"op":"write_file","path":"artifacts/report.bin","encoding":"base64","content":"SGVsbG8=","create_parents":true}' \
-  | dune exec aegislm-client -- call \
+  | dune exec bulkhead-lm-client -- call \
       --config config/example.gateway.json \
       --kind ops
 ```
@@ -198,7 +198,7 @@ One-shot command execution:
 ```bash
 printf '%s\n' \
   '{"op":"exec","command":"/bin/ls","args":["-la"],"cwd":"."}' \
-  | dune exec aegislm-client -- call \
+  | dune exec bulkhead-lm-client -- call \
       --config config/example.gateway.json \
       --kind ops
 ```
@@ -208,36 +208,36 @@ printf '%s\n' \
 For a human remote session over SSH:
 
 ```bash
-ssh -t user@remote '/opt/aegis-lm/scripts/remote_starter.sh'
+ssh -t user@remote '/opt/bulkhead-lm/scripts/remote_starter.sh'
 ```
 
 For a programmatic remote worker over SSH:
 
 ```bash
-ssh -T user@remote '/opt/aegis-lm/scripts/remote_worker.sh --config /etc/aegislm/gateway.json'
+ssh -T user@remote '/opt/bulkhead-lm/scripts/remote_worker.sh --config /etc/bulkhead-lm/gateway.json'
 ```
 
 The full guide is in [docs/SSH_REMOTE.md](docs/SSH_REMOTE.md).
 
-For a clean client machine that does not have AegisLM yet, an existing remote
-AegisLM install can also serve a local bootstrap installer over SSH:
+For a clean client machine that does not have BulkheadLM yet, an existing remote
+BulkheadLM install can also serve a local bootstrap installer over SSH:
 
 ```bash
-ssh user@remote '/opt/aegis-lm/scripts/remote_install.sh --emit-installer --origin user@remote' | sh
+ssh user@remote '/opt/bulkhead-lm/scripts/remote_install.sh --emit-installer --origin user@remote' | sh
 ```
 
-That installs a filtered snapshot locally, by default into `~/opt/aegis-lm`,
+That installs a filtered snapshot locally, by default into `~/opt/bulkhead-lm`,
 then the local user can start it with:
 
 ```bash
-cd ~/opt/aegis-lm
+cd ~/opt/bulkhead-lm
 ./run.sh
 ```
 
 ## Peer mesh
 
-One AegisLM instance can use another AegisLM instance as an upstream LLM by
-declaring the backend as `aegis_peer` for HTTP or `aegis_ssh_peer` for direct
+One BulkheadLM instance can use another BulkheadLM instance as an upstream LLM by
+declaring the backend as `bulkhead_peer` for HTTP or `bulkhead_ssh_peer` for direct
 worker-over-SSH transport. Both keep the relationship explicit in config and
 both preserve bounded peer hop headers so accidental `A -> B -> A` loops fail
 closed instead of recursing.
@@ -250,19 +250,19 @@ List the public models exposed by the local gateway:
 
 ```bash
 curl -s http://127.0.0.1:4100/v1/models \
-  -H "Authorization: Bearer sk-aegis-dev"
+  -H "Authorization: Bearer sk-bulkhead-lm-dev"
 ```
 
 Then call a routed model once at least one upstream provider key is exported in your shell:
 
 ```bash
 curl -s http://127.0.0.1:4100/v1/chat/completions \
-  -H "Authorization: Bearer sk-aegis-dev" \
+  -H "Authorization: Bearer sk-bulkhead-lm-dev" \
   -H "Content-Type: application/json" \
   -d '{
     "model": "gpt-5-mini",
     "messages": [
-      { "role": "user", "content": "Say hello from AegisLM in one sentence." }
+      { "role": "user", "content": "Say hello from BulkheadLM in one sentence." }
     ]
   }'
 ```
@@ -280,8 +280,8 @@ Example route families currently implemented:
 - `ollama_openai`
 - `alibaba_openai`
 - `moonshot_openai`
-- `aegis_peer`
-- `aegis_ssh_peer`
+- `bulkhead_peer`
+- `bulkhead_ssh_peer`
 
 The bundled example config now exposes several curated public routes per cloud provider, so one upstream provider key can unlock several routed models. The current example includes:
 
@@ -292,7 +292,7 @@ The bundled example config now exposes several curated public routes per cloud p
 - Alibaba Qwen: `qwen-max`, `qwen-plus`, `qwen-turbo`
 - Moonshot Kimi: `kimi-latest`, `kimi-k2`, `kimi-k2.5`
 
-These curated route families were last aligned with official provider docs on `2026-04-04`. They are not a claim that AegisLM enumerates every upstream model a provider may ever expose.
+These curated route families were last aligned with official provider docs on `2026-04-04`. They are not a claim that BulkheadLM enumerates every upstream model a provider may ever expose.
 
 Ollama is also supported through its OpenAI-compatible interface, for example on `http://127.0.0.1:11434/v1` with a local model such as `llama3.2`.
 
@@ -384,14 +384,14 @@ src/
   persistence/
 
 test/
-  aegis_lm_test.ml
+  bulkhead_lm_test.ml
 ```
 
 See [Architecture](docs/ARCHITECTURE.md) for the layer-by-layer design.
 
 ## Security and compliance
 
-AegisLM is a hardening-oriented gateway, not a certification claim.
+BulkheadLM is a hardening-oriented gateway, not a certification claim.
 
 Current built-in controls include:
 
@@ -445,9 +445,9 @@ dune build @runtest
 - Moonshot is currently modeled as chat-only in the provider schema
 - there is no admin UI or hot-reload control plane yet
 - the worker protocol is currently JSONL over stdio rather than a binary IPC protocol
-- the guided local starter currently targets macOS, Ubuntu, and FreeBSD; other systems should use `aegislm-client starter` directly
+- the guided local starter currently targets macOS, Ubuntu, and FreeBSD; other systems should use `bulkhead-lm-client starter` directly
 - military or sovereign-environment compliance still requires deployment hardening, supply-chain evidence, identity integration, and formal assessment artifacts
 
 ## License
 
-AegisLM is licensed under the Apache License 2.0. See [LICENSE](LICENSE).
+BulkheadLM is licensed under the Apache License 2.0. See [LICENSE](LICENSE).

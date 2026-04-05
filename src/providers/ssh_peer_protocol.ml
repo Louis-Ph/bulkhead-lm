@@ -63,7 +63,7 @@ let error_of_worker_json ~provider_id json =
   let message =
     Option.value
       (string_member "message" error_json)
-      ~default:"Remote AegisLM SSH worker returned an error."
+      ~default:"Remote BulkheadLM SSH worker returned an error."
   in
   Domain_error.make ~provider_id ~retry_disposition ~code ~status ~error_type message
 ;;
@@ -80,18 +80,18 @@ let response_json_of_line ~provider_id line =
          Error
            (Domain_error.upstream
               ~provider_id
-              "Remote AegisLM SSH worker response is missing the response object."))
+              "Remote BulkheadLM SSH worker response is missing the response object."))
     | None ->
       Error
         (Domain_error.upstream
            ~provider_id
-           "Remote AegisLM SSH worker returned an invalid envelope.")
+           "Remote BulkheadLM SSH worker returned an invalid envelope.")
   with
   | Yojson.Json_error message ->
     Error
       (Domain_error.upstream
          ~provider_id
-         ("Remote AegisLM SSH worker returned invalid JSON: " ^ message))
+         ("Remote BulkheadLM SSH worker returned invalid JSON: " ^ message))
 ;;
 
 let chat_response_of_line ~provider_id line =

@@ -1,8 +1,8 @@
 (include_subdirs unqualified)
 
 (library
- (name aegis_lm)
- (public_name aegis_lm)
+ (name bulkhead_lm)
+ (public_name bulkhead_lm)
  (wrapped true)
  (libraries
   lwt

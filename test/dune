@@ -1,8 +1,8 @@
 (test
- (name aegis_lm_test)
- (modules aegis_lm_test)
+ (name bulkhead_lm_test)
+ (modules bulkhead_lm_test)
  (libraries
-  aegis_lm
+  bulkhead_lm
   alcotest
   alcotest-lwt
   lwt.unix

@@ -2,7 +2,7 @@ open Lwt.Infix
 
 let upstream_context_for_backend store peer_context backend =
   match backend.Config.provider_kind with
-  | Config.Aegis_peer | Config.Aegis_ssh_peer ->
+  | Config.Bulkhead_peer | Config.Bulkhead_ssh_peer ->
     { Provider_client.peer_headers =
         Peer_mesh.outbound_headers store.Runtime_state.config.security_policy peer_context
     ; peer_context = Some peer_context

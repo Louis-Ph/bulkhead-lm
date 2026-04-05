@@ -11,7 +11,7 @@ let api_key_from_env backend =
 ;;
 
 let ssh_binary () =
-  match Sys.getenv_opt "AEGISLM_SSH_BIN" with
+  match Sys.getenv_opt "BULKHEAD_LM_SSH_BIN" with
   | Some value when String.trim value <> "" -> Some (String.trim value)
   | _ ->
     (match Unix.system "command -v ssh >/dev/null 2>&1" with
@@ -114,7 +114,7 @@ let invoke_worker backend upstream_context ~kind request_json parse_response =
       (Error
          (Domain_error.upstream
             ~provider_id:backend.Config.provider_id
-            "aegis_ssh_peer backend is missing ssh transport settings."))
+            "bulkhead_ssh_peer backend is missing ssh transport settings."))
   | _, Error err -> Lwt.return (Error err)
   | Some transport, Ok api_key ->
     let request_id = Peer_mesh.generate_request_id () in

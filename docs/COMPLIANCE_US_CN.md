@@ -2,7 +2,7 @@
 
 ## Scope and non-claim
 
-This document does not claim that AegisLM is currently certified or accredited for United States Department of Defense or Chinese military use.
+This document does not claim that BulkheadLM is currently certified or accredited for United States Department of Defense or Chinese military use.
 
 It is a structured engineering study for turning the current OCaml gateway into:
 
@@ -14,9 +14,9 @@ As of April 2, 2026, the right framing is not "make one binary compliant with bo
 
 That separation is an inference from the applicable source regimes: US DoD procurement and RMF requirements are not operationally identical to PRC network, data, identity, and military-information controls.
 
-## Current AegisLM baseline
+## Current BulkheadLM baseline
 
-AegisLM already helps with several control objectives:
+BulkheadLM already helps with several control objectives:
 
 - explicit routing instead of arbitrary proxying
 - fail-closed egress blocking for loopback and common private ranges
@@ -56,9 +56,9 @@ If the gateway is deployed as part of a DoD information system, the baseline exp
 - FIPS 140-3 validated cryptographic modules for the deployed crypto boundary
 - incident response, logging, backup, continuity, and authorizing-official evidence
 
-### US gap analysis for AegisLM
+### US gap analysis for BulkheadLM
 
-What AegisLM already does well:
+What BulkheadLM already does well:
 
 - deny-by-default egress posture
 - authenticated gateway-level access control
@@ -103,9 +103,9 @@ For China, the publicly visible baseline is not a single "military standard." It
 
 For any system deployed in China that sends prompts, logs, or embeddings to foreign providers, cross-border data controls become a first-order issue.
 
-### PRC gap analysis for AegisLM
+### PRC gap analysis for BulkheadLM
 
-What AegisLM already helps with:
+What BulkheadLM already helps with:
 
 - explicit egress control
 - auditability

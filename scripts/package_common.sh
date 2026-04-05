@@ -1,6 +1,6 @@
 #!/bin/sh
 
-AEGISLM_PACKAGE_ROOT_DIR=${AEGISLM_PACKAGE_ROOT_DIR:-$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)}
+BULKHEAD_LM_PACKAGE_ROOT_DIR=${BULKHEAD_LM_PACKAGE_ROOT_DIR:-$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)}
 
 pkg_note() {
   printf '%s\n' "$*"
@@ -81,9 +81,9 @@ pkg_detect_freebsd_abi() {
 pkg_prepare_binaries() {
   root_dir=$1
 
-  if [ -x "$root_dir/bin/aegislm" ] && [ -x "$root_dir/bin/aegislm-client" ]; then
-    MAIN_BIN="$root_dir/bin/aegislm"
-    CLIENT_BIN="$root_dir/bin/aegislm-client"
+  if [ -x "$root_dir/bin/bulkhead-lm" ] && [ -x "$root_dir/bin/bulkhead-lm-client" ]; then
+    MAIN_BIN="$root_dir/bin/bulkhead-lm"
+    CLIENT_BIN="$root_dir/bin/bulkhead-lm-client"
     pkg_note "Using prebuilt binaries from installed tree."
     export MAIN_BIN CLIENT_BIN
     return 0
@@ -102,7 +102,7 @@ pkg_prepare_binaries() {
   fi
 
   pkg_require_command dune
-  pkg_note "Building AegisLM binaries with dune..."
+  pkg_note "Building BulkheadLM binaries with dune..."
   (
     cd "$root_dir"
     dune build @install bin/main.exe bin/client.exe
@@ -123,9 +123,9 @@ pkg_stage_runtime_tree() {
   pkg_ensure_dir "$app_root/bin"
   pkg_ensure_dir "$app_root/var"
 
-  cp "$MAIN_BIN" "$app_root/bin/aegislm"
-  cp "$CLIENT_BIN" "$app_root/bin/aegislm-client"
-  chmod 0755 "$app_root/bin/aegislm" "$app_root/bin/aegislm-client"
+  cp "$MAIN_BIN" "$app_root/bin/bulkhead-lm"
+  cp "$CLIENT_BIN" "$app_root/bin/bulkhead-lm-client"
+  chmod 0755 "$app_root/bin/bulkhead-lm" "$app_root/bin/bulkhead-lm-client"
 
   pkg_copy_tree_if_present "$root_dir/config" "$app_root/config"
   pkg_copy_tree_if_present "$root_dir/scripts" "$app_root/scripts"

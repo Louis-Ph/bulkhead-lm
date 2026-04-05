@@ -4,8 +4,8 @@ set -eu
 SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 . "${SCRIPT_DIR}/remote_common.sh"
 
-CONFIG=${AEGISLM_REMOTE_CONFIG:-${AEGISLM_REMOTE_ROOT_DIR}/config/example.gateway.json}
-STARTER_OUTPUT=${AEGISLM_REMOTE_STARTER_OUTPUT:-${AEGISLM_REMOTE_ROOT_DIR}/config/starter.gateway.json}
+CONFIG=${BULKHEAD_LM_REMOTE_CONFIG:-${BULKHEAD_LM_REMOTE_ROOT_DIR}/config/example.gateway.json}
+STARTER_OUTPUT=${BULKHEAD_LM_REMOTE_STARTER_OUTPUT:-${BULKHEAD_LM_REMOTE_ROOT_DIR}/config/starter.gateway.json}
 
 print_help() {
   cat <<EOF
@@ -18,7 +18,7 @@ Wrapper options:
   --help                 Show this help
 
 Typical SSH usage:
-  ssh -t user@host '/path/to/aegis-lm/scripts/remote_starter.sh'
+  ssh -t user@host '/path/to/bulkhead-lm/scripts/remote_starter.sh'
 
 Use -t so the remote starter receives a pseudo-terminal.
 EOF
@@ -31,19 +31,19 @@ while [ "$#" -gt 0 ]; do
       exit 0
       ;;
     --config)
-      [ "$#" -ge 2 ] || { aegislm_remote_note "--config requires a value"; exit 1; }
+      [ "$#" -ge 2 ] || { bulkhead_lm_remote_note "--config requires a value"; exit 1; }
       CONFIG=$2
       shift 2
       ;;
     --starter-output)
-      [ "$#" -ge 2 ] || { aegislm_remote_note "--starter-output requires a value"; exit 1; }
+      [ "$#" -ge 2 ] || { bulkhead_lm_remote_note "--starter-output requires a value"; exit 1; }
       STARTER_OUTPUT=$2
       shift 2
       ;;
     --switch)
-      [ "$#" -ge 2 ] || { aegislm_remote_note "--switch requires a value"; exit 1; }
-      AEGISLM_REMOTE_SWITCH=$2
-      export AEGISLM_REMOTE_SWITCH
+      [ "$#" -ge 2 ] || { bulkhead_lm_remote_note "--switch requires a value"; exit 1; }
+      BULKHEAD_LM_REMOTE_SWITCH=$2
+      export BULKHEAD_LM_REMOTE_SWITCH
       shift 2
       ;;
     --)
@@ -57,10 +57,10 @@ while [ "$#" -gt 0 ]; do
 done
 
 if [ ! -t 0 ] || [ ! -t 1 ]; then
-  aegislm_remote_note "remote_starter requires an interactive TTY."
-  aegislm_remote_note "Use ssh -t user@host '/path/to/aegis-lm/scripts/remote_starter.sh'"
+  bulkhead_lm_remote_note "remote_starter requires an interactive TTY."
+  bulkhead_lm_remote_note "Use ssh -t user@host '/path/to/bulkhead-lm/scripts/remote_starter.sh'"
   exit 1
 fi
 
-aegislm_remote_load_opam_env
-exec aegislm_remote_exec_client starter --config "${CONFIG}" --starter-output "${STARTER_OUTPUT}" "$@"
+bulkhead_lm_remote_load_opam_env
+exec bulkhead_lm_remote_exec_client starter --config "${CONFIG}" --starter-output "${STARTER_OUTPUT}" "$@"

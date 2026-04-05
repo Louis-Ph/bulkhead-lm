@@ -29,7 +29,7 @@ case "$OS_NAME" in
       STARTER_SCRIPT="$ROOT_DIR/scripts/ubuntu_starter.sh"
     else
       printf '%s\n' "This local starter currently supports Ubuntu on Linux." >&2
-      printf '%s\n' "Use dune exec aegislm-client -- starter directly on other Linux distributions." >&2
+      printf '%s\n' "Use dune exec bulkhead-lm-client -- starter directly on other Linux distributions." >&2
       exit 1
     fi
     ;;
@@ -38,7 +38,7 @@ case "$OS_NAME" in
     ;;
   *)
     printf '%s\n' "Unsupported host OS: $OS_NAME" >&2
-    printf '%s\n' "Use dune exec aegislm-client -- starter directly on this system." >&2
+    printf '%s\n' "Use dune exec bulkhead-lm-client -- starter directly on this system." >&2
     exit 1
     ;;
 esac

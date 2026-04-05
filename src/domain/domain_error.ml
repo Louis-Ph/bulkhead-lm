@@ -197,7 +197,7 @@ let loop_detected ~max_hops ~request_id ~hop_count () =
     ~status:508
     ~error_type:"api_error"
     (Fmt.str
-       "AegisLM peer hop limit exceeded for request %s: received hop count %d with max_hops=%d."
+       "BulkheadLM peer hop limit exceeded for request %s: received hop count %d with max_hops=%d."
        request_id
        hop_count
        max_hops)

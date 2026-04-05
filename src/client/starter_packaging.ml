@@ -41,9 +41,9 @@ let package_format_label = function
 ;;
 
 let default_install_root = function
-  | Macos -> "/opt/aegis-lm"
-  | Ubuntu -> "/opt/aegis-lm"
-  | Freebsd -> "/usr/local/lib/aegis-lm"
+  | Macos -> "/opt/bulkhead-lm"
+  | Ubuntu -> "/opt/bulkhead-lm"
+  | Freebsd -> "/usr/local/lib/bulkhead-lm"
 ;;
 
 let default_wrapper_dir = function
@@ -53,7 +53,7 @@ let default_wrapper_dir = function
 ;;
 
 let default_identifier = function
-  | Macos -> Some "io.github.louis-ph.aegislm"
+  | Macos -> Some "io.github.louis-ph.bulkhead-lm"
   | Ubuntu | Freebsd -> None
 ;;
 
@@ -125,9 +125,9 @@ let suggested_maintainer () =
         ~finally:(fun () -> ignore (Unix.close_process_in channel))
         (fun () ->
           let value = input_line channel |> trim in
-          if value = "" then "AegisLM" else value)
+          if value = "" then "BulkheadLM" else value)
     with
-    | _ -> "AegisLM"
+    | _ -> "BulkheadLM"
 ;;
 
 let request_summary request =

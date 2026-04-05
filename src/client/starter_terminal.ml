@@ -23,11 +23,11 @@ let rec ensure_dir path =
 let history_file ?history_env ~home () =
   match history_env with
   | Some path when trim path <> "" -> path
-  | _ -> Filename.concat home ".aegislm/starter.history"
+  | _ -> Filename.concat home ".bulkhead-lm/starter.history"
 ;;
 
 let default_history_file () =
-  match Sys.getenv_opt "AEGISLM_STARTER_HISTORY_FILE", Sys.getenv_opt "HOME" with
+  match Sys.getenv_opt "BULKHEAD_LM_STARTER_HISTORY_FILE", Sys.getenv_opt "HOME" with
   | Some path, _ when trim path <> "" -> Some path
   | _, Some home when trim home <> "" -> Some (history_file ~home ())
   | _ -> None

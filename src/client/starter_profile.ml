@@ -31,8 +31,8 @@ let provider_kind_to_string = function
   | Config.Ollama_openai -> "ollama_openai"
   | Config.Alibaba_openai -> "alibaba_openai"
   | Config.Moonshot_openai -> "moonshot_openai"
-  | Config.Aegis_peer -> "aegis_peer"
-  | Config.Aegis_ssh_peer -> "aegis_ssh_peer"
+  | Config.Bulkhead_peer -> "bulkhead_peer"
+  | Config.Bulkhead_ssh_peer -> "bulkhead_ssh_peer"
 ;;
 
 let normalize_id_part value =
@@ -140,7 +140,7 @@ let route_statuses ?(lookup = Sys.getenv_opt) (config : Config.t) =
 
 let split_route_statuses statuses = List.partition (fun (status : route_status) -> status.ready) statuses
 
-let client_env_names = [ "AEGISLM_API_KEY"; "AEGISLM_AUTHORIZATION" ]
+let client_env_names = [ "BULKHEAD_LM_API_KEY"; "BULKHEAD_LM_AUTHORIZATION" ]
 
 let relevant_env_names () =
   client_env_names

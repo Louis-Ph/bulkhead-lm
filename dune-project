@@ -1,11 +1,11 @@
 (lang dune 3.21)
 
-(name aegis_lm)
+(name bulkhead_lm)
 
 (generate_opam_files true)
 
 (source
- (github Louis-Ph/aegis-lm))
+ (github Louis-Ph/bulkhead-lm))
 
 (authors "Louis-Ph")
 
@@ -14,7 +14,7 @@
 (license Apache-2.0)
 
 (package
- (name aegis_lm)
+ (name bulkhead_lm)
  (synopsis "Secure OCaml LLM gateway with OpenAI-compatible endpoints")
  (description
   "A hierarchical, security-first OCaml LLM gateway with routing, budgets, virtual keys, and provider adapters.")

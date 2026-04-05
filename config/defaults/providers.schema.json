@@ -7,8 +7,8 @@
     "ollama_openai",
     "alibaba_openai",
     "moonshot_openai",
-    "aegis_peer",
-    "aegis_ssh_peer"
+    "bulkhead_peer",
+    "bulkhead_ssh_peer"
   ],
   "supported_operations": [
     "chat_completions",
@@ -22,7 +22,7 @@
     "ollama_openai": ["chat_completions", "embeddings"],
     "alibaba_openai": ["chat_completions", "embeddings"],
     "moonshot_openai": ["chat_completions"],
-    "aegis_peer": ["chat_completions", "embeddings"],
-    "aegis_ssh_peer": ["chat_completions", "embeddings"]
+    "bulkhead_peer": ["chat_completions", "embeddings"],
+    "bulkhead_ssh_peer": ["chat_completions", "embeddings"]
   }
 }

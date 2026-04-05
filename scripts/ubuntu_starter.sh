@@ -29,7 +29,7 @@ platform_validate_host() {
   esac
 
   say_err "This Linux starter currently targets Ubuntu."
-  say_err "Use aegislm-client starter directly on other Linux distributions."
+  say_err "Use bulkhead-lm-client starter directly on other Linux distributions."
   return 1
 }
 

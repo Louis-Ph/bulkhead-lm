@@ -18,7 +18,7 @@
 - `src/security/`: authentication, secret redaction, egress policy, and peer mesh hop control
 - `src/runtime/`: in-memory state, budget ledger, rate limiting, routing
 - `src/providers/`: upstream adapters by provider family
-- `src/providers/ssh_peer_protocol.ml`: JSONL-over-SSH envelope used by `aegis_ssh_peer`
+- `src/providers/ssh_peer_protocol.ml`: JSONL-over-SSH envelope used by `bulkhead_ssh_peer`
 - `src/http/`: HTTP handlers and SSE serialization
 - `src/persistence/`: SQLite-backed persistence for keys, budgets, and audit events
 - `test/`: behavior, security, and concurrency invariants
@@ -31,7 +31,7 @@
 4. `Rate_limiter` enforces a per-minute ceiling.
 5. `Router` resolves the public model to an explicit backend list.
 6. `Egress_policy` blocks loopback and private destinations before any upstream call.
-7. `Peer_mesh` validates inbound AegisLM hop headers before reflexive forwarding is allowed.
+7. `Peer_mesh` validates inbound BulkheadLM hop headers before reflexive forwarding is allowed.
 8. Each upstream attempt is time-boxed by configured request timeout policy.
 9. The selected provider adapter rewrites the request for the upstream API or the SSH worker protocol.
 10. `Budget_ledger` debits token usage after a successful response.
@@ -45,11 +45,11 @@
 
 ## Terminal client and worker mode
 
-- `aegislm-client ask` dispatches directly against the shared runtime without starting the HTTP server
-- `aegislm-client call` accepts one JSON request on stdin and returns one JSON response on stdout
-- `aegislm-client worker` keeps one runtime store alive and processes JSONL requests with bounded concurrency
-- `aegislm-client starter` is an interactive wizard that can write a portable config JSON and then launch a local terminal session
-- `Admin_assistant` builds structured admin plans from the selected model, local AegisLM docs, and the active config files
+- `bulkhead-lm-client ask` dispatches directly against the shared runtime without starting the HTTP server
+- `bulkhead-lm-client call` accepts one JSON request on stdin and returns one JSON response on stdout
+- `bulkhead-lm-client worker` keeps one runtime store alive and processes JSONL requests with bounded concurrency
+- `bulkhead-lm-client starter` is an interactive wizard that can write a portable config JSON and then launch a local terminal session
+- `Admin_assistant` builds structured admin plans from the selected model, local BulkheadLM docs, and the active config files
 - `Admin_assistant_plan` keeps config-edit and system-action steps in a typed format before anything is applied
 - `Starter_packaging` owns host detection, package defaults, and the live package-build runner used by the starter
 - `Terminal_ops` owns the structured `ops` protocol for filesystem and command requests under explicit security-policy roots
@@ -58,12 +58,12 @@
 - `Starter_runtime` isolates mutable starter session data, such as conversation memory and pending admin plans, from the finite-state command parser
 - `Starter_session` models the starter REPL as a finite-state machine with explicit `Ready`, `Streaming`, and `Closed` states plus explicit admin-plan effects
 - `Starter_terminal` owns human-facing line editing, persistent history, and slash-command/model completion
-- `/package` is a guided starter flow that builds a distributable OS-native package from either a source checkout or an installed AegisLM tree
+- `/package` is a guided starter flow that builds a distributable OS-native package from either a source checkout or an installed BulkheadLM tree
 - `ask` and `call` are isolated per-process invocations, while `worker` is the mode intended to coordinate many concurrent local jobs through one runtime instance
 - worker outputs are serialized under a dedicated stdout lock so parallel jobs do not interleave their JSON lines
 - shared rate-limit, budget, and persistence state remain protected by the existing `Mutex` and SQLite locking strategy
 - `ops` requests reuse virtual-key auth and request-rate checks, but they are fail-closed until `security_policy.client_ops` enables explicit read, write, or exec roots
-- command execution is shell-free: callers send `command` plus `args`, and AegisLM applies timeout and output caps before returning a structured result
+- command execution is shell-free: callers send `command` plus `args`, and BulkheadLM applies timeout and output caps before returning a structured result
 - starter admin requests are plan-first: the model returns typed JSON, the user reviews it with `/plan`, and only `/apply` mutates config files or runs allowed local ops
 
 ## Concurrency model
@@ -85,5 +85,5 @@
 - explicit separation between security policy, runtime state, and provider adapters
 - fail-closed egress defaults
 - no implicit propagation of client secrets to upstream providers
-- reflexive AegisLM peering is explicit as `aegis_peer`, with bounded hop count by policy
-- SSH peering is also explicit as `aegis_ssh_peer`, reusing the remote worker protocol instead of tunneling hidden HTTP
+- reflexive BulkheadLM peering is explicit as `bulkhead_peer`, with bounded hop count by policy
+- SSH peering is also explicit as `bulkhead_ssh_peer`, reusing the remote worker protocol instead of tunneling hidden HTTP

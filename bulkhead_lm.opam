@@ -6,8 +6,8 @@ description:
 maintainer: ["Louis-Ph"]
 authors: ["Louis-Ph"]
 license: "Apache-2.0"
-homepage: "https://github.com/Louis-Ph/aegis-lm"
-bug-reports: "https://github.com/Louis-Ph/aegis-lm/issues"
+homepage: "https://github.com/Louis-Ph/bulkhead-lm"
+bug-reports: "https://github.com/Louis-Ph/bulkhead-lm/issues"
 depends: [
   "ocaml"
   "dune" {>= "3.21"}
@@ -42,5 +42,5 @@ build: [
     "@doc" {with-doc}
   ]
 ]
-dev-repo: "git+https://github.com/Louis-Ph/aegis-lm.git"
+dev-repo: "git+https://github.com/Louis-Ph/bulkhead-lm.git"
 x-maintenance-intent: ["(latest)"]

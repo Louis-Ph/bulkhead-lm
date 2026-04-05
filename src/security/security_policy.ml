@@ -102,8 +102,8 @@ let default () =
   ; mesh =
       { enabled = true
       ; max_hops = 1
-      ; request_id_header = "x-aegislm-request-id"
-      ; hop_count_header = "x-aegislm-hop-count"
+      ; request_id_header = "x-bulkhead-lm-request-id"
+      ; hop_count_header = "x-bulkhead-lm-hop-count"
       }
   ; client_ops =
       { files =

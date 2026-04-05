@@ -26,10 +26,10 @@ end
 
 module Defaults = struct
   let virtual_key_name = "local-dev"
-  let virtual_key_token = "sk-aegis-dev"
+  let virtual_key_token = "sk-bulkhead-lm-dev"
   let daily_token_budget = 50_000
   let requests_per_minute = 30
-  let sqlite_path = "../var/aegislm.sqlite"
+  let sqlite_path = "../var/bulkhead-lm.sqlite"
   let starter_output = "config/starter.gateway.json"
   let base_config = "config/example.gateway.json"
   let conversation_keep_recent_turns = 6
@@ -43,12 +43,12 @@ module Defaults = struct
 end
 
 module Text = struct
-  let title = "AegisLM starter"
+  let title = "BulkheadLM starter"
 
   let intro_lines =
     [ "This path is for Mac terminal beginners."
     ; "It can reuse the repository example config, or build a personal portable JSON config that only references environment variables."
-    ; "It also includes an administrative assistant for AegisLM configuration and safe local operations."
+    ; "It also includes an administrative assistant for BulkheadLM configuration and safe local operations."
     ]
   ;;
 
@@ -97,7 +97,7 @@ module Text = struct
     ; "  /explore .  list files and folders in the current allowed root"
     ; "  /open PATH  preview one local text file"
     ; "  /run CMD    execute one local command without a shell"
-    ; "  /admin ...  ask the assistant to change AegisLM or local settings safely"
+    ; "  /admin ...  ask the assistant to change BulkheadLM or local settings safely"
     ; "  /package    build a distributable package for this operating system"
     ]
   ;;
@@ -109,7 +109,7 @@ module Text = struct
     "Line editing is enabled: arrows, history, and tab completion are available in the starter."
   let tools_intro = "Use /file PATH to send one local text file with your next question."
   let assistant_capabilities_system_prompt =
-    "You are the assistant inside the AegisLM starter terminal. The user can use local starter commands such as /help, /tools, /file PATH, /files, /clearfiles, /explore PATH, /open PATH, /run CMD, /admin TEXT, /package, /model, /models, /swap NAME, /providers, /env, /memory, /thread on, /thread off, and /quit. If the user asks how to send a file, explain /file PATH and /files instead of saying file upload is impossible. If the user asks to inspect local files or run a local command, mention /explore, /open, or /run."
+    "You are the assistant inside the BulkheadLM starter terminal. The user can use local starter commands such as /help, /tools, /file PATH, /files, /clearfiles, /explore PATH, /open PATH, /run CMD, /admin TEXT, /package, /model, /models, /swap NAME, /providers, /env, /memory, /thread on, /thread off, and /quit. If the user asks how to send a file, explain /file PATH and /files instead of saying file upload is impossible. If the user asks to inspect local files or run a local command, mention /explore, /open, or /run."
   let swap_usage = "/swap expects a configured public model name, for example: /swap claude-sonnet"
   let thread_usage = "/thread expects on or off, for example: /thread off"
   let admin_usage = Admin_assistant_constants.Text.usage

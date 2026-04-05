@@ -8,8 +8,8 @@ type provider_kind =
   | Ollama_openai
   | Alibaba_openai
   | Moonshot_openai
-  | Aegis_peer
-  | Aegis_ssh_peer
+  | Bulkhead_peer
+  | Bulkhead_ssh_peer
 
 type ssh_transport =
   { destination : string
@@ -76,8 +76,8 @@ let provider_kind_of_string = function
   | "ollama_openai" -> Ok Ollama_openai
   | "alibaba_openai" -> Ok Alibaba_openai
   | "moonshot_openai" -> Ok Moonshot_openai
-  | "aegis_peer" -> Ok Aegis_peer
-  | "aegis_ssh_peer" -> Ok Aegis_ssh_peer
+  | "bulkhead_peer" -> Ok Bulkhead_peer
+  | "bulkhead_ssh_peer" -> Ok Bulkhead_ssh_peer
   | value -> Error (Fmt.str "Unsupported provider kind: %s" value)
 ;;
 
@@ -88,8 +88,8 @@ let is_openai_compatible_kind = function
   | Ollama_openai
   | Alibaba_openai
   | Moonshot_openai
-  | Aegis_peer
-  | Aegis_ssh_peer -> true
+  | Bulkhead_peer
+  | Bulkhead_ssh_peer -> true
   | Anthropic -> false
 ;;
 
@@ -228,7 +228,7 @@ let parse_backend json =
   >>= fun upstream_model ->
   let target_result =
     match provider_kind with
-    | Aegis_ssh_peer ->
+    | Bulkhead_ssh_peer ->
       (match object_member "ssh_transport" json with
        | `Assoc _ as ssh_json ->
          parse_ssh_transport ssh_json |> Result.map (fun transport -> Ssh_target transport)

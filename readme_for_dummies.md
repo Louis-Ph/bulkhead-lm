@@ -1,6 +1,6 @@
-# AegisLM For Dummies
+# BulkheadLM For Dummies
 
-This guide is for someone who is about 10 years old, knows almost nothing about computers, and just wants AegisLM to start and let them chat.
+This guide is for someone who is about 10 years old, knows almost nothing about computers, and just wants BulkheadLM to start and let them chat.
 
 If a word looks scary, ignore it and follow the steps one by one.
 
@@ -8,11 +8,11 @@ If a word looks scary, ignore it and follow the steps one by one.
 
 You need 3 things:
 
-1. A machine where AegisLM can run.
+1. A machine where BulkheadLM can run.
 2. One API key, or a local model.
 3. One command: `./run.sh`
 
-Then AegisLM asks you simple questions and opens a chat.
+Then BulkheadLM asks you simple questions and opens a chat.
 
 ## Pick your easiest path
 
@@ -21,10 +21,10 @@ Then AegisLM asks you simple questions and opens a chat.
 | macOS MacBook | Local install on the Mac |
 | Ubuntu computer | Local install on Ubuntu |
 | Windows computer | Use WSL Ubuntu, then follow the Ubuntu steps inside WSL |
-| Chromebook / ChromeOS | Best path: use the Linux Terminal if available, or use SSH to a small cloud machine already running AegisLM |
+| Chromebook / ChromeOS | Best path: use the Linux Terminal if available, or use SSH to a small cloud machine already running BulkheadLM |
 | FreeBSD machine | Local install on FreeBSD |
-| Android phone | Best path: connect by SSH to another machine, often a small cloud Ubuntu VM already running AegisLM |
-| Tablet or iPad | Best path: connect by SSH to another machine, often a small cloud Ubuntu VM already running AegisLM |
+| Android phone | Best path: connect by SSH to another machine, often a small cloud Ubuntu VM already running BulkheadLM |
+| Tablet or iPad | Best path: connect by SSH to another machine, often a small cloud Ubuntu VM already running BulkheadLM |
 
 ## Before you start: how to get a key cheaply or for free
 
@@ -104,7 +104,7 @@ If you want the simplest first success, try this order:
 Good news:
 you do not need a giant server.
 
-For AegisLM, a small Ubuntu machine is often enough if your model is in the cloud and your API key talks to the model provider.
+For BulkheadLM, a small Ubuntu machine is often enough if your model is in the cloud and your API key talks to the model provider.
 
 Research snapshot for this cloud-offers section: 2026-04-04.
 
@@ -112,7 +112,7 @@ The easy idea is:
 
 1. Start one small cloud machine.
 2. Connect with SSH.
-3. Clone AegisLM.
+3. Clone BulkheadLM.
 4. Put one API key in your secret file.
 5. Run `./run.sh`.
 
@@ -171,20 +171,20 @@ Cloud offers are powerful, but they are not toys.
 8. If you are a child, ask an adult before typing card details anywhere.
 9. Before you click "Create", check the official pricing page one more time and look for what happens after the trial ends.
 
-## The easiest cloud recipe for AegisLM
+## The easiest cloud recipe for BulkheadLM
 
 If you want one simple cloud plan that is easy to understand, do this:
 
 1. Choose one Ubuntu virtual machine from Oracle Cloud, Azure, AWS, or Alibaba Cloud.
-2. Choose one model API key from Gemini, Mistral, OpenAI, Anthropic, or another provider already supported by AegisLM.
+2. Choose one model API key from Gemini, Mistral, OpenAI, Anthropic, or another provider already supported by BulkheadLM.
 3. Connect to the machine with SSH.
 4. Run:
 
 ```bash
 sudo apt update
 sudo apt install -y git
-git clone https://github.com/Louis-Ph/aegis-lm.git
-cd aegis-lm
+git clone https://github.com/Louis-Ph/bulkhead-lm.git
+cd bulkhead-lm
 printf '%s\n' 'export GOOGLE_API_KEY="paste-your-key-here"' >> ~/.bashrc.secret
 ./run.sh
 ```
@@ -192,10 +192,10 @@ printf '%s\n' 'export GOOGLE_API_KEY="paste-your-key-here"' >> ~/.bashrc.secret
 5. Choose a model marked `[ready]`.
 6. Start chatting.
 
-If your cloud machine already has AegisLM packaged and installed, the path can be even shorter:
+If your cloud machine already has BulkheadLM packaged and installed, the path can be even shorter:
 
 ```bash
-aegislm-starter
+bulkhead-lm-starter
 ```
 
 ## The easiest cloud combos
@@ -207,7 +207,7 @@ If you want a fast answer instead of a big comparison, pick one of these:
 2. Biggest beginner ecosystem:
    Azure or AWS plus Gemini or OpenAI.
 3. "I want the model only, not the server":
-   keep AegisLM on your own MacBook and only buy an API key.
+   keep BulkheadLM on your own MacBook and only buy an API key.
 4. "I want a machine in the cloud and a premium model":
    small Ubuntu VM plus OpenAI or Anthropic key.
 
@@ -224,12 +224,12 @@ You can keep using:
 3. a phone with little storage
 4. a shared family device
 
-and still get your own AegisLM machine.
+and still get your own BulkheadLM machine.
 
 The trick is simple:
 
 1. rent or claim one small cloud Ubuntu machine with a promotional offer
-2. keep AegisLM and your API keys on that cloud machine
+2. keep BulkheadLM and your API keys on that cloud machine
 3. reach it from your small device with SSH or a browser-based cloud console
 
 That way, your little device becomes a safe remote control, not the place where all the secrets live.
@@ -243,18 +243,18 @@ If you want the easiest idea to remember, it is this:
 1. Cloud machine:
    one small Ubuntu VM on Oracle Cloud, AWS, Azure, or Alibaba Cloud
 2. Model:
-   one API key from Gemini, Mistral, OpenAI, Anthropic, or another AegisLM provider
+   one API key from Gemini, Mistral, OpenAI, Anthropic, or another BulkheadLM provider
 3. Access:
    SSH app, Chromebook Terminal, or a cloud provider browser console
 4. Daily use:
-   run `aegislm-starter` on the cloud machine
+   run `bulkhead-lm-starter` on the cloud machine
 
 The attractive part is:
 
 1. Your phone, tablet, or Chromebook stays light.
 2. Your API keys stay in one place.
 3. You can reconnect from almost anywhere.
-4. If one device breaks, your AegisLM machine still exists.
+4. If one device breaks, your BulkheadLM machine still exists.
 5. You do not need to reinstall everything every time.
 
 ## The easiest secure access method
@@ -262,19 +262,19 @@ The attractive part is:
 The safest beginner-friendly pattern is usually:
 
 1. create the cloud machine once
-2. install AegisLM there once
+2. install BulkheadLM there once
 3. keep the API keys only there
 4. connect with SSH
 5. launch:
 
 ```bash
-aegislm-starter
+bulkhead-lm-starter
 ```
 
 If you connect from another machine, the very short command is:
 
 ```bash
-ssh -t your-user@your-cloud-machine 'aegislm-starter'
+ssh -t your-user@your-cloud-machine 'bulkhead-lm-starter'
 ```
 
 This is much better than copying API keys onto every phone, tablet, or borrowed computer.
@@ -291,7 +291,7 @@ Examples checked on 2026-04-04:
 2. AWS also documents EC2 Instance Connect for secure SSH access.
 3. Alibaba Cloud documents Workbench, a browser-based remote connection tool for Linux instances.
 
-That means a browser alone may be enough to open your cloud machine, bootstrap AegisLM, and later keep using it.
+That means a browser alone may be enough to open your cloud machine, bootstrap BulkheadLM, and later keep using it.
 
 Official links:
 - [AWS Session Manager for EC2](https://docs.aws.amazon.com/AWSEC2/latest/UserGuide/connect-with-systems-manager-session-manager.html)
@@ -317,20 +317,20 @@ Imagine this:
 1. You have only a Chromebook or tablet.
 2. You claim a cloud promotional Ubuntu machine.
 3. You open its browser console or connect with SSH.
-4. You clone AegisLM there.
+4. You clone BulkheadLM there.
 5. You put your API key in the secret file there.
 6. You run `./run.sh` once.
 7. After that, your daily command is only:
 
 ```bash
-aegislm-starter
+bulkhead-lm-starter
 ```
 
 That is a very practical way to get "my own AI machine" without turning your little device into a server.
 
 ## Why ChromeOS, Android, and tablets are actually great for this
 
-This is one of the nicest things about AegisLM:
+This is one of the nicest things about BulkheadLM:
 your small device does not need to be the big machine.
 
 It can become a tiny control room.
@@ -347,16 +347,16 @@ Research snapshot for this mobile-and-ChromeOS section: 2026-04-04.
 
 ## ChromeOS: the easy path that feels smart
 
-A Chromebook can be a very nice AegisLM control machine.
+A Chromebook can be a very nice BulkheadLM control machine.
 
 Google officially says many Chromebooks can turn on a Linux development environment, and that this gives you a Debian environment with a Terminal app.
 
 That means two easy paths:
 
 1. If Linux is available on your Chromebook:
-   use the built-in Terminal and connect to your AegisLM machine with SSH.
+   use the built-in Terminal and connect to your BulkheadLM machine with SSH.
 2. If Linux is not available or is blocked by school or work policy:
-   use another machine for AegisLM and keep the Chromebook as the safe front door.
+   use another machine for BulkheadLM and keep the Chromebook as the safe front door.
 
 Very simple ChromeOS path:
 
@@ -367,7 +367,7 @@ Very simple ChromeOS path:
 5. Run:
 
 ```bash
-ssh -t your-user@your-machine 'aegislm-starter'
+ssh -t your-user@your-machine 'bulkhead-lm-starter'
 ```
 
 Why this is attractive:
@@ -393,8 +393,8 @@ xcode-select --install
 3. Clone the repo:
 
 ```bash
-git clone https://github.com/Louis-Ph/aegis-lm.git
-cd aegis-lm
+git clone https://github.com/Louis-Ph/bulkhead-lm.git
+cd bulkhead-lm
 ```
 
 4. Put your key in a secret file:
@@ -411,7 +411,7 @@ You can replace `GOOGLE_API_KEY` with `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or 
 ./run.sh
 ```
 
-6. When AegisLM asks which model you want, choose a model marked `[ready]`.
+6. When BulkheadLM asks which model you want, choose a model marked `[ready]`.
 
 ## Ubuntu: easiest local start
 
@@ -426,8 +426,8 @@ sudo apt install -y git
 3. Clone the repo:
 
 ```bash
-git clone https://github.com/Louis-Ph/aegis-lm.git
-cd aegis-lm
+git clone https://github.com/Louis-Ph/bulkhead-lm.git
+cd bulkhead-lm
 ```
 
 4. Put your key in a secret file:
@@ -446,7 +446,7 @@ printf '%s\n' 'export GOOGLE_API_KEY="paste-your-key-here"' >> ~/.bashrc.secret
 
 ## Windows with WSL Ubuntu: easiest local start
 
-This is the easiest Windows path because AegisLM already knows how to behave on Ubuntu.
+This is the easiest Windows path because BulkheadLM already knows how to behave on Ubuntu.
 
 1. Open PowerShell as Administrator.
 2. Install WSL Ubuntu:
@@ -465,8 +465,8 @@ Short version inside WSL:
 ```bash
 sudo apt update
 sudo apt install -y git
-git clone https://github.com/Louis-Ph/aegis-lm.git
-cd aegis-lm
+git clone https://github.com/Louis-Ph/bulkhead-lm.git
+cd bulkhead-lm
 printf '%s\n' 'export GOOGLE_API_KEY="paste-your-key-here"' >> ~/.bashrc.secret
 ./run.sh
 ```
@@ -483,8 +483,8 @@ sudo pkg install -y git
 3. Clone the repo:
 
 ```bash
-git clone https://github.com/Louis-Ph/aegis-lm.git
-cd aegis-lm
+git clone https://github.com/Louis-Ph/bulkhead-lm.git
+cd bulkhead-lm
 ```
 
 4. Put your key in a secret file:
@@ -505,20 +505,20 @@ The easiest Android path is not a full local install.
 
 Do this instead:
 
-1. Have another machine already running AegisLM:
+1. Have another machine already running BulkheadLM:
    macOS, Ubuntu, WSL Ubuntu, FreeBSD, or one small cloud Ubuntu VM.
 2. Install any SSH app on Android.
 3. Connect to the other machine.
 4. Run:
 
 ```bash
-ssh -t your-user@your-machine 'cd /path/to/aegis-lm && ./run.sh'
+ssh -t your-user@your-machine 'cd /path/to/bulkhead-lm && ./run.sh'
 ```
 
-If AegisLM is already installed as a packaged app on the remote machine, this is even easier:
+If BulkheadLM is already installed as a packaged app on the remote machine, this is even easier:
 
 ```bash
-ssh -t your-user@your-machine 'aegislm-starter'
+ssh -t your-user@your-machine 'bulkhead-lm-starter'
 ```
 
 Advanced note:
@@ -548,17 +548,17 @@ Official links:
 Same idea as Android.
 
 1. Use any SSH app.
-2. Connect to a Mac, Ubuntu, WSL Ubuntu, FreeBSD, or small cloud Ubuntu machine that already has AegisLM.
+2. Connect to a Mac, Ubuntu, WSL Ubuntu, FreeBSD, or small cloud Ubuntu machine that already has BulkheadLM.
 3. Run:
 
 ```bash
-ssh -t your-user@your-machine 'cd /path/to/aegis-lm && ./run.sh'
+ssh -t your-user@your-machine 'cd /path/to/bulkhead-lm && ./run.sh'
 ```
 
 Or, if the machine has a packaged install:
 
 ```bash
-ssh -t your-user@your-machine 'aegislm-starter'
+ssh -t your-user@your-machine 'bulkhead-lm-starter'
 ```
 
 Why tablets are attractive:
@@ -584,7 +584,7 @@ Official links:
 
 If you want the best mix of easy and safe, do this:
 
-1. Install AegisLM on one real machine:
+1. Install BulkheadLM on one real machine:
    Mac, Ubuntu, WSL Ubuntu, FreeBSD, or one small cloud Ubuntu VM.
 2. Put the API keys only on that machine.
 3. Access that machine from Chromebook, Android, or tablet with SSH.
@@ -592,14 +592,14 @@ If you want the best mix of easy and safe, do this:
 5. Launch:
 
 ```bash
-ssh -t your-user@your-machine 'aegislm-starter'
+ssh -t your-user@your-machine 'bulkhead-lm-starter'
 ```
 
 This is attractive because:
 
 1. The small device feels magical and easy.
 2. The secret keys stay in one place.
-3. If the mobile device changes, your AegisLM machine does not need to be rebuilt.
+3. If the mobile device changes, your BulkheadLM machine does not need to be rebuilt.
 4. You can revoke access in one place if needed.
 
 ## What happens when `./run.sh` starts
@@ -614,7 +614,7 @@ It can:
 4. Open a simple chat.
 5. Let you attach a local text file with `/file PATH`.
 6. Let you explore folders with `/explore`, open a text file with `/open`, and run one safe local command with `/run`.
-7. Help configure AegisLM with `/admin`.
+7. Help configure BulkheadLM with `/admin`.
 8. Help build a distributable package with `/package`.
 
 ## Your first chat
@@ -694,7 +694,7 @@ Do not try to build everything locally first.
 
 Use a remote machine:
 
-1. A MacBook, Ubuntu box, WSL Ubuntu PC, or FreeBSD machine runs AegisLM.
+1. A MacBook, Ubuntu box, WSL Ubuntu PC, or FreeBSD machine runs BulkheadLM.
 2. Your tablet or phone opens SSH to it.
 3. You chat from there.
 
@@ -704,7 +704,7 @@ Start with these 3 questions:
 
 1. What machine am I using?
 2. Do I already have one API key?
-3. Did I really run `./run.sh` inside the `aegis-lm` folder?
+3. Did I really run `./run.sh` inside the `bulkhead-lm` folder?
 
 If the answer to number 2 is no, get a key first.
 
