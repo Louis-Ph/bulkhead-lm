@@ -1,4 +1,7 @@
 _build/
+_opam/
+.opam-root/
+.bulkhead-tools/
 .DS_Store
 *.install
 *.merlin

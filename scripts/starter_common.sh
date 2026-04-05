@@ -1,8 +1,11 @@
 #!/bin/sh
 
+. "$ROOT_DIR/scripts/toolchain_env.sh"
+bulkhead_lm_unset_opam_env
+
 DEFAULT_CONFIG=${BULKHEAD_LM_BASE_CONFIG:-$ROOT_DIR/config/example.gateway.json}
 STARTER_OUTPUT=${BULKHEAD_LM_STARTER_OUTPUT:-$ROOT_DIR/config/starter.gateway.json}
-DEFAULT_OCAML_COMPILER=${BULKHEAD_LM_OCAML_COMPILER:-ocaml-base-compiler.5.2.1}
+DEFAULT_OCAML_COMPILER=${BULKHEAD_LM_OCAML_COMPILER:-$BULKHEAD_LM_LOCAL_OCAML_COMPILER}
 USE_GLOBAL_SWITCH=${BULKHEAD_LM_USE_GLOBAL_SWITCH:-0}
 FORCE_LOCAL_SWITCH=${BULKHEAD_LM_FORCE_LOCAL_SWITCH:-0}
 DEFAULT_ENV_FILES="$HOME/.zshrc.secret:$HOME/.zshrc.secrets:$HOME/.bashrc.secret:$HOME/.bashrc.secrets:$HOME/.profile.secret:$HOME/.profile.secrets:$HOME/.config/bulkhead-lm/env"
@@ -63,6 +66,11 @@ manual_setup_commands() {
 
   cat <<EOF
 Manual setup options:
+  Bootstrap a project-local toolchain:
+    cd "$ROOT_DIR"
+    ./scripts/bootstrap_local_toolchain.sh
+    ./run.sh
+
   Reuse the current switch:
     eval "\$(opam env --set-switch)"
     opam install . --deps-only --yes
@@ -112,6 +120,13 @@ load_secret_files() {
 }
 
 find_opam() {
+  if [ -x "$BULKHEAD_LM_LOCAL_OPAM_BIN" ]; then
+    OPAM_BIN=$BULKHEAD_LM_LOCAL_OPAM_BIN
+    OPAMROOT=${OPAMROOT:-$BULKHEAD_LM_LOCAL_OPAM_ROOT}
+    export OPAMROOT
+    return
+  fi
+
   if [ -n "${BULKHEAD_LM_OPAM_BIN:-}" ] && [ -x "${BULKHEAD_LM_OPAM_BIN}" ]; then
     OPAM_BIN=${BULKHEAD_LM_OPAM_BIN}
     return
@@ -154,6 +169,16 @@ ensure_opam() {
     return
   fi
 
+  if [ -x "$ROOT_DIR/scripts/bootstrap_local_toolchain.sh" ]; then
+    say "Bootstrapping a repo-local opam binary ..."
+    if "$ROOT_DIR/scripts/bootstrap_local_toolchain.sh" --opam-only >/dev/null 2>&1; then
+      find_opam
+      if [ -n "$OPAM_BIN" ]; then
+        return
+      fi
+    fi
+  fi
+
   say_err "opam was not found."
   if ! has_hook platform_install_opam; then
     manual_setup_commands >&2
@@ -174,12 +199,27 @@ ensure_opam() {
 }
 
 ensure_opam_initialized() {
-  if [ -f "$HOME/.opam/config" ]; then
+  active_opam_root=${OPAMROOT:-$HOME/.opam}
+  if [ -f "$active_opam_root/config" ]; then
     return
   fi
 
-  say "Initializing opam for first use..."
+  say "Initializing opam root in $active_opam_root ..."
   ensure_build_log
+  if [ "$active_opam_root" = "$BULKHEAD_LM_LOCAL_OPAM_ROOT" ]; then
+    if ! "$OPAM_BIN" init \
+         --yes \
+         --bare \
+         --no-setup \
+         --disable-sandboxing \
+         default https://opam.ocaml.org >"$BUILD_LOG" 2>&1; then
+      say_err "opam init failed."
+      say_err "See $BUILD_LOG for details."
+      manual_setup_commands >&2
+      exit 1
+    fi
+    return
+  fi
   if ! "$OPAM_BIN" init --yes >"$BUILD_LOG" 2>&1; then
     say_err "opam init failed."
     say_err "See $BUILD_LOG for details."
@@ -189,7 +229,9 @@ ensure_opam_initialized() {
 }
 
 current_switch_name() {
-  if [ -n "${OPAMSWITCH:-}" ]; then
+  if [ -d "$BULKHEAD_LM_LOCAL_SWITCH_DIR" ]; then
+    printf '%s\n' "$ROOT_DIR"
+  elif [ -n "${OPAMSWITCH:-}" ]; then
     printf '%s\n' "$OPAMSWITCH"
   else
     "$OPAM_BIN" switch show 2>/dev/null || true
@@ -197,7 +239,9 @@ current_switch_name() {
 }
 
 apply_current_switch_environment() {
-  if [ -n "${OPAMSWITCH:-}" ]; then
+  if [ -d "$BULKHEAD_LM_LOCAL_SWITCH_DIR" ]; then
+    eval "$(OPAMROOT="$BULKHEAD_LM_LOCAL_OPAM_ROOT" "$OPAM_BIN" env --switch="$ROOT_DIR" --set-switch)"
+  elif [ -n "${OPAMSWITCH:-}" ]; then
     eval "$("$OPAM_BIN" env --switch="$OPAMSWITCH" --set-switch)"
   else
     eval "$("$OPAM_BIN" env --set-switch)"
@@ -205,7 +249,7 @@ apply_current_switch_environment() {
 }
 
 apply_local_switch_environment() {
-  eval "$("$OPAM_BIN" env --switch="$ROOT_DIR" --set-switch)"
+  eval "$(OPAMROOT="$BULKHEAD_LM_LOCAL_OPAM_ROOT" "$OPAM_BIN" env --switch="$ROOT_DIR" --set-switch)"
 }
 
 describe_active_toolchain() {

@@ -6,6 +6,9 @@
 - `src/client/`: direct terminal client and JSONL worker mode over the shared runtime
 - `run.sh`: clone-and-run local wrapper that dispatches to the supported OS starter for macOS, Ubuntu, or FreeBSD
 - `scripts/starter_common.sh`: shared shell bootstrap layer for the local starters, including env loading, opam checks, build validation, and local-switch fallback
+- `scripts/toolchain_env.sh`: centralized project-local OCaml toolchain paths and version defaults
+- `scripts/bootstrap_local_toolchain.sh`: self-contained bootstrap for a repo-local `opam` binary, opam root, and `_opam` switch
+- `scripts/with_local_toolchain.sh`: wrapper that executes arbitrary commands inside the project-local switch
 - `scripts/macos_starter.sh`: beginner-oriented macOS launcher with Homebrew-aware bootstrap behavior
 - `scripts/ubuntu_starter.sh`: beginner-oriented Ubuntu launcher with `apt` bootstrap behavior
 - `scripts/freebsd_starter.sh`: beginner-oriented FreeBSD launcher with `pkg` bootstrap behavior
@@ -54,6 +57,7 @@
 - `Admin_assistant` builds structured admin plans from the selected model, local BulkheadLM docs, and the active config files
 - `Admin_assistant_plan` keeps config-edit and system-action steps in a typed format before anything is applied
 - `Starter_packaging` owns host detection, package defaults, and the live package-build runner used by the starter
+- packaging from a source checkout can now reuse the same project-local toolchain wrapper when no global `dune` is present
 - `Terminal_ops` owns the structured `ops` protocol for filesystem and command requests under explicit security-policy roots
 - `Starter_constants` centralizes the public starter command strings and defaults
 - `Starter_conversation` keeps a compressed local transcript and converts older turns into a shorter summary message

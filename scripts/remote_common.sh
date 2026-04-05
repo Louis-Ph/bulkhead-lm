@@ -1,6 +1,8 @@
 BULKHEAD_LM_REMOTE_ROOT_DIR=${BULKHEAD_LM_REMOTE_ROOT_DIR:-$(CDPATH= cd -- "$(dirname -- "$0")/.." && pwd)}
 BULKHEAD_LM_REMOTE_INSTALL_DEFAULT_TARGET=${BULKHEAD_LM_REMOTE_INSTALL_DEFAULT_TARGET:-'${HOME}/opt/bulkhead-lm'}
 
+. "${BULKHEAD_LM_REMOTE_ROOT_DIR}/scripts/toolchain_env.sh"
+
 bulkhead_lm_remote_note() {
   printf '%s\n' "$*" >&2
 }
@@ -22,6 +24,10 @@ bulkhead_lm_remote_find_tar() {
 }
 
 bulkhead_lm_remote_find_opam() {
+  if [ -x "${BULKHEAD_LM_REMOTE_ROOT_DIR}/.bulkhead-tools/bin/opam" ]; then
+    printf '%s\n' "${BULKHEAD_LM_REMOTE_ROOT_DIR}/.bulkhead-tools/bin/opam"
+    return 0
+  fi
   if [ -n "${BULKHEAD_LM_OPAM_BIN:-}" ] && [ -x "${BULKHEAD_LM_OPAM_BIN}" ]; then
     printf '%s\n' "${BULKHEAD_LM_OPAM_BIN}"
     return 0
@@ -44,19 +50,24 @@ bulkhead_lm_remote_find_opam() {
 bulkhead_lm_remote_resolve_switch() {
   if [ -n "${BULKHEAD_LM_REMOTE_SWITCH:-}" ]; then
     printf '%s\n' "${BULKHEAD_LM_REMOTE_SWITCH}"
-  elif [ -n "${OPAMSWITCH:-}" ]; then
-    printf '%s\n' "${OPAMSWITCH}"
   elif [ -d "${BULKHEAD_LM_REMOTE_ROOT_DIR}/_opam" ]; then
     printf '%s\n' "${BULKHEAD_LM_REMOTE_ROOT_DIR}"
+  elif [ -n "${OPAMSWITCH:-}" ]; then
+    printf '%s\n' "${OPAMSWITCH}"
   else
     printf '%s\n' ""
   fi
 }
 
 bulkhead_lm_remote_load_opam_env() {
+  bulkhead_lm_unset_opam_env
   opam_bin=$(bulkhead_lm_remote_find_opam || true)
   if [ -z "${opam_bin}" ]; then
     return 0
+  fi
+  if [ -z "${OPAMROOT:-}" ] && [ -f "${BULKHEAD_LM_REMOTE_ROOT_DIR}/.opam-root/config" ]; then
+    OPAMROOT="${BULKHEAD_LM_REMOTE_ROOT_DIR}/.opam-root"
+    export OPAMROOT
   fi
   switch_name=$(bulkhead_lm_remote_resolve_switch)
   if [ -n "${switch_name}" ]; then

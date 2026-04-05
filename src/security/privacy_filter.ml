@@ -4,33 +4,44 @@ module Patterns = struct
   let ipv4 = Str.regexp "[0-9]\\{1,3\\}\\(\\.[0-9]\\{1,3\\}\\)\\{3\\}"
   let national_id = Str.regexp "[0-9]\\{3\\}-[0-9]\\{2\\}-[0-9]\\{4\\}"
   let payment_card = Str.regexp "\\([0-9][ -]*\\)\\{13,19\\}"
-  let bearer = Str.regexp_case_fold "bearer[ \t]+[^ \t\r\n,;]+"
+  let bearer = Str.regexp_case_fold "bearer[ \t]+[A-Za-z0-9_+/=-]+"
 end
 
 let replace_if enabled pattern ~replacement text =
   if enabled then Str.global_replace pattern replacement text else text
 ;;
 
-let filter_text policy text =
-  if not policy.Security_policy.enabled
+let filter_text
+  ({ enabled
+   ; replacement
+   ; redact_email_addresses
+   ; redact_phone_numbers
+   ; redact_ipv4_addresses
+   ; redact_national_ids
+   ; redact_payment_cards
+   ; secret_prefixes
+   ; additional_literal_tokens
+   } : Security_policy.privacy_filter)
+  text
+  =
+  if not enabled
   then text
   else (
-    let replacement = policy.replacement in
     text
-    |> replace_if policy.redact_email_addresses Patterns.email ~replacement
-    |> replace_if policy.redact_phone_numbers Patterns.phone ~replacement
-    |> replace_if policy.redact_ipv4_addresses Patterns.ipv4 ~replacement
-    |> replace_if policy.redact_national_ids Patterns.national_id ~replacement
-    |> replace_if policy.redact_payment_cards Patterns.payment_card ~replacement
+    |> replace_if redact_email_addresses Patterns.email ~replacement
+    |> replace_if redact_phone_numbers Patterns.phone ~replacement
+    |> replace_if redact_ipv4_addresses Patterns.ipv4 ~replacement
+    |> replace_if redact_national_ids Patterns.national_id ~replacement
+    |> replace_if redact_payment_cards Patterns.payment_card ~replacement
     |> replace_if true Patterns.bearer ~replacement
-    |> Text_guard_common.redact_prefixed_tokens ~replacement policy.secret_prefixes
+    |> Text_guard_common.redact_prefixed_tokens ~replacement secret_prefixes
     |> Text_guard_common.redact_literal_matches
          ~replacement
-         policy.additional_literal_tokens)
+         additional_literal_tokens)
 ;;
 
-let filter_chat_request policy (request : Openai_types.chat_request) =
-  if not policy.Security_policy.enabled
+let filter_chat_request (policy : Security_policy.privacy_filter) (request : Openai_types.chat_request) =
+  if not policy.enabled
   then request
   else
     { request with
@@ -42,14 +53,20 @@ let filter_chat_request policy (request : Openai_types.chat_request) =
     }
 ;;
 
-let filter_embeddings_request policy (request : Openai_types.embeddings_request) =
-  if not policy.Security_policy.enabled
+let filter_embeddings_request
+  (policy : Security_policy.privacy_filter)
+  (request : Openai_types.embeddings_request)
+  =
+  if not policy.enabled
   then request
   else { request with input = List.map (filter_text policy) request.input }
 ;;
 
-let filter_chat_response policy (response : Openai_types.chat_response) =
-  if not policy.Security_policy.enabled
+let filter_chat_response
+  (policy : Security_policy.privacy_filter)
+  (response : Openai_types.chat_response)
+  =
+  if not policy.enabled
   then response
   else
     { response with

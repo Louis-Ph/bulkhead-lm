@@ -34,19 +34,22 @@ It targets multi-provider LLM gateway routing with a stricter design bias: expli
 
 ## Quick start
 
-Install dependencies, run the test suite, and start the gateway:
+The repository can now bootstrap a project-local OCaml toolchain under
+`.bulkhead-tools/`, `.opam-root/`, and `_opam/`, so `opam`, `ocamlc`, and
+`dune` do not need to be preinstalled system-wide.
 
 ```bash
-opam install . --deps-only --with-test
-dune runtest
-dune exec bulkhead-lm -- --config config/example.gateway.json
+make test
+make run CONFIG=config/example.gateway.json
 ```
 
 The bundled example listens on `http://127.0.0.1:4100` and creates a local virtual key: `sk-bulkhead-lm-dev`.
 
-You can also override the listen port:
+If you already have a working global `opam` switch, the raw commands still work:
 
 ```bash
+opam install . --deps-only --with-test
+dune runtest
 dune exec bulkhead-lm -- --config config/example.gateway.json --port 4200
 ```
 
@@ -67,6 +70,7 @@ On macOS, you can also use the Finder-friendly launcher:
 The starter:
 
 - supports local first-run flows on macOS, Ubuntu, and FreeBSD through OS-specific wrappers behind the same `./run.sh` entrypoint
+- can bootstrap a repo-local `opam` binary before falling back to Homebrew, `apt`, or `pkg`
 - sources `~/.zshrc.secret`, `~/.zshrc.secrets`, `~/.bashrc.secret`, `~/.bashrc.secrets`, `~/.profile.secret`, `~/.profile.secrets`, and `~/.config/bulkhead-lm/env` when present
 - checks the current `opam` switch first and only offers a project-local fallback when the active toolchain is not coherent for this repo
 - can offer Homebrew, `apt`, or `pkg` bootstrap steps instead of dropping raw OCaml build errors on a beginner
@@ -104,6 +108,14 @@ The packaging flow detects the current supported OS, walks through package metad
 - FreeBSD: `.pkg`
 
 On an installed tree, the starter now prefers bundled binaries directly. On a source checkout, it falls back to `dune` as before.
+
+For non-interactive local development, the same project-local toolchain is available directly:
+
+```bash
+./scripts/bootstrap_local_toolchain.sh
+./scripts/with_local_toolchain.sh dune build @install
+./scripts/with_local_toolchain.sh dune runtest --no-buffer
+```
 
 ## Terminal client
 

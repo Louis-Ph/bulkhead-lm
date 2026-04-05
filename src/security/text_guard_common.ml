@@ -21,7 +21,7 @@ let first_literal_match text values =
 ;;
 
 let prefixed_token_pattern prefix =
-  Str.regexp_case_fold (Str.quote prefix ^ "[A-Za-z0-9._=-]+")
+  Str.regexp_case_fold (Str.quote prefix ^ "[A-Za-z0-9_+/=-]+")
 ;;
 
 let redact_prefixed_tokens ~replacement prefixes text =
