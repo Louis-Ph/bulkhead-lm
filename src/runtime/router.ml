@@ -51,6 +51,36 @@ let final_error_of_failures = function
     Domain_error.upstream message
 ;;
 
+let protect_chat_request security_policy request =
+  match
+    Threat_detector.ensure_chat_request_is_safe
+      security_policy.Security_policy.threat_detector
+      request
+  with
+  | Error _ as error -> error
+  | Ok () -> Ok (Privacy_filter.filter_chat_request security_policy.privacy_filter request)
+;;
+
+let protect_embeddings_request security_policy request =
+  match
+    Threat_detector.ensure_embeddings_request_is_safe
+      security_policy.Security_policy.threat_detector
+      request
+  with
+  | Error _ as error -> error
+  | Ok () ->
+    Ok (Privacy_filter.filter_embeddings_request security_policy.privacy_filter request)
+;;
+
+let protect_chat_response security_policy response =
+  let filtered =
+    Privacy_filter.filter_chat_response security_policy.Security_policy.privacy_filter response
+  in
+  match Output_guard.ensure_chat_response_is_safe security_policy.output_guard filtered with
+  | Error _ as error -> error
+  | Ok () -> Ok filtered
+;;
+
 let rec
   try_backends
     store
@@ -84,7 +114,9 @@ let rec
           (match
              consume_budget_if_possible store ~principal response.Openai_types.usage
            with
-           | Ok () -> Lwt.return (Ok response)
+           | Ok () ->
+             Lwt.return
+               (protect_chat_response store.Runtime_state.config.security_policy response)
            | Error err -> Lwt.return (Error err))
         | Error err ->
           if Domain_error.is_retryable err
@@ -123,7 +155,15 @@ let rec
        >>= (function
         | Ok stream ->
           (match consume_budget_if_possible store ~principal stream.Provider_client.response.usage with
-           | Ok () -> Lwt.return (Ok stream)
+           | Ok () ->
+             (match
+                protect_chat_response
+                  store.Runtime_state.config.security_policy
+                  stream.Provider_client.response
+              with
+              | Error err -> stream.close () >|= fun () -> Error err
+              | Ok response ->
+                stream.close () >|= fun () -> Ok (Provider_stream.of_chat_response response))
            | Error err -> stream.close () >|= fun () -> Error err)
         | Error err ->
           if Domain_error.is_retryable err
@@ -189,19 +229,22 @@ let dispatch_chat ?peer_context store ~authorization (request : Openai_types.cha
        (match Rate_limiter.check store ~principal with
         | Error err -> Lwt.return (Error err)
         | Ok () ->
-          (match find_route store.Runtime_state.config request.model with
-           | None -> Lwt.return (Error (Domain_error.route_not_found request.model))
-           | Some route ->
-             let limited_backends =
-               route.Config.backends
-               |> List.mapi (fun index backend -> index, backend)
-               |> List.filter_map (fun (index, backend) ->
-                 if index
-                    <= store.Runtime_state.config.security_policy.routing.max_fallbacks
-                 then Some backend
-                 else None)
-             in
-             try_backends store principal peer_context request [] limited_backends)))
+          (match protect_chat_request store.Runtime_state.config.security_policy request with
+           | Error err -> Lwt.return (Error err)
+           | Ok request ->
+             (match find_route store.Runtime_state.config request.model with
+              | None -> Lwt.return (Error (Domain_error.route_not_found request.model))
+              | Some route ->
+                let limited_backends =
+                  route.Config.backends
+                  |> List.mapi (fun index backend -> index, backend)
+                  |> List.filter_map (fun (index, backend) ->
+                    if index
+                       <= store.Runtime_state.config.security_policy.routing.max_fallbacks
+                    then Some backend
+                    else None)
+                in
+                try_backends store principal peer_context request [] limited_backends))))
 ;;
 
 let dispatch_chat_stream ?peer_context store ~authorization (request : Openai_types.chat_request) =
@@ -215,25 +258,28 @@ let dispatch_chat_stream ?peer_context store ~authorization (request : Openai_ty
        (match Rate_limiter.check store ~principal with
         | Error err -> Lwt.return (Error err)
         | Ok () ->
-          (match find_route store.Runtime_state.config request.model with
-           | None -> Lwt.return (Error (Domain_error.route_not_found request.model))
-           | Some route ->
-             let limited_backends =
-               route.Config.backends
-               |> List.mapi (fun index backend -> index, backend)
-               |> List.filter_map (fun (index, backend) ->
-                 if index
-                    <= store.Runtime_state.config.security_policy.routing.max_fallbacks
-                 then Some backend
-                 else None)
-             in
-             try_chat_stream_backends
-               store
-               principal
-               peer_context
-               request
-               []
-               limited_backends)))
+          (match protect_chat_request store.Runtime_state.config.security_policy request with
+           | Error err -> Lwt.return (Error err)
+           | Ok request ->
+             (match find_route store.Runtime_state.config request.model with
+              | None -> Lwt.return (Error (Domain_error.route_not_found request.model))
+              | Some route ->
+                let limited_backends =
+                  route.Config.backends
+                  |> List.mapi (fun index backend -> index, backend)
+                  |> List.filter_map (fun (index, backend) ->
+                    if index
+                       <= store.Runtime_state.config.security_policy.routing.max_fallbacks
+                    then Some backend
+                    else None)
+                in
+                try_chat_stream_backends
+                  store
+                  principal
+                  peer_context
+                  request
+                  []
+                  limited_backends))))
 ;;
 
 let dispatch_embeddings
@@ -252,23 +298,26 @@ let dispatch_embeddings
        (match Rate_limiter.check store ~principal with
         | Error err -> Lwt.return (Error err)
         | Ok () ->
-          (match find_route store.Runtime_state.config request.model with
-           | None -> Lwt.return (Error (Domain_error.route_not_found request.model))
-           | Some route ->
-             let limited_backends =
-               route.Config.backends
-               |> List.mapi (fun index backend -> index, backend)
-               |> List.filter_map (fun (index, backend) ->
-                 if index
-                    <= store.Runtime_state.config.security_policy.routing.max_fallbacks
-                 then Some backend
-                 else None)
-             in
-             try_embeddings_backends
-               store
-               principal
-               peer_context
-               request
-               []
-               limited_backends)))
+          (match protect_embeddings_request store.Runtime_state.config.security_policy request with
+           | Error err -> Lwt.return (Error err)
+           | Ok request ->
+             (match find_route store.Runtime_state.config request.model with
+              | None -> Lwt.return (Error (Domain_error.route_not_found request.model))
+              | Some route ->
+                let limited_backends =
+                  route.Config.backends
+                  |> List.mapi (fun index backend -> index, backend)
+                  |> List.filter_map (fun (index, backend) ->
+                    if index
+                       <= store.Runtime_state.config.security_policy.routing.max_fallbacks
+                    then Some backend
+                    else None)
+                in
+                try_embeddings_backends
+                  store
+                  principal
+                  peer_context
+                  request
+                  []
+                  limited_backends))))
 ;;

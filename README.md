@@ -25,6 +25,9 @@ It targets multi-provider LLM gateway routing with a stricter design bias: expli
 - ordered backend fallback per public model route
 - persistent virtual keys, budget usage, and audit events in SQLite
 - recursive secret redaction before log-oriented handling
+- prompt privacy filtering for common secrets, IDs, and contact data
+- threat detection for prompt-injection, credential-exfiltration, and tool-abuse signals
+- output guard that blocks high-risk secret material before it leaves the gateway
 - request body limits and upstream request timeouts
 - retry-aware fallback that avoids failing over on permanent upstream errors
 - multicore-safe budget and rate-limit state with a `Domain.spawn` test

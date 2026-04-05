@@ -15,7 +15,7 @@
 - `scripts/package_common.sh`: common staging and wrapper helpers for distributable package builds
 - `scripts/build_dist_package.sh`: native package builder for macOS, Ubuntu, and FreeBSD
 - `src/domain/`: business types, OpenAI-compatible JSON parsing, normalized errors
-- `src/security/`: authentication, secret redaction, egress policy, and peer mesh hop control
+- `src/security/`: authentication, privacy filtering, threat detection, output guarding, secret redaction, egress policy, and peer mesh hop control
 - `src/runtime/`: in-memory state, budget ledger, rate limiting, routing
 - `src/providers/`: upstream adapters by provider family
 - `src/providers/ssh_peer_protocol.ml`: JSONL-over-SSH envelope used by `bulkhead_ssh_peer`
@@ -29,13 +29,15 @@
 2. Request body size is bounded by configured server policy before full materialization.
 3. `Auth` resolves the presented virtual key from its hashed form.
 4. `Rate_limiter` enforces a per-minute ceiling.
-5. `Router` resolves the public model to an explicit backend list.
-6. `Egress_policy` blocks loopback and private destinations before any upstream call.
-7. `Peer_mesh` validates inbound BulkheadLM hop headers before reflexive forwarding is allowed.
-8. Each upstream attempt is time-boxed by configured request timeout policy.
-9. The selected provider adapter rewrites the request for the upstream API or the SSH worker protocol.
-10. `Budget_ledger` debits token usage after a successful response.
-11. The response is returned in OpenAI-compatible shape.
+5. `Threat_detector` blocks prompt-injection, credential-exfiltration, and tool-abuse signals before upstream execution.
+6. `Privacy_filter` redacts configured sensitive content from prompt text before provider dispatch.
+7. `Router` resolves the public model to an explicit backend list.
+8. `Egress_policy` blocks loopback and private destinations before any upstream call.
+9. `Peer_mesh` validates inbound BulkheadLM hop headers before reflexive forwarding is allowed.
+10. Each upstream attempt is time-boxed by configured request timeout policy.
+11. The selected provider adapter rewrites the request for the upstream API or the SSH worker protocol.
+12. `Budget_ledger` debits token usage after a successful response.
+13. `Privacy_filter` and `Output_guard` sanitize and validate model output before it is serialized back to the client.
 
 ## SSE
 
@@ -63,6 +65,7 @@
 - worker outputs are serialized under a dedicated stdout lock so parallel jobs do not interleave their JSON lines
 - shared rate-limit, budget, and persistence state remain protected by the existing `Mutex` and SQLite locking strategy
 - `ops` requests reuse virtual-key auth and request-rate checks, but they are fail-closed until `security_policy.client_ops` enables explicit read, write, or exec roots
+- `chat`, `responses`, and `embeddings` requests all pass through the same threat-detection and privacy-filter chain inside the shared router
 - command execution is shell-free: callers send `command` plus `args`, and BulkheadLM applies timeout and output caps before returning a structured result
 - starter admin requests are plan-first: the model returns typed JSON, the user reviews it with `/plan`, and only `/apply` mutates config files or runs allowed local ops
 

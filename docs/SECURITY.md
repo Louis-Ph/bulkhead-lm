@@ -19,6 +19,9 @@ technical control set and current gaps.
 - sensitive JSON fields are recursively redacted before log-oriented handling
 - fallback routing is only allowed across explicitly configured backends
 - daily budgets and per-minute request limits are enforced at the gateway
+- prompt privacy filtering redacts common contact data, national IDs, payment-card strings, and token-shaped secrets before upstream dispatch
+- threat detection blocks prompt-injection, credential-exfiltration, and tool-abuse signals before provider execution
+- output guard blocks private-key material and other configured secret markers before responses are returned
 - upstream provider calls are time-boxed by configured request timeout policy
 - audit events are durably stored when SQLite persistence is enabled
 

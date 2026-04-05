@@ -14,6 +14,16 @@
     "type": "rate_limit_error",
     "message": "Rate limit exceeded."
   },
+  "threat_detected": {
+    "status": 403,
+    "type": "permission_error",
+    "message": "Threat detector blocked the request."
+  },
+  "unsafe_output_blocked": {
+    "status": 403,
+    "type": "permission_error",
+    "message": "Output guard blocked the model response."
+  },
   "route_not_found": {
     "status": 404,
     "type": "invalid_request_error",
