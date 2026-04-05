@@ -6,6 +6,9 @@
 - `src/client/`: direct terminal client and JSONL worker mode over the shared runtime
 - `run.sh`: clone-and-run local wrapper that dispatches to the supported OS starter for macOS, Ubuntu, or FreeBSD
 - `scripts/starter_common.sh`: shared shell bootstrap layer for the local starters, including env loading, opam checks, build validation, and local-switch fallback
+- `scripts/toolchain_env.sh`: centralized project-local OCaml toolchain paths and version defaults
+- `scripts/bootstrap_local_toolchain.sh`: self-contained bootstrap for a repo-local `opam` binary, opam root, and `_opam` switch
+- `scripts/with_local_toolchain.sh`: wrapper that executes arbitrary commands inside the project-local switch
 - `scripts/macos_starter.sh`: beginner-oriented macOS launcher with Homebrew-aware bootstrap behavior
 - `scripts/ubuntu_starter.sh`: beginner-oriented Ubuntu launcher with `apt` bootstrap behavior
 - `scripts/freebsd_starter.sh`: beginner-oriented FreeBSD launcher with `pkg` bootstrap behavior
@@ -15,7 +18,7 @@
 - `scripts/package_common.sh`: common staging and wrapper helpers for distributable package builds
 - `scripts/build_dist_package.sh`: native package builder for macOS, Ubuntu, and FreeBSD
 - `src/domain/`: business types, OpenAI-compatible JSON parsing, normalized errors
-- `src/security/`: authentication, secret redaction, egress policy, and peer mesh hop control
+- `src/security/`: authentication, privacy filtering, threat detection, output guarding, secret redaction, egress policy, and peer mesh hop control
 - `src/runtime/`: in-memory state, budget ledger, rate limiting, routing
 - `src/providers/`: upstream adapters by provider family
 - `src/providers/ssh_peer_protocol.ml`: JSONL-over-SSH envelope used by `bulkhead_ssh_peer`
@@ -29,13 +32,15 @@
 2. Request body size is bounded by configured server policy before full materialization.
 3. `Auth` resolves the presented virtual key from its hashed form.
 4. `Rate_limiter` enforces a per-minute ceiling.
-5. `Router` resolves the public model to an explicit backend list.
-6. `Egress_policy` blocks loopback and private destinations before any upstream call.
-7. `Peer_mesh` validates inbound BulkheadLM hop headers before reflexive forwarding is allowed.
-8. Each upstream attempt is time-boxed by configured request timeout policy.
-9. The selected provider adapter rewrites the request for the upstream API or the SSH worker protocol.
-10. `Budget_ledger` debits token usage after a successful response.
-11. The response is returned in OpenAI-compatible shape.
+5. `Threat_detector` blocks prompt-injection, credential-exfiltration, and tool-abuse signals before upstream execution.
+6. `Privacy_filter` redacts configured sensitive content from prompt text before provider dispatch.
+7. `Router` resolves the public model to an explicit backend list.
+8. `Egress_policy` blocks loopback and private destinations before any upstream call.
+9. `Peer_mesh` validates inbound BulkheadLM hop headers before reflexive forwarding is allowed.
+10. Each upstream attempt is time-boxed by configured request timeout policy.
+11. The selected provider adapter rewrites the request for the upstream API or the SSH worker protocol.
+12. `Budget_ledger` debits token usage after a successful response.
+13. `Privacy_filter` and `Output_guard` sanitize and validate model output before it is serialized back to the client.
 
 ## SSE
 
@@ -52,6 +57,7 @@
 - `Admin_assistant` builds structured admin plans from the selected model, local BulkheadLM docs, and the active config files
 - `Admin_assistant_plan` keeps config-edit and system-action steps in a typed format before anything is applied
 - `Starter_packaging` owns host detection, package defaults, and the live package-build runner used by the starter
+- packaging from a source checkout can now reuse the same project-local toolchain wrapper when no global `dune` is present
 - `Terminal_ops` owns the structured `ops` protocol for filesystem and command requests under explicit security-policy roots
 - `Starter_constants` centralizes the public starter command strings and defaults
 - `Starter_conversation` keeps a compressed local transcript and converts older turns into a shorter summary message
@@ -63,6 +69,7 @@
 - worker outputs are serialized under a dedicated stdout lock so parallel jobs do not interleave their JSON lines
 - shared rate-limit, budget, and persistence state remain protected by the existing `Mutex` and SQLite locking strategy
 - `ops` requests reuse virtual-key auth and request-rate checks, but they are fail-closed until `security_policy.client_ops` enables explicit read, write, or exec roots
+- `chat`, `responses`, and `embeddings` requests all pass through the same threat-detection and privacy-filter chain inside the shared router
 - command execution is shell-free: callers send `command` plus `args`, and BulkheadLM applies timeout and output caps before returning a structured result
 - starter admin requests are plan-first: the model returns typed JSON, the user reviews it with `/plan`, and only `/apply` mutates config files or runs allowed local ops
 

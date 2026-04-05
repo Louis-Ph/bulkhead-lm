@@ -78,6 +78,27 @@ let operation_denied message =
     message
 ;;
 
+let threat_detected ~category ~signal () =
+  make
+    ~retry_disposition:Non_retryable
+    ~code:"threat_detected"
+    ~status:403
+    ~error_type:"permission_error"
+    (Fmt.str
+       "Threat detector blocked the request after matching %s signal \"%s\"."
+       category
+       signal)
+;;
+
+let unsafe_output_blocked ~signal () =
+  make
+    ~retry_disposition:Non_retryable
+    ~code:"unsafe_output_blocked"
+    ~status:403
+    ~error_type:"permission_error"
+    (Fmt.str "Output guard blocked the model response after matching \"%s\"." signal)
+;;
+
 let invalid_request message =
   make
     ~retry_disposition:Non_retryable

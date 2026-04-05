@@ -101,12 +101,20 @@ pkg_prepare_binaries() {
     pkg_fail "No prebuilt binaries were found and this tree is not a buildable source checkout."
   fi
 
-  pkg_require_command dune
-  pkg_note "Building BulkheadLM binaries with dune..."
-  (
-    cd "$root_dir"
-    dune build @install bin/main.exe bin/client.exe
-  ) || pkg_fail "dune build failed while preparing package binaries."
+  if [ -x "$root_dir/scripts/with_local_toolchain.sh" ]; then
+    pkg_note "Building BulkheadLM binaries with the project-local toolchain wrapper..."
+    (
+      cd "$root_dir"
+      ./scripts/with_local_toolchain.sh dune build @install bin/main.exe bin/client.exe
+    ) || pkg_fail "toolchain wrapper build failed while preparing package binaries."
+  else
+    pkg_require_command dune
+    pkg_note "Building BulkheadLM binaries with dune..."
+    (
+      cd "$root_dir"
+      dune build @install bin/main.exe bin/client.exe
+    ) || pkg_fail "dune build failed while preparing package binaries."
+  fi
 
   MAIN_BIN="$root_dir/_build/default/bin/main.exe"
   CLIENT_BIN="$root_dir/_build/default/bin/client.exe"

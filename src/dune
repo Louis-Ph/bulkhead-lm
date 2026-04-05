@@ -15,6 +15,7 @@
   linenoise
   logs
   fmt
+  str
   digestif
   uuidm
   base64))
