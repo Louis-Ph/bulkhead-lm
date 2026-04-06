@@ -1,3 +1,14 @@
+module Ansi = struct
+  let cyan text = "\027[36m" ^ text ^ "\027[0m"
+  let green text = "\027[32m" ^ text ^ "\027[0m"
+  let yellow text = "\027[33m" ^ text ^ "\027[0m"
+  let magenta text = "\027[35m" ^ text ^ "\027[0m"
+  let red text = "\027[31m" ^ text ^ "\027[0m"
+  let dim text = "\027[2m" ^ text ^ "\027[22m" (* 22m resets dim, not everything *)
+  let bold text = "\027[1m" ^ text ^ "\027[22m" (* 22m resets bold *)
+  let reset = "\027[0m"
+end
+
 module Command = struct
   let help = "/help"
   let tools = "/tools"
@@ -47,16 +58,20 @@ module Text = struct
 
   let intro_lines =
     [ "This path is for Mac terminal beginners."
-    ; "It can reuse the repository example config, or build a personal portable JSON config that only references environment variables."
-    ; "It also includes an administrative assistant for BulkheadLM configuration and safe local operations."
+    ; "It can reuse the repository example config, or build a personal portable JSON \
+       config that only references environment variables."
+    ; "It also includes an administrative assistant for BulkheadLM configuration and \
+       safe local operations."
     ]
   ;;
 
   let builder_title = "Starter config builder"
 
   let builder_intro_lines =
-    [ "The generated JSON is portable across operating systems: it stores env var names, not upstream secrets."
-    ; "Selecting one provider includes several curated model routes for that provider key."
+    [ "The generated JSON is portable across operating systems: it stores env var names, \
+       not upstream secrets."
+    ; "Selecting one provider includes several curated model routes for that provider \
+       key."
     ]
   ;;
 
@@ -103,30 +118,73 @@ module Text = struct
   ;;
 
   let goodbye = "Bye."
-  let busy_message = "A response is already in progress. Wait for it to finish or interrupt it with Ctrl+C."
+
+  let busy_message =
+    "A response is already in progress. Wait for it to finish or interrupt it with \
+     Ctrl+C."
+  ;;
+
   let interrupted_message = "Interrupted. The starter is ready for another command."
+
   let terminal_ready =
-    "Line editing is enabled: arrows, history, and tab completion are available in the starter."
+    "Line editing is enabled: arrows, history, and tab completion are available in the \
+     starter."
+  ;;
+
   let tools_intro = "Use /file PATH to send one local text file with your next question."
+
   let assistant_capabilities_system_prompt =
-    "You are the assistant inside the BulkheadLM starter terminal. The user can use local starter commands such as /help, /tools, /file PATH, /files, /clearfiles, /explore PATH, /open PATH, /run CMD, /admin TEXT, /package, /model, /models, /swap NAME, /providers, /env, /memory, /thread on, /thread off, and /quit. If the user asks how to send a file, explain /file PATH and /files instead of saying file upload is impossible. If the user asks to inspect local files or run a local command, mention /explore, /open, or /run."
-  let swap_usage = "/swap expects a configured public model name, for example: /swap claude-sonnet"
+    "You are the assistant inside the BulkheadLM starter terminal. The user can use \
+     local starter commands such as /help, /tools, /file PATH, /files, /clearfiles, \
+     /explore PATH, /open PATH, /run CMD, /admin TEXT, /package, /model, /models, /swap \
+     NAME, /providers, /env, /memory, /thread on, /thread off, and /quit. If the user \
+     asks how to send a file, explain /file PATH and /files instead of saying file \
+     upload is impossible. If the user asks to inspect local files or run a local \
+     command, mention /explore, /open, or /run."
+  ;;
+
+  let swap_usage =
+    "/swap expects a configured public model name, for example: /swap claude-sonnet"
+  ;;
+
   let thread_usage = "/thread expects on or off, for example: /thread off"
   let admin_usage = Admin_assistant_constants.Text.usage
-  let file_usage = "/file expects a readable local file path, for example: /file README.md"
-  let explore_usage = "/explore expects a directory path or defaults to ., for example: /explore src"
-  let open_usage = "/open expects a readable local file path, for example: /open README.md"
+
+  let file_usage =
+    "/file expects a readable local file path, for example: /file README.md"
+  ;;
+
+  let explore_usage =
+    "/explore expects a directory path or defaults to ., for example: /explore src"
+  ;;
+
+  let open_usage =
+    "/open expects a readable local file path, for example: /open README.md"
+  ;;
+
   let run_usage = "/run expects a command, for example: /run /bin/ls -la"
   let file_attached path = Fmt.str "Attached for the next prompt: %s" path
   let files_cleared = "Attached files were cleared."
   let files_empty = "No file is attached right now."
-  let files_will_be_used = "The next normal prompt will include the attached file content."
+
+  let files_will_be_used =
+    "The next normal prompt will include the attached file content."
+  ;;
+
   let binary_file_rejected =
-    "Binary files are not supported by /file yet. Use /admin if you need a more advanced local workflow."
+    "Binary files are not supported by /file yet. Use /admin if you need a more advanced \
+     local workflow."
+  ;;
+
   let package_intro = Starter_packaging_constants.Text.package_intro
   let memory_enabled = "Conversation memory is enabled."
-  let memory_disabled = "Conversation memory is disabled. New prompts are sent without thread history."
+
+  let memory_disabled =
+    "Conversation memory is disabled. New prompts are sent without thread history."
+  ;;
+
   let memory_cleared = "Conversation memory was cleared."
+
   let compression_notice archived =
     Fmt.str "Conversation memory compressed: %d older turns were summarized." archived
   ;;

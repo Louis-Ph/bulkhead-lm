@@ -32,7 +32,9 @@ let wrap_text text =
   let rec fold current_length current_line acc = function
     | [] ->
       List.rev
-        (if current_line = [] then acc else String.concat " " (List.rev current_line) :: acc)
+        (if current_line = []
+         then acc
+         else String.concat " " (List.rev current_line) :: acc)
     | word :: rest ->
       let word_length = String.length word in
       let next_length =
@@ -43,22 +45,23 @@ let wrap_text text =
       else if current_line = []
       then fold word_length [ word ] acc rest
       else
-        fold
-          word_length
-          [ word ]
-          (String.concat " " (List.rev current_line) :: acc)
-          rest
+        fold word_length [ word ] (String.concat " " (List.rev current_line) :: acc) rest
   in
   fold 0 [] [] words
 ;;
 
 let print_wrapped text =
+  if String.trim text = "" then print_line "" else List.iter print_line (wrap_text text)
+;;
+
+let print_wrapped_styled ~style text =
   if String.trim text = ""
   then print_line ""
-  else List.iter print_line (wrap_text text)
+  else List.iter (fun line -> print_line (style line)) (wrap_text text)
 ;;
 
 let print_wrapped_lines lines = List.iter print_wrapped lines
+let print_styled_lines ~style lines = List.iter (print_wrapped_styled ~style) lines
 
 let prompt ?default label =
   let suffix =
@@ -116,9 +119,7 @@ let prompt_int ?default label =
 let rec prompt_choice title items =
   print_line "";
   print_wrapped title;
-  List.iteri
-    (fun index label -> Printf.printf "  %d. %s\n" (index + 1) label)
-    items;
+  List.iteri (fun index label -> Printf.printf "  %d. %s\n" (index + 1) label) items;
   flush stdout;
   let raw = prompt ~default:"1" "Choose a number" in
   match int_of_string_opt raw with
@@ -131,7 +132,7 @@ let rec prompt_choice title items =
 let with_hidden_input f =
   if not (Unix.isatty Unix.stdin)
   then f ()
-  else
+  else (
     let fd = Unix.descr_of_in_channel stdin in
     let attrs = Unix.tcgetattr fd in
     let hidden = { attrs with Unix.c_echo = false } in
@@ -142,7 +143,7 @@ let with_hidden_input f =
         flush stdout)
       (fun () ->
         Unix.tcsetattr fd Unix.TCSANOW hidden;
-        f ())
+        f ()))
 ;;
 
 let prompt_secret ?default label =
@@ -215,7 +216,8 @@ let build_starter_config ~output_path =
       let family_presets = Starter_profile.presets_for_provider_key family.key in
       let sample_models =
         family_presets
-        |> List.map (fun (preset : Starter_profile.provider_preset) -> preset.public_model)
+        |> List.map (fun (preset : Starter_profile.provider_preset) ->
+          preset.public_model)
         |> String.concat ", "
       in
       let ready = Starter_profile.non_empty_env Sys.getenv_opt family.api_key_env in
@@ -242,25 +244,25 @@ let build_starter_config ~output_path =
         let api_key_env =
           if ready
           then family.api_key_env
-          else prompt ~default:family.api_key_env (Fmt.str "Environment variable for %s" family.label)
+          else
+            prompt
+              ~default:family.api_key_env
+              (Fmt.str "Environment variable for %s" family.label)
         in
         if not ready then maybe_capture_session_key api_key_env;
         family_presets
-        |> List.map (fun preset -> Starter_profile.preset_with_api_key_env preset api_key_env))
+        |> List.map (fun preset ->
+          Starter_profile.preset_with_api_key_env preset api_key_env))
       else [])
   in
   if selected_presets = []
   then Error "No provider was selected."
   else (
     let virtual_key_name =
-      prompt
-        ~default:Starter_constants.Defaults.virtual_key_name
-        "Virtual key name"
+      prompt ~default:Starter_constants.Defaults.virtual_key_name "Virtual key name"
     in
     let token_plaintext =
-      prompt
-        ~default:Starter_constants.Defaults.virtual_key_token
-        "Virtual key token"
+      prompt ~default:Starter_constants.Defaults.virtual_key_token "Virtual key token"
     in
     let daily_token_budget =
       prompt_int
@@ -293,10 +295,7 @@ let route_status_summary status =
   if status.Starter_profile.ready
   then Fmt.str "%s [ready]" status.public_model
   else
-    Fmt.str
-      "%s [missing %s]"
-      status.public_model
-      (String.concat ", " status.backend_envs)
+    Fmt.str "%s [missing %s]" status.public_model (String.concat ", " status.backend_envs)
 ;;
 
 let configured_statuses store = Starter_profile.route_statuses store.Runtime_state.config
@@ -367,14 +366,24 @@ let print_help state =
     | None -> "(none)"
   in
   print_line "";
-  print_wrapped (Fmt.str "Current model: %s" current_model);
-  print_wrapped (Fmt.str "Current config: %s" config_path);
-  print_wrapped
+  print_wrapped_styled
+    ~style:Starter_constants.Ansi.cyan
+    (Fmt.str "Current model: %s" current_model);
+  print_wrapped_styled
+    ~style:Starter_constants.Ansi.cyan
+    (Fmt.str "Current config: %s" config_path);
+  print_wrapped_styled
+    ~style:Starter_constants.Ansi.dim
     (if Starter_session.conversation_enabled state
      then Starter_constants.Text.memory_enabled
      else Starter_constants.Text.memory_disabled);
-  print_wrapped Starter_constants.Text.tools_intro;
-  print_wrapped_lines Starter_constants.Text.command_help_lines
+  print_line "";
+  print_wrapped_styled
+    ~style:Starter_constants.Ansi.bold
+    Starter_constants.Text.tools_intro;
+  print_styled_lines
+    ~style:Starter_constants.Ansi.dim
+    Starter_constants.Text.command_help_lines
 ;;
 
 let print_lines lines = List.iter print_wrapped lines
@@ -382,7 +391,8 @@ let print_lines lines = List.iter print_wrapped lines
 let print_models store =
   print_line "";
   print_line "Configured models:";
-  configured_statuses store |> List.iter (fun status -> print_line ("  " ^ route_status_summary status))
+  configured_statuses store
+  |> List.iter (fun status -> print_line ("  " ^ route_status_summary status))
 ;;
 
 let starter_commands () =
@@ -421,13 +431,16 @@ let update_terminal_context store =
 ;;
 
 let print_provider_matrix store =
-  let ready, missing = configured_statuses store |> Starter_profile.split_route_statuses in
+  let ready, missing =
+    configured_statuses store |> Starter_profile.split_route_statuses
+  in
   let print_group title statuses =
     print_line "";
     print_line title;
     if statuses = []
     then print_line "  (none)"
-    else List.iter (fun status -> print_line ("  " ^ route_status_summary status)) statuses
+    else
+      List.iter (fun status -> print_line ("  " ^ route_status_summary status)) statuses
   in
   print_group "Ready now" ready;
   print_group "Configuration required" missing
@@ -449,8 +462,13 @@ let print_tools_help () = print_wrapped_lines Starter_constants.Text.tool_help_l
 
 let print_pending_files runtime =
   match runtime.Starter_runtime.pending_attachments with
-  | [] -> print_wrapped Starter_constants.Text.files_empty
-  | attachments -> Starter_attachment.render_lines attachments |> print_lines
+  | [] ->
+    print_wrapped_styled
+      ~style:Starter_constants.Ansi.dim
+      Starter_constants.Text.files_empty
+  | attachments ->
+    Starter_attachment.render_lines attachments
+    |> print_styled_lines ~style:Starter_constants.Ansi.cyan
 ;;
 
 let attach_local_file runtime path =
@@ -461,7 +479,9 @@ let attach_local_file runtime path =
   with
   | Ok attachment ->
     let runtime =
-      Starter_runtime.set_pending_attachments runtime (runtime.pending_attachments @ [ attachment ])
+      Starter_runtime.set_pending_attachments
+        runtime
+        (runtime.pending_attachments @ [ attachment ])
     in
     print_wrapped (Starter_constants.Text.file_attached attachment.display_path);
     print_wrapped Starter_constants.Text.files_will_be_used;
@@ -525,22 +545,16 @@ let prompt_package_request config_path =
       prompt_non_empty ~default:defaults.package_name "System package name"
       |> Starter_packaging.normalize_token
     in
-    let display_name =
-      prompt_non_empty ~default:defaults.display_name "Display name"
-    in
+    let display_name = prompt_non_empty ~default:defaults.display_name "Display name" in
     let version =
       prompt_non_empty ~default:defaults.version "Package version"
       |> Starter_packaging.normalize_version
     in
-    let maintainer =
-      prompt_non_empty ~default:defaults.maintainer "Maintainer"
-    in
+    let maintainer = prompt_non_empty ~default:defaults.maintainer "Maintainer" in
     let description =
       prompt_non_empty ~default:defaults.description "Short description"
     in
-    let install_root =
-      prompt_non_empty ~default:defaults.install_root "Install root"
-    in
+    let install_root = prompt_non_empty ~default:defaults.install_root "Install root" in
     let wrapper_dir =
       prompt_non_empty ~default:defaults.wrapper_dir "Wrapper directory"
     in
@@ -632,14 +646,24 @@ let reload_after_config_apply state config_path =
 
 let prompt_input model =
   try
-    (match Starter_terminal.read_line ~record_history:true ~prompt:(Fmt.str "%s> " model) () with
+    match
+      Starter_terminal.read_line
+        ~record_history:true
+        ~prompt:
+          (Fmt.str
+             "%s"
+             (Starter_constants.Ansi.bold (Starter_constants.Ansi.green model ^ "> ")))
+        ()
+    with
     | Some line -> line
-    | None -> Starter_constants.Command.quit)
+    | None -> Starter_constants.Command.quit
   with
   | Sys.Break ->
     print_newline ();
     flush stdout;
-    print_line Starter_constants.Text.interrupted_message;
+    print_wrapped_styled
+      ~style:Starter_constants.Ansi.yellow
+      Starter_constants.Text.interrupted_message;
     ""
 ;;
 
@@ -650,12 +674,16 @@ let request_messages state runtime prompt : Openai_types.message list =
     }
   in
   let prompt =
-    Starter_attachment.inject_into_prompt runtime.Starter_runtime.pending_attachments prompt
+    Starter_attachment.inject_into_prompt
+      runtime.Starter_runtime.pending_attachments
+      prompt
   in
   if Starter_session.conversation_enabled state
   then
     capability_message
-    :: Starter_conversation.request_messages runtime.Starter_runtime.conversation ~pending_user:prompt
+    :: Starter_conversation.request_messages
+         runtime.Starter_runtime.conversation
+         ~pending_user:prompt
   else
     [ capability_message
     ; ({ Openai_types.role = "user"; content = prompt } : Openai_types.message)
@@ -667,6 +695,9 @@ let run_stream_messages store ~authorization ~model messages =
   | Error err -> Stream_failed err
   | Ok request ->
     (try
+       print_string "\027[32m";
+       (* Start green response *)
+       flush stdout;
        let result =
          Lwt_main.run
            (Terminal_client.run_ask_stream
@@ -678,17 +709,22 @@ let run_stream_messages store ~authorization ~model messages =
                 flush stdout;
                 Lwt.return_unit))
        in
-       (match result with
-        | Ok (Terminal_client.Chat_response response) ->
-          print_newline ();
-          flush stdout;
-          Stream_completed response
-        | Ok _ ->
-          Stream_failed
-            (Domain_error.invalid_request "Starter streaming expected a chat response.")
-        | Error err -> Stream_failed err)
+       print_string "\027[0m";
+       (* Reset term formatting *)
+       flush stdout;
+       match result with
+       | Ok (Terminal_client.Chat_response response) ->
+         print_newline ();
+         flush stdout;
+         Stream_completed response
+       | Ok _ ->
+         Stream_failed
+           (Domain_error.invalid_request "Starter streaming expected a chat response.")
+       | Error err -> Stream_failed err
      with
      | Sys.Break ->
+       print_string "\027[0m";
+       (* Early fail reset *)
        print_newline ();
        flush stdout;
        Stream_interrupted)
@@ -734,12 +770,14 @@ let apply_admin_plan store ~authorization ~config_path state runtime =
        let store, authorization, state =
          if pending_plan.plan.Admin_assistant_plan.config_ops = []
          then store, authorization, Starter_session.finish_stream state
-         else
-           (match reload_after_config_apply (Starter_session.finish_stream state) config_path with
-            | Ok (store, authorization, state) -> store, authorization, state
-            | Error message ->
-              print_wrapped message;
-              store, authorization, Starter_session.finish_stream state)
+         else (
+           match
+             reload_after_config_apply (Starter_session.finish_stream state) config_path
+           with
+           | Ok (store, authorization, state) -> store, authorization, state
+           | Error message ->
+             print_wrapped message;
+             store, authorization, Starter_session.finish_stream state)
        in
        let runtime = Starter_runtime.clear_pending_admin_plan runtime in
        let runtime =
@@ -791,10 +829,19 @@ let rec repl store ~authorization state runtime =
       | None -> ""
     in
     let resumed_state, runtime =
-      match plan_admin_request store ~authorization ~model ~config_path:(Starter_session.current_config_path next_state |> Option.value ~default:"") goal with
+      match
+        plan_admin_request
+          store
+          ~authorization
+          ~model
+          ~config_path:
+            (Starter_session.current_config_path next_state |> Option.value ~default:"")
+          goal
+      with
       | Ok pending_plan ->
         print_lines (Admin_assistant.render_pending_plan pending_plan);
-        Starter_session.finish_stream next_state, Starter_runtime.set_pending_admin_plan runtime (Some pending_plan)
+        ( Starter_session.finish_stream next_state
+        , Starter_runtime.set_pending_admin_plan runtime (Some pending_plan) )
       | Error err ->
         print_wrapped (Domain_error.to_string err);
         Starter_session.finish_stream next_state, runtime
@@ -816,7 +863,8 @@ let rec repl store ~authorization state runtime =
       apply_admin_plan
         store
         ~authorization
-        ~config_path:(Starter_session.current_config_path next_state |> Option.value ~default:"")
+        ~config_path:
+          (Starter_session.current_config_path next_state |> Option.value ~default:"")
         next_state
         runtime
     in
@@ -839,11 +887,7 @@ let rec repl store ~authorization state runtime =
     repl store ~authorization next_state runtime
   | Starter_session.Reset_memory ->
     print_wrapped Starter_constants.Text.memory_cleared;
-    repl
-      store
-      ~authorization
-      next_state
-      (Starter_runtime.clear_conversation runtime)
+    repl store ~authorization next_state (Starter_runtime.clear_conversation runtime)
   | Starter_session.List_providers ->
     print_provider_matrix store;
     repl store ~authorization next_state runtime
@@ -921,10 +965,16 @@ let rec repl store ~authorization state runtime =
 
 let run ~base_config_path ~starter_output_path () =
   Sys.catch_break true;
-  print_wrapped Starter_constants.Text.title;
   print_line "";
-  print_wrapped_lines Starter_constants.Text.intro_lines;
-  print_wrapped Starter_constants.Text.terminal_ready;
+  print_line
+    (Starter_constants.Ansi.bold (Starter_constants.Ansi.cyan " 🚢 BulkheadLM Starter "));
+  print_line (Starter_constants.Ansi.cyan "=========================");
+  print_line "";
+  print_styled_lines ~style:Starter_constants.Ansi.dim Starter_constants.Text.intro_lines;
+  print_line "";
+  print_wrapped_styled
+    ~style:Starter_constants.Ansi.dim
+    Starter_constants.Text.terminal_ready;
   let selected_path =
     match choose_config_source ~base_config_path ~starter_output_path with
     | Example_config -> Ok base_config_path
