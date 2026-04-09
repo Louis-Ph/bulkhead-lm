@@ -26,6 +26,45 @@ Then BulkheadLM asks you simple questions and opens a chat.
 | Android phone | Best path: connect by SSH to another machine, often a small cloud Ubuntu VM already running BulkheadLM |
 | Tablet or iPad | Best path: connect by SSH to another machine, often a small cloud Ubuntu VM already running BulkheadLM |
 
+## Fastest free first success: OpenRouter
+
+If you want the smartest beginner path with the fewest decisions, start with
+OpenRouter.
+
+Research snapshot for this OpenRouter section: 2026-04-09.
+
+Why this is a great first try:
+
+1. One key can unlock many different models later.
+2. BulkheadLM already knows the route `openrouter-free`.
+3. OpenRouter's free plan currently shows 25+ free models and 50 requests per day.
+4. Later, the same key can also power `openrouter-auto` and `openrouter-gpt-5.2`.
+
+Do this:
+
+```bash
+git clone https://github.com/Louis-Ph/bulkhead-lm.git
+cd bulkhead-lm
+printf '%s\n' 'export OPEN_ROUTER_KEY="paste-your-key-here"' >> ~/.zshrc.secrets
+./run.sh
+```
+
+If you are on Ubuntu, you can use `~/.bashrc.secrets` instead.
+
+Then:
+
+1. If the starter asks, build the starter config.
+2. Choose the model route `openrouter-free`.
+3. Start chatting.
+
+Very important:
+free limits and free model choices can change. Check the official OpenRouter
+pages before you depend on them:
+
+- [OpenRouter Quickstart](https://openrouter.ai/docs/quickstart)
+- [OpenRouter Pricing](https://openrouter.ai/pricing)
+- [OpenRouter Free Models Router](https://openrouter.ai/docs/guides/routing/routers/free-models-router)
+
 ## Before you start: how to get a key cheaply or for free
 
 Offers change often. Always check the official page, not random blogs, Discord messages, or videos.
@@ -42,12 +81,21 @@ Very important reserve:
 
 The safest easy choices are:
 
-1. Google Gemini API.
+1. OpenRouter free plan and free router.
+   OpenRouter officially documents a free models router called `openrouter/free`.
+   On the official pricing page checked on 2026-04-09, OpenRouter also shows a Free plan with 25+ free models and 50 requests per day.
+   This is a very attractive first path for BulkheadLM because one OpenRouter key can later unlock more routes without changing provider setup.
+   Official links:
+   [OpenRouter pricing](https://openrouter.ai/pricing)
+   [OpenRouter free models router](https://openrouter.ai/docs/guides/routing/routers/free-models-router)
+   [OpenRouter quickstart](https://openrouter.ai/docs/quickstart)
+
+2. Google Gemini API.
    Google officially has a pricing page with free tier entries for some Gemini API models, but not for every model.
    So you must check the exact model and the exact page on the day you sign up.
    Official link: [Google Gemini API pricing](https://ai.google.dev/pricing)
 
-2. Mistral API experiment tier.
+3. Mistral API experiment tier.
    Mistral officially says it has an Experiment plan for free API use.
    On the official help page checked on 2026-04-04, Mistral says this needs a verified phone number, no credit card, and that requests under the Experiment plan may be used to train Mistral's models.
    Official links:
@@ -55,7 +103,7 @@ The safest easy choices are:
    [Mistral free experiment plan](https://help.mistral.ai/en/articles/455206-how-can-i-try-the-api-for-free-with-the-experiment-plan)
    [Mistral terms](https://legal.mistral.ai/terms/eu-consumers-terms-of-service)
 
-3. Promotional credits from the provider itself.
+4. Promotional credits from the provider itself.
    Some providers sometimes give credits to new accounts or special programs. These offers can appear and disappear.
    Treat them as temporary offers, not as a permanent right.
    Official pages to check:
@@ -68,7 +116,7 @@ The safest easy choices are:
    OpenAI says service credits are governed by credit terms and are non-transferable.
    Anthropic says individuals may use the API, but API use is still subject to its commercial terms, and its help pages describe prepaid usage credits.
 
-4. Student programs, only if you are old enough and really are a student.
+5. Student programs, only if you are old enough and really are a student.
    GitHub says its Student Developer Pack is only for verified students aged 13 or older.
    GitHub also says offers may change, may not stack, and may not be redeemed multiple times.
    For the target reader of this guide, this usually means: do not count on this path unless a parent, teacher, or school helps you and you really qualify.
@@ -77,7 +125,7 @@ The safest easy choices are:
    [GitHub Student Developer Pack](https://education.github.com/pack)
    [GitHub Student Pack terms](https://docs.github.com/en/education/about-github-education/github-education-for-students/github-terms-and-conditions-for-the-student-developer-pack)
 
-5. Local models with Ollama.
+6. Local models with Ollama.
    This is not a promotional cloud quota. It means the model runs on your own machine, so there is no API bill.
    Official links:
    [Ollama download](https://ollama.com/download)
@@ -94,10 +142,11 @@ The safest easy choices are:
 
 If you want the simplest first success, try this order:
 
-1. Try a Google Gemini API key first.
-2. Then try the official Mistral Experiment plan if it is available to you.
-3. If you already have an OpenAI or Anthropic key on your own account, use that.
-4. If you have no cloud key and your computer is strong enough, ask an adult to help with Ollama.
+1. Try OpenRouter first, especially `openrouter/free`.
+2. Then try a Google Gemini API key.
+3. Then try the official Mistral Experiment plan if it is available to you.
+4. If you already have an OpenAI or Anthropic key on your own account, use that.
+5. If you have no cloud key and your computer is strong enough, ask an adult to help with Ollama.
 
 ## If you want a cloud machine fast
 
@@ -176,7 +225,7 @@ Cloud offers are powerful, but they are not toys.
 If you want one simple cloud plan that is easy to understand, do this:
 
 1. Choose one Ubuntu virtual machine from Oracle Cloud, Azure, AWS, or Alibaba Cloud.
-2. Choose one model API key from Gemini, Mistral, OpenAI, Anthropic, OpenRouter, or another provider already supported by BulkheadLM.
+2. Choose one model API key, with OpenRouter as the easiest first try.
 3. Connect to the machine with SSH.
 4. Run:
 
@@ -185,11 +234,11 @@ sudo apt update
 sudo apt install -y git
 git clone https://github.com/Louis-Ph/bulkhead-lm.git
 cd bulkhead-lm
-printf '%s\n' 'export GOOGLE_API_KEY="paste-your-key-here"' >> ~/.bashrc.secret
+printf '%s\n' 'export OPEN_ROUTER_KEY="paste-your-key-here"' >> ~/.bashrc.secrets
 ./run.sh
 ```
 
-5. Choose a model marked `[ready]`.
+5. Choose `openrouter-free` or another model marked `[ready]`.
 6. Start chatting.
 
 If your cloud machine already has BulkheadLM packaged and installed, the path can be even shorter:
@@ -670,11 +719,11 @@ If you do not see your key variable, close the starter, add the line to your sec
 
 Try these in order:
 
-1. Gemini API free tier if available where you live.
-2. Mistral free experiment tier if it is available for your account.
-3. Official provider promotional credits if they exist on the day you sign up.
-4. Local Ollama on your own machine.
-5. OpenRouter free models router if you already have an OpenRouter key.
+1. OpenRouter free plan and `openrouter/free`.
+2. Gemini API free tier if available where you live.
+3. Mistral free experiment tier if it is available for your account.
+4. Official provider promotional credits if they exist on the day you sign up.
+5. Local Ollama on your own machine.
 
 ## Legal safety in one minute
 

@@ -34,6 +34,38 @@ It targets multi-provider LLM gateway routing with a stricter design bias: expli
 
 ## Quick start
 
+If you want the fastest first success with one key and a free route, start with
+OpenRouter.
+
+Research snapshot for this OpenRouter quick start: 2026-04-09.
+
+```bash
+git clone https://github.com/Louis-Ph/bulkhead-lm.git
+cd bulkhead-lm
+printf '%s\n' 'export OPEN_ROUTER_KEY="paste-your-key-here"' >> ~/.zshrc.secrets
+./run.sh
+```
+
+On Ubuntu, `~/.bashrc.secrets` works just as well.
+
+Then choose `openrouter-free` in the starter for a free first run, or keep the
+generated starter config to expose `openrouter-auto`, `openrouter-free`, and
+`openrouter-gpt-5.2` from the same key.
+
+Why this path is attractive:
+
+- one OpenRouter key can unlock several curated routes in BulkheadLM
+- OpenRouter's free plan currently advertises 25+ free models and 50 requests per day
+- `config/example.gateway.json` already includes `openrouter/free`
+- later, the same provider integration can scale up to smarter paid routing without a provider rewrite
+
+Free limits and free-model availability change over time, so check the official
+pages before you rely on them:
+
+- [OpenRouter Quickstart](https://openrouter.ai/docs/quickstart)
+- [OpenRouter Pricing](https://openrouter.ai/pricing)
+- [OpenRouter Free Models Router](https://openrouter.ai/docs/guides/routing/routers/free-models-router)
+
 The repository can now bootstrap a project-local OCaml toolchain under
 `.bulkhead-tools/`, `.opam-root/`, and `_opam/`, so `opam`, `ocamlc`, and
 `dune` do not need to be preinstalled system-wide.
