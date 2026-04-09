@@ -26,6 +26,7 @@ type env_status =
 let provider_kind_to_string = function
   | Config.Openai_compat -> "openai_compat"
   | Config.Anthropic -> "anthropic"
+  | Config.Openrouter_openai -> "openrouter_openai"
   | Config.Google_openai -> "google_openai"
   | Config.Mistral_openai -> "mistral_openai"
   | Config.Ollama_openai -> "ollama_openai"

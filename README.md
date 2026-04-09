@@ -290,6 +290,7 @@ Example route families currently implemented:
 
 - `openai_compat`
 - `anthropic`
+- `openrouter_openai`
 - `google_openai`
 - `mistral_openai`
 - `ollama_openai`
@@ -301,13 +302,16 @@ Example route families currently implemented:
 The bundled example config now exposes several curated public routes per cloud provider, so one upstream provider key can unlock several routed models. The current example includes:
 
 - OpenAI: `gpt-5`, `gpt-5-mini`, `gpt-5-nano`
+- OpenRouter: `openrouter-auto`, `openrouter-free`, `openrouter-gpt-5.2`
 - Anthropic: `claude-opus`, `claude-sonnet`, `claude-haiku`
 - Google Gemini: `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`
 - Mistral: `mistral-medium`, `mistral-small`, `codestral`
 - Alibaba Qwen: `qwen-max`, `qwen-plus`, `qwen-turbo`
 - Moonshot Kimi: `kimi-latest`, `kimi-k2`, `kimi-k2.5`
 
-These curated route families were last aligned with official provider docs on `2026-04-04`. They are not a claim that BulkheadLM enumerates every upstream model a provider may ever expose.
+OpenRouter is configured against `https://openrouter.ai/api/v1` with `api_key_env` set to `OPEN_ROUTER_KEY` by default. OpenRouter's optional attribution headers are not required for BulkheadLM routing.
+
+These curated route families were last aligned with official provider docs on `2026-04-09`. They are not a claim that BulkheadLM enumerates every upstream model a provider may ever expose.
 
 Ollama is also supported through its OpenAI-compatible interface, for example on `http://127.0.0.1:11434/v1` with a local model such as `llama3.2`.
 
@@ -339,11 +343,12 @@ Use the Beijing DashScope base instead of the international base when you intent
 ./scripts/integration_matrix.sh
 ```
 
-`smoke_openai.sh` automatically selects, in order, `claude-sonnet`, `mistral-small`, `qwen-plus`, `kimi-k2.5`, `gemini-2.5-flash`, then `gpt-5-mini` when the corresponding provider key is present.
+`smoke_openai.sh` automatically selects, in order, `claude-sonnet`, `mistral-small`, `qwen-plus`, `kimi-k2.5`, `gemini-2.5-flash`, `openrouter-free`, then `gpt-5-mini` when the corresponding provider key is present.
 
 `integration_matrix.sh` exercises:
 
 - Anthropic
+- OpenRouter through its direct OpenAI-compatible API
 - Google Gemini through the official OpenAI-compatible interface
 - Mistral through its `/v1` API
 - Alibaba Model Studio through DashScope OpenAI-compatible mode

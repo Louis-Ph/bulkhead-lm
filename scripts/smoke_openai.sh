@@ -6,6 +6,8 @@ CONFIG_FILE="$ROOT_DIR/config/example.gateway.json"
 PORT="${BULKHEAD_LM_SMOKE_PORT:-4110}"
 MODEL="${BULKHEAD_LM_SMOKE_MODEL:-}"
 PID=""
+STARTUP_RETRIES="${BULKHEAD_LM_SMOKE_STARTUP_RETRIES:-20}"
+USE_LOCAL_TOOLCHAIN_WRAPPER=0
 
 cleanup() {
   if [[ -n "$PID" ]] && kill -0 "$PID" 2>/dev/null; then
@@ -14,6 +16,33 @@ cleanup() {
   fi
 }
 trap cleanup EXIT INT TERM
+
+prepare_gateway_runtime() {
+  if command -v dune >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if [[ -x "$ROOT_DIR/scripts/bootstrap_local_toolchain.sh" ]]; then
+    "$ROOT_DIR/scripts/bootstrap_local_toolchain.sh"
+  fi
+
+  if [[ -x "$ROOT_DIR/scripts/with_local_toolchain.sh" ]]; then
+    USE_LOCAL_TOOLCHAIN_WRAPPER=1
+    STARTUP_RETRIES="${BULKHEAD_LM_SMOKE_STARTUP_RETRIES:-120}"
+    return 0
+  fi
+
+  print -u2 "Neither dune nor the local toolchain wrapper is available."
+  exit 1
+}
+
+run_gateway() {
+  if (( USE_LOCAL_TOOLCHAIN_WRAPPER )); then
+    "$ROOT_DIR/scripts/with_local_toolchain.sh" dune exec ./bin/main.exe -- --config "$CONFIG_FILE" --port "$PORT"
+  else
+    dune exec ./bin/main.exe -- --config "$CONFIG_FILE" --port "$PORT"
+  fi
+}
 
 if [[ -r "$HOME/.zshrc.secrets" ]]; then
   source "$HOME/.zshrc.secrets"
@@ -30,6 +59,8 @@ if [[ -z "$MODEL" ]]; then
     MODEL="kimi-k2.5"
   elif [[ -n "${GOOGLE_API_KEY:-}" ]]; then
     MODEL="gemini-2.5-flash"
+  elif [[ -n "${OPEN_ROUTER_KEY:-}" ]]; then
+    MODEL="openrouter-free"
   elif [[ -n "${OPENAI_API_KEY:-}" ]]; then
     MODEL="gpt-5-mini"
   else
@@ -38,10 +69,11 @@ if [[ -z "$MODEL" ]]; then
   fi
 fi
 
-dune exec ./bin/main.exe -- --config "$CONFIG_FILE" --port "$PORT" >/tmp/bulkhead-lm-smoke.log 2>&1 &
+prepare_gateway_runtime
+run_gateway >/tmp/bulkhead-lm-smoke.log 2>&1 &
 PID=$!
 
-for _ in {1..20}; do
+for (( attempt = 1; attempt <= STARTUP_RETRIES; attempt++ )); do
   if /usr/bin/curl -fsS "http://127.0.0.1:${PORT}/health" >/dev/null 2>&1; then
     break
   fi

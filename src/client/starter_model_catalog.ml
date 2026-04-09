@@ -15,7 +15,7 @@ type provider_family =
   ; models : provider_model list
   }
 
-let last_verified = "2026-04-04"
+let last_verified = "2026-04-09"
 
 let provider_families =
   [ { key = "anthropic"
@@ -39,6 +39,30 @@ let provider_families =
           ; label = "Claude Haiku"
           ; public_model = "claude-haiku"
           ; upstream_model = "claude-haiku-4-5"
+          }
+        ]
+    }
+  ; { key = "openrouter"
+    ; label = "OpenRouter"
+    ; provider_id_prefix = "openrouter"
+    ; provider_kind = Config.Openrouter_openai
+    ; api_base = "https://openrouter.ai/api/v1"
+    ; api_key_env = "OPEN_ROUTER_KEY"
+    ; models =
+        [ { key = "openrouter-auto"
+          ; label = "Auto Router"
+          ; public_model = "openrouter-auto"
+          ; upstream_model = "openrouter/auto"
+          }
+        ; { key = "openrouter-free"
+          ; label = "Free Models Router"
+          ; public_model = "openrouter-free"
+          ; upstream_model = "openrouter/free"
+          }
+        ; { key = "openrouter-gpt-5.2"
+          ; label = "GPT-5.2 via OpenRouter"
+          ; public_model = "openrouter-gpt-5.2"
+          ; upstream_model = "openai/gpt-5.2"
           }
         ]
     }

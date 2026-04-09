@@ -6,6 +6,8 @@ CONFIG_FILE="$ROOT_DIR/config/example.gateway.json"
 DB_FILE="$ROOT_DIR/var/bulkhead-lm.sqlite"
 PORT="${BULKHEAD_LM_MATRIX_PORT:-4115}"
 PID=""
+STARTUP_RETRIES="${BULKHEAD_LM_MATRIX_STARTUP_RETRIES:-30}"
+USE_LOCAL_TOOLCHAIN_WRAPPER=0
 
 cleanup() {
   if [[ -n "$PID" ]] && kill -0 "$PID" 2>/dev/null; then
@@ -15,15 +17,43 @@ cleanup() {
 }
 trap cleanup EXIT INT TERM
 
+prepare_gateway_runtime() {
+  if command -v dune >/dev/null 2>&1; then
+    return 0
+  fi
+
+  if [[ -x "$ROOT_DIR/scripts/bootstrap_local_toolchain.sh" ]]; then
+    "$ROOT_DIR/scripts/bootstrap_local_toolchain.sh"
+  fi
+
+  if [[ -x "$ROOT_DIR/scripts/with_local_toolchain.sh" ]]; then
+    USE_LOCAL_TOOLCHAIN_WRAPPER=1
+    STARTUP_RETRIES="${BULKHEAD_LM_MATRIX_STARTUP_RETRIES:-120}"
+    return 0
+  fi
+
+  print -u2 "Neither dune nor the local toolchain wrapper is available."
+  exit 1
+}
+
+run_gateway() {
+  if (( USE_LOCAL_TOOLCHAIN_WRAPPER )); then
+    "$ROOT_DIR/scripts/with_local_toolchain.sh" dune exec ./bin/main.exe -- --config "$CONFIG_FILE" --port "$PORT"
+  else
+    dune exec ./bin/main.exe -- --config "$CONFIG_FILE" --port "$PORT"
+  fi
+}
+
 if [[ -r "$HOME/.zshrc.secrets" ]]; then
   source "$HOME/.zshrc.secrets"
 fi
 
 start_gateway() {
+  prepare_gateway_runtime
   /bin/rm -f "$DB_FILE" "$DB_FILE-shm" "$DB_FILE-wal"
-  dune exec ./bin/main.exe -- --config "$CONFIG_FILE" --port "$PORT" >/tmp/bulkhead-lm-matrix.log 2>&1 &
+  run_gateway >/tmp/bulkhead-lm-matrix.log 2>&1 &
   PID=$!
-  for _ in {1..30}; do
+  for (( attempt = 1; attempt <= STARTUP_RETRIES; attempt++ )); do
     if /usr/bin/curl -fsS "http://127.0.0.1:${PORT}/health" >/dev/null 2>&1; then
       return 0
     fi
@@ -140,6 +170,14 @@ if [[ -n "${MOONSHOT_API_KEY:-}" ]]; then
     "moonshot chat" \
     "/v1/chat/completions" \
     '{"model":"kimi-k2.5","messages":[{"role":"user","content":"Reply with the single word OK."}]}' \
+    '"object":"chat.completion"'
+fi
+
+if [[ -n "${OPEN_ROUTER_KEY:-}" ]]; then
+  assert_successful_json \
+    "openrouter chat" \
+    "/v1/chat/completions" \
+    '{"model":"openrouter-free","messages":[{"role":"user","content":"Reply with the single word OK."}]}' \
     '"object":"chat.completion"'
 fi
 

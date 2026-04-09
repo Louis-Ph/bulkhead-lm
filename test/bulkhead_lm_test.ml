@@ -894,6 +894,13 @@ let config_load_accepts_openai_compatible_provider_variants_test _switch () =
                           ; "api_key_env", `String "MOONSHOT_API_KEY"
                           ]
                       ; `Assoc
+                          [ "provider_id", `String "openrouter-primary"
+                          ; "provider_kind", `String "openrouter_openai"
+                          ; "upstream_model", `String "openrouter/free"
+                          ; "api_base", `String "https://openrouter.ai/api/v1"
+                          ; "api_key_env", `String "OPEN_ROUTER_KEY"
+                          ]
+                      ; `Assoc
                           [ "provider_id", `String "peer-primary"
                           ; "provider_kind", `String "bulkhead_peer"
                           ; "upstream_model", `String "claude-sonnet"
@@ -930,7 +937,7 @@ let config_load_accepts_openai_compatible_provider_variants_test _switch () =
      match config.Bulkhead_lm.Config.routes with
      | [ route ] ->
        (match route.Bulkhead_lm.Config.backends with
-        | [ mistral; ollama; alibaba; moonshot; peer; ssh_peer ] ->
+        | [ mistral; ollama; alibaba; moonshot; openrouter; peer; ssh_peer ] ->
           Alcotest.(check bool)
             "mistral kind parsed"
             true
@@ -975,6 +982,17 @@ let config_load_accepts_openai_compatible_provider_variants_test _switch () =
             true
             (Bulkhead_lm.Config.is_openai_compatible_kind
                moonshot.Bulkhead_lm.Config.provider_kind);
+          Alcotest.(check bool)
+            "openrouter kind parsed"
+            true
+            (match openrouter.Bulkhead_lm.Config.provider_kind with
+             | Bulkhead_lm.Config.Openrouter_openai -> true
+             | _ -> false);
+          Alcotest.(check bool)
+            "openrouter kind is openai-compatible"
+            true
+            (Bulkhead_lm.Config.is_openai_compatible_kind
+               openrouter.Bulkhead_lm.Config.provider_kind);
           Alcotest.(check bool)
             "peer kind parsed"
             true
@@ -1056,6 +1074,11 @@ let provider_registry_routes_new_openai_compatible_kinds_test _switch () =
     Bulkhead_lm.Config.Moonshot_openai
     "moonshot-primary"
     "MOONSHOT_TEST_KEY"
+  >>= fun () ->
+  assert_openai_compat
+    Bulkhead_lm.Config.Openrouter_openai
+    "openrouter-primary"
+    "OPEN_ROUTER_TEST_KEY"
   >>= fun () ->
   assert_openai_compat
     Bulkhead_lm.Config.Bulkhead_peer
@@ -1866,7 +1889,9 @@ let starter_profile_exposes_multiple_models_per_provider_test _switch () =
     | Some count -> Alcotest.(check bool) provider_key true (count >= 3)
     | None -> Alcotest.failf "missing provider family %s" provider_key
   in
-  List.iter expect [ "anthropic"; "openai"; "google"; "mistral"; "alibaba"; "moonshot" ];
+  List.iter
+    expect
+    [ "anthropic"; "openrouter"; "openai"; "google"; "mistral"; "alibaba"; "moonshot" ];
   Lwt.return_unit
 ;;
 
@@ -1887,6 +1912,7 @@ let example_gateway_exposes_multiple_models_per_provider_test _switch () =
                let key =
                  match backend.provider_kind with
                  | Bulkhead_lm.Config.Anthropic -> "anthropic"
+                 | Bulkhead_lm.Config.Openrouter_openai -> "openrouter"
                  | Bulkhead_lm.Config.Openai_compat -> "openai"
                  | Bulkhead_lm.Config.Google_openai -> "google"
                  | Bulkhead_lm.Config.Mistral_openai -> "mistral"
@@ -1908,7 +1934,9 @@ let example_gateway_exposes_multiple_models_per_provider_test _switch () =
       | Some count -> Alcotest.(check bool) provider_key true (count >= 3)
       | None -> Alcotest.failf "example config missing provider family %s" provider_key
     in
-    List.iter expect [ "anthropic"; "openai"; "google"; "mistral"; "alibaba"; "moonshot" ];
+    List.iter
+      expect
+      [ "anthropic"; "openrouter"; "openai"; "google"; "mistral"; "alibaba"; "moonshot" ];
     Lwt.return_unit
 ;;
 

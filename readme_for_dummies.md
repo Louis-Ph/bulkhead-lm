@@ -176,7 +176,7 @@ Cloud offers are powerful, but they are not toys.
 If you want one simple cloud plan that is easy to understand, do this:
 
 1. Choose one Ubuntu virtual machine from Oracle Cloud, Azure, AWS, or Alibaba Cloud.
-2. Choose one model API key from Gemini, Mistral, OpenAI, Anthropic, or another provider already supported by BulkheadLM.
+2. Choose one model API key from Gemini, Mistral, OpenAI, Anthropic, OpenRouter, or another provider already supported by BulkheadLM.
 3. Connect to the machine with SSH.
 4. Run:
 
@@ -243,7 +243,7 @@ If you want the easiest idea to remember, it is this:
 1. Cloud machine:
    one small Ubuntu VM on Oracle Cloud, AWS, Azure, or Alibaba Cloud
 2. Model:
-   one API key from Gemini, Mistral, OpenAI, Anthropic, or another BulkheadLM provider
+   one API key from Gemini, Mistral, OpenAI, Anthropic, OpenRouter, or another BulkheadLM provider
 3. Access:
    SSH app, Chromebook Terminal, or a cloud provider browser console
 4. Daily use:
@@ -403,7 +403,7 @@ cd bulkhead-lm
 printf '%s\n' 'export GOOGLE_API_KEY="paste-your-key-here"' >> ~/.zshrc.secret
 ```
 
-You can replace `GOOGLE_API_KEY` with `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, or `MISTRAL_API_KEY`.
+You can replace `GOOGLE_API_KEY` with `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `MISTRAL_API_KEY`, or `OPEN_ROUTER_KEY`.
 
 5. Start:
 
@@ -674,6 +674,7 @@ Try these in order:
 2. Mistral free experiment tier if it is available for your account.
 3. Official provider promotional credits if they exist on the day you sign up.
 4. Local Ollama on your own machine.
+5. OpenRouter free models router if you already have an OpenRouter key.
 
 ## Legal safety in one minute
 

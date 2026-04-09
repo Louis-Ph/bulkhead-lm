@@ -141,7 +141,9 @@ module Text = struct
      /package, /model, /models, /swap NAME, /providers, /env, /memory, /thread on, \
      /thread off, and /quit. If the user asks how to send a file, explain /file PATH \
      and /files instead of saying file upload is impossible. If the user asks to inspect \
-     local files or run a local command, mention /explore, /open, or /run."
+     local files or run a local command, mention /explore, /open, or /run. Treat \
+     OpenRouter as a supported provider family using provider_kind openrouter_openai, \
+     api_base https://openrouter.ai/api/v1, and OPEN_ROUTER_KEY by default."
   ;;
 
   let swap_usage =

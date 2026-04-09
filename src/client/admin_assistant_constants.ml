@@ -31,6 +31,7 @@ module Prompt = struct
       ; "Prefer config_ops over system_ops."
       ; "Use system_ops only when configuration alone is insufficient."
       ; "If the request is unsafe, unclear, or unnecessary, return empty config_ops and empty system_ops with a warning."
+      ; "For OpenRouter routes, use provider_kind openrouter_openai, api_base https://openrouter.ai/api/v1, and OPEN_ROUTER_KEY unless the user explicitly asks for another env var name."
       ; "Respect the response schema exactly:"
       ; "{\"kid_summary\": string, \"why\": string[], \"warnings\": string[], \"config_ops\": config_op[], \"system_ops\": terminal_op[]}"
       ; "config_op must be one of:"

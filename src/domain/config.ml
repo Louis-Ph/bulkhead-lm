@@ -3,6 +3,7 @@ let ( >>= ) = Result.bind
 type provider_kind =
   | Openai_compat
   | Anthropic
+  | Openrouter_openai
   | Google_openai
   | Mistral_openai
   | Ollama_openai
@@ -71,6 +72,7 @@ type resolved_paths =
 let provider_kind_of_string = function
   | "openai_compat" -> Ok Openai_compat
   | "anthropic" -> Ok Anthropic
+  | "openrouter_openai" -> Ok Openrouter_openai
   | "google_openai" -> Ok Google_openai
   | "mistral_openai" -> Ok Mistral_openai
   | "ollama_openai" -> Ok Ollama_openai
@@ -83,6 +85,7 @@ let provider_kind_of_string = function
 
 let is_openai_compatible_kind = function
   | Openai_compat
+  | Openrouter_openai
   | Google_openai
   | Mistral_openai
   | Ollama_openai

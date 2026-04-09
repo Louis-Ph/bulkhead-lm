@@ -16,6 +16,9 @@
         "gpt-5",
         "gpt-5-mini",
         "gpt-5-nano",
+        "openrouter-auto",
+        "openrouter-free",
+        "openrouter-gpt-5.2",
         "claude-opus",
         "claude-sonnet",
         "claude-haiku",
@@ -68,6 +71,42 @@
           "upstream_model": "gpt-5-nano",
           "api_base": "https://api.openai.com/v1",
           "api_key_env": "OPENAI_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "openrouter-auto",
+      "backends": [
+        {
+          "provider_id": "openrouter-auto",
+          "provider_kind": "openrouter_openai",
+          "upstream_model": "openrouter/auto",
+          "api_base": "https://openrouter.ai/api/v1",
+          "api_key_env": "OPEN_ROUTER_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "openrouter-free",
+      "backends": [
+        {
+          "provider_id": "openrouter-free",
+          "provider_kind": "openrouter_openai",
+          "upstream_model": "openrouter/free",
+          "api_base": "https://openrouter.ai/api/v1",
+          "api_key_env": "OPEN_ROUTER_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "openrouter-gpt-5.2",
+      "backends": [
+        {
+          "provider_id": "openrouter-gpt-5-2",
+          "provider_kind": "openrouter_openai",
+          "upstream_model": "openai/gpt-5.2",
+          "api_base": "https://openrouter.ai/api/v1",
+          "api_key_env": "OPEN_ROUTER_KEY"
         }
       ]
     },
