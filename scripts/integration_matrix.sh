@@ -53,11 +53,13 @@ start_gateway() {
   /bin/rm -f "$DB_FILE" "$DB_FILE-shm" "$DB_FILE-wal"
   run_gateway >/tmp/bulkhead-lm-matrix.log 2>&1 &
   PID=$!
-  for (( attempt = 1; attempt <= STARTUP_RETRIES; attempt++ )); do
+  attempt=1
+  while [ "$attempt" -le "$STARTUP_RETRIES" ]; do
     if /usr/bin/curl -fsS "http://127.0.0.1:${PORT}/health" >/dev/null 2>&1; then
       return 0
     fi
     sleep 0.5
+    attempt=$((attempt + 1))
   done
   print -u2 "Gateway did not become healthy."
   /bin/cat /tmp/bulkhead-lm-matrix.log >&2

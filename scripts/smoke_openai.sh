@@ -73,11 +73,13 @@ prepare_gateway_runtime
 run_gateway >/tmp/bulkhead-lm-smoke.log 2>&1 &
 PID=$!
 
-for (( attempt = 1; attempt <= STARTUP_RETRIES; attempt++ )); do
+attempt=1
+while [ "$attempt" -le "$STARTUP_RETRIES" ]; do
   if /usr/bin/curl -fsS "http://127.0.0.1:${PORT}/health" >/dev/null 2>&1; then
     break
   fi
   sleep 0.5
+  attempt=$((attempt + 1))
 done
 
 if ! /usr/bin/curl -fsS "http://127.0.0.1:${PORT}/health" >/dev/null 2>&1; then
