@@ -119,6 +119,7 @@ Each connector keeps the same gateway guarantees:
 - it reuses a normal BulkheadLM virtual key from `authorization_env`
 - route allowlists, budgets, rate limits, privacy filtering, and output guards still apply
 - conversation memory is scoped per external conversation instead of being shared globally
+- enabled connectors must use distinct `webhook_path` values, and config load now rejects ambiguous path reuse
 - `/help` and `/reset` are supported on the text channels implemented here
 
 ### Telegram

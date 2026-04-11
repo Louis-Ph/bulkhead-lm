@@ -63,7 +63,9 @@ Implementation notes:
 ## Architecture guardrails
 
 - keep each connector under `src/connectors/` with one wrapper per platform
+- keep rollout order and runtime class explicit in a central connector registry instead of encoding it in nested route conditionals
 - factor repeated protocol logic into shared modules before adding the second copy
 - keep all user connectors on the standard BulkheadLM virtual-key auth path
+- require every enabled connector to own a unique `webhook_path`, and reject ambiguous configs during load
 - scope conversation memory by the smallest stable external conversation identity
 - add focused config and webhook tests for every new connector before enabling it in examples

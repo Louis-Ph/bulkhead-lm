@@ -74,6 +74,7 @@
 - command execution is shell-free: callers send `command` plus `args`, and BulkheadLM applies timeout and output caps before returning a structured result
 - starter admin requests are plan-first: the model returns typed JSON, the user reviews it with `/plan`, and only `/apply` mutates config files or runs allowed local ops
 - `User_connector_router` centralizes webhook path dispatch instead of growing `Server` route conditionals one connector at a time
+- `User_connector_registry` makes connector rollout order and runtime class explicit, so webhook dispatch stays hierarchical as the connector list grows
 - `User_connector_common` centralizes per-channel session memory limits, authorization normalization, audit helpers, and text splitting
 - `Meta_connector_common` centralizes the shared Meta webhook challenge flow, optional HMAC verification, inbound `entry[].messaging[]` parsing, and Graph send API text delivery for Messenger and Instagram
 - `Line_connector` adds LINE-specific reply-token handling and source-scoped session identity without leaking LINE protocol details into the generic router
@@ -83,6 +84,7 @@
 - `Discord_connector` adds Discord Ed25519 request verification, slash-command parsing, and deferred interaction response editing without polluting the simpler synchronous connectors
 - `Google_chat_id_token` isolates Google Chat bearer-token verification from the higher-level Google Chat event bridge
 - user chat connectors reuse the same virtual-key auth path, route allowlists, budgets, and output guards instead of bypassing gateway policy
+- connector config is fail-closed on duplicate `webhook_path` values so one HTTP path cannot ambiguously match multiple enabled connectors
 - `docs/USER_CONNECTOR_ROADMAP.md` keeps the wave-based rollout order explicit, including implemented versus deferred platforms, instead of letting connector growth become opportunistic
 
 ## Concurrency model

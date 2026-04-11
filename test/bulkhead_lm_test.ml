@@ -1855,6 +1855,81 @@ let config_load_parses_google_chat_connector_test _switch () =
   Lwt.return_unit
 ;;
 
+let config_load_rejects_duplicate_user_connector_webhook_paths_test _switch () =
+  let config_path = Filename.temp_file "bulkhead-lm-duplicate-webhook-paths" ".json" in
+  let config_json =
+    `Assoc
+      [ ( "user_connectors"
+        , `Assoc
+            [ ( "telegram"
+              , `Assoc
+                  [ "enabled", `Bool true
+                  ; "webhook_path", `String "/shared/webhook"
+                  ; "bot_token_env", `String "TELEGRAM_BOT_TOKEN"
+                  ; "authorization_env", `String "BULKHEAD_TELEGRAM_AUTH"
+                  ; "route_model", `String "gpt-5-mini"
+                  ] )
+            ; ( "google_chat"
+              , `Assoc
+                  [ "enabled", `Bool true
+                  ; "webhook_path", `String "/shared/webhook"
+                  ; "authorization_env", `String "BULKHEAD_GOOGLE_CHAT_AUTH"
+                  ; "route_model", `String "gpt-5-mini"
+                  ] )
+            ] )
+      ; "routes", `List []
+      ; "virtual_keys", `List []
+      ]
+  in
+  Yojson.Safe.to_file config_path config_json;
+  (match Bulkhead_lm.Config.load config_path with
+   | Ok _ -> Alcotest.fail "expected duplicate webhook paths to be rejected"
+   | Error err ->
+     Alcotest.(check bool)
+       "duplicate path error is explicit"
+       true
+       (string_contains err "Duplicate user connector webhook_path values are not allowed");
+     Alcotest.(check bool)
+       "duplicate path is named"
+       true
+       (string_contains err "/shared/webhook");
+     Alcotest.(check bool)
+       "telegram is named in duplicate path error"
+       true
+       (string_contains err "telegram");
+     Alcotest.(check bool)
+       "google chat is named in duplicate path error"
+       true
+       (string_contains err "google_chat"));
+  Lwt.return_unit
+;;
+
+let user_connector_registry_is_hierarchical_test _switch () =
+  let described =
+    Bulkhead_lm.User_connector_registry.descriptors
+    |> List.map (fun (descriptor : Bulkhead_lm.User_connector_registry.descriptor) ->
+      Fmt.str
+        "%d:%s:%s"
+        descriptor.wave
+        descriptor.connector_id
+        (Bulkhead_lm.User_connector_registry.runtime_class_label descriptor.runtime_class))
+  in
+  Alcotest.(check (list string))
+    "connector registry order and runtime classes stay explicit"
+    [ "1:telegram:webhook-outbound-api-reply"
+    ; "1:whatsapp:webhook-outbound-api-reply"
+    ; "1:messenger:webhook-outbound-api-reply"
+    ; "1:instagram:webhook-outbound-api-reply"
+    ; "2:line:webhook-outbound-api-reply"
+    ; "2:viber:webhook-outbound-api-reply"
+    ; "2:wechat:webhook-inline-reply"
+    ; "3:discord:deferred-interaction"
+    ; "1:google_chat:webhook-inline-reply"
+    ]
+    described;
+  Lwt.return_unit
+;;
+
 let whatsapp_connector_handles_verification_test _switch () =
   let connector =
     Bulkhead_lm.Config_test_support.whatsapp_connector
@@ -5081,6 +5156,14 @@ let tests =
       "config parses google chat user connector"
       `Quick
       config_load_parses_google_chat_connector_test
+  ; Alcotest_lwt.test_case
+      "config rejects duplicate user connector webhook paths"
+      `Quick
+      config_load_rejects_duplicate_user_connector_webhook_paths_test
+  ; Alcotest_lwt.test_case
+      "user connector registry stays hierarchical"
+      `Quick
+      user_connector_registry_is_hierarchical_test
   ; Alcotest_lwt.test_case
       "telegram connector handles text webhook"
       `Quick

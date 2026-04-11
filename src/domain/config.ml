@@ -814,6 +814,72 @@ let resolve_related_paths path =
   }
 ;;
 
+let configured_user_connector_webhook_paths (user_connectors : user_connectors) =
+  [ Option.map
+      (fun (connector : telegram_connector) -> "telegram", connector.webhook_path)
+      user_connectors.telegram
+  ; Option.map
+      (fun (connector : whatsapp_connector) -> "whatsapp", connector.webhook_path)
+      user_connectors.whatsapp
+  ; Option.map
+      (fun (connector : messenger_connector) -> "messenger", connector.webhook_path)
+      user_connectors.messenger
+  ; Option.map
+      (fun (connector : instagram_connector) -> "instagram", connector.webhook_path)
+      user_connectors.instagram
+  ; Option.map
+      (fun (connector : line_connector) -> "line", connector.webhook_path)
+      user_connectors.line
+  ; Option.map
+      (fun (connector : viber_connector) -> "viber", connector.webhook_path)
+      user_connectors.viber
+  ; Option.map
+      (fun (connector : wechat_connector) -> "wechat", connector.webhook_path)
+      user_connectors.wechat
+  ; Option.map
+      (fun (connector : discord_connector) -> "discord", connector.webhook_path)
+      user_connectors.discord
+  ; Option.map
+      (fun (connector : google_chat_connector) -> "google_chat", connector.webhook_path)
+      user_connectors.google_chat
+  ]
+  |> List.filter_map Fun.id
+;;
+
+let validate_user_connector_webhook_paths user_connectors =
+  let add_binding seen (connector_id, webhook_path) =
+    let existing_ids = Option.value (List.assoc_opt webhook_path seen) ~default:[] in
+    let updated_ids = List.sort_uniq String.compare (connector_id :: existing_ids) in
+    (webhook_path, updated_ids)
+    :: List.remove_assoc webhook_path seen
+  in
+  let grouped_paths =
+    List.fold_left
+      add_binding
+      []
+      (configured_user_connector_webhook_paths user_connectors)
+  in
+  let duplicates =
+    grouped_paths
+    |> List.filter_map (fun (webhook_path, connector_ids) ->
+      match connector_ids with
+      | _ :: _ :: _ ->
+        Some
+          (Fmt.str
+             "%s used by %s"
+             webhook_path
+             (String.concat ", " connector_ids))
+      | _ -> None)
+  in
+  match duplicates with
+  | [] -> Ok user_connectors
+  | _ ->
+    Error
+      (Fmt.str
+         "Duplicate user connector webhook_path values are not allowed: %s."
+         (String.concat "; " (List.rev duplicates)))
+;;
+
 let load path =
   let json = Yojson.Safe.from_file path in
   let base_dir = Filename.dirname path in
@@ -893,7 +959,7 @@ let load path =
       Ok wechat,
       Ok discord,
       Ok google_chat ->
-      Ok
+      validate_user_connector_webhook_paths
         { telegram
         ; whatsapp
         ; messenger
