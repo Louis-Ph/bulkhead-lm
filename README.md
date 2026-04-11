@@ -31,7 +31,7 @@ It targets multi-provider LLM gateway routing with a stricter design bias: expli
 - request body limits and upstream request timeouts
 - retry-aware fallback that avoids failing over on permanent upstream errors
 - multicore-safe budget and rate-limit state with a `Domain.spawn` test
-- Telegram, WhatsApp Cloud API, Facebook Messenger, Instagram Direct, LINE, Viber, WeChat Service Account, and Google Chat user connectors over webhook, with per-conversation memory routed through normal BulkheadLM virtual-key auth
+- Telegram, WhatsApp Cloud API, Facebook Messenger, Instagram Direct, LINE, Viber, WeChat Service Account, Discord Interactions, and Google Chat user connectors over webhook, with per-conversation memory routed through normal BulkheadLM virtual-key auth
 
 ## Connector rollout roadmap
 
@@ -41,7 +41,8 @@ amount of adaptation a mainstream user needs before the assistant feels native.
 - Wave 1: WhatsApp Cloud API, Telegram Bot API, Facebook Messenger, Instagram Direct
 - Wave 2: LINE, Viber, WeChat Service Account
 - Wave 2 deferred: TikTok Direct Messages
-- Wave 3 deferred: Discord, Snapchat, KakaoTalk, Zalo, QQ
+- Wave 3: Discord Interactions
+- Wave 3 deferred: Snapchat, KakaoTalk, Zalo, QQ
 
 The longer rationale lives in [docs/USER_CONNECTOR_ROADMAP.md](docs/USER_CONNECTOR_ROADMAP.md).
 
@@ -100,7 +101,7 @@ dune exec bulkhead-lm -- --config config/example.gateway.json --port 4200
 
 ## User chat connectors
 
-BulkheadLM can now expose eight user-facing chat connectors through the same
+BulkheadLM can now expose nine user-facing chat connectors through the same
 HTTP server architecture:
 
 - Telegram Bot API
@@ -110,6 +111,7 @@ HTTP server architecture:
 - LINE Messaging API
 - Viber REST Bot API
 - WeChat Service Account
+- Discord Interactions
 - Google Chat HTTP app webhooks
 
 Each connector keeps the same gateway guarantees:
@@ -371,6 +373,69 @@ Implementation notes:
 - inbound user messages arrive as XML and are answered through passive XML replies on the same request
 - conversation memory is scoped per `account_id + open_id`
 - because this is a passive reply flow, the model call still needs to finish within WeChat's response window
+
+### Discord Interactions
+
+Reference checked for this connector work: 2026-04-11.
+
+```bash
+export DISCORD_PUBLIC_KEY="discord-app-public-key-hex"
+export BULKHEAD_DISCORD_AUTH="sk-bulkhead-lm-dev"
+```
+
+```json
+{
+  "user_connectors": {
+    "discord": {
+      "enabled": true,
+      "webhook_path": "/connectors/discord/webhook",
+      "public_key_env": "DISCORD_PUBLIC_KEY",
+      "authorization_env": "BULKHEAD_DISCORD_AUTH",
+      "route_model": "gpt-5-mini",
+      "system_prompt": "Reply in a concise, practical tone for chat users.",
+      "allowed_application_ids": [],
+      "allowed_user_ids": [],
+      "allowed_channel_ids": [],
+      "allowed_guild_ids": [],
+      "ephemeral_by_default": true
+    }
+  }
+}
+```
+
+Optional command-registration example:
+
+```bash
+export DISCORD_APPLICATION_ID="123456789012345678"
+export DISCORD_BOT_TOKEN="discord-bot-token"
+
+curl -sS "https://discord.com/api/v10/applications/${DISCORD_APPLICATION_ID}/commands" \
+  -H "Authorization: Bot ${DISCORD_BOT_TOKEN}" \
+  -H 'content-type: application/json' \
+  -d '{
+    "name": "bulkhead",
+    "type": 1,
+    "description": "Talk to BulkheadLM",
+    "integration_types": [0, 1],
+    "contexts": [0, 1],
+    "options": [
+      {
+        "name": "message",
+        "description": "Your message to the assistant",
+        "type": 3,
+        "required": true
+      }
+    ]
+  }'
+```
+
+Implementation notes:
+
+- this connector uses Discord's signed outgoing interaction webhooks, not general gateway message events
+- `public_key_env` is used to verify `X-Signature-Ed25519` and `X-Signature-Timestamp`
+- application commands are acknowledged immediately, then the original Discord response is edited asynchronously so the model call can outlive Discord's 3-second initial-response window
+- conversation memory is scoped per `application_id + guild_or_dm + channel_id + user_id`
+- this connector currently targets slash-command style conversation rather than arbitrary message-content bot listeners
 
 ### Google Chat
 

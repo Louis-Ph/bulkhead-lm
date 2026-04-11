@@ -114,6 +114,19 @@ type wechat_connector =
   ; allowed_account_ids : string list
   }
 
+type discord_connector =
+  { webhook_path : string
+  ; public_key_env : string
+  ; authorization_env : string
+  ; route_model : string
+  ; system_prompt : string option
+  ; allowed_application_ids : string list
+  ; allowed_user_ids : string list
+  ; allowed_channel_ids : string list
+  ; allowed_guild_ids : string list
+  ; ephemeral_by_default : bool
+  }
+
 type google_chat_id_token_auth =
   { audience : string
   ; certs_url : string
@@ -137,6 +150,7 @@ type user_connectors =
   ; line : line_connector option
   ; viber : viber_connector option
   ; wechat : wechat_connector option
+  ; discord : discord_connector option
   ; google_chat : google_chat_connector option
   }
 
@@ -698,6 +712,38 @@ let parse_wechat_connector json =
          })
 ;;
 
+let parse_discord_connector json =
+  if not (bool_member_with_default "enabled" json ~default:true)
+  then Ok None
+  else
+    string_member "public_key_env" json
+    >>= fun public_key_env ->
+    string_member "authorization_env" json
+    >>= fun authorization_env ->
+    string_member "route_model" json
+    >>= fun route_model ->
+    Ok
+      (Some
+         { webhook_path =
+             normalize_http_path
+               (string_member_with_default
+                  "webhook_path"
+                  json
+                  ~default:"/connectors/discord/webhook")
+         ; public_key_env = String.trim public_key_env
+         ; authorization_env = String.trim authorization_env
+         ; route_model = String.trim route_model
+         ; system_prompt = optional_non_empty_string_member "system_prompt" json
+         ; allowed_application_ids =
+             string_or_int_list_member "allowed_application_ids" json
+         ; allowed_user_ids = string_or_int_list_member "allowed_user_ids" json
+         ; allowed_channel_ids = string_or_int_list_member "allowed_channel_ids" json
+         ; allowed_guild_ids = string_or_int_list_member "allowed_guild_ids" json
+         ; ephemeral_by_default =
+             bool_member_with_default "ephemeral_by_default" json ~default:true
+         })
+;;
+
 let parse_google_chat_id_token_auth json =
   string_member "audience" json
   >>= fun audience ->
@@ -817,6 +863,11 @@ let load path =
       | `Assoc _ as wechat_json -> parse_wechat_connector wechat_json
       | _ -> Ok None
     in
+    let discord_result =
+      match object_member "discord" connector_json with
+      | `Assoc _ as discord_json -> parse_discord_connector discord_json
+      | _ -> Ok None
+    in
     let google_chat_result =
       match object_member "google_chat" connector_json with
       | `Assoc _ as google_chat_json -> parse_google_chat_connector google_chat_json
@@ -830,18 +881,38 @@ let load path =
       line_result,
       viber_result,
       wechat_result,
+      discord_result,
       google_chat_result
     with
-    | Ok telegram, Ok whatsapp, Ok messenger, Ok instagram, Ok line, Ok viber, Ok wechat, Ok google_chat ->
-      Ok { telegram; whatsapp; messenger; instagram; line; viber; wechat; google_chat }
-    | Error err, _, _, _, _, _, _, _
-    | _, Error err, _, _, _, _, _, _
-    | _, _, Error err, _, _, _, _, _
-    | _, _, _, Error err, _, _, _, _
-    | _, _, _, _, Error err, _, _, _
-    | _, _, _, _, _, Error err, _, _
-    | _, _, _, _, _, _, Error err, _
-    | _, _, _, _, _, _, _, Error err -> Error err
+    | Ok telegram,
+      Ok whatsapp,
+      Ok messenger,
+      Ok instagram,
+      Ok line,
+      Ok viber,
+      Ok wechat,
+      Ok discord,
+      Ok google_chat ->
+      Ok
+        { telegram
+        ; whatsapp
+        ; messenger
+        ; instagram
+        ; line
+        ; viber
+        ; wechat
+        ; discord
+        ; google_chat
+        }
+    | Error err, _, _, _, _, _, _, _, _
+    | _, Error err, _, _, _, _, _, _, _
+    | _, _, Error err, _, _, _, _, _, _
+    | _, _, _, Error err, _, _, _, _, _
+    | _, _, _, _, Error err, _, _, _, _
+    | _, _, _, _, _, Error err, _, _, _
+    | _, _, _, _, _, _, Error err, _, _
+    | _, _, _, _, _, _, _, Error err, _
+    | _, _, _, _, _, _, _, _, Error err -> Error err
   in
   let route_values = list_member "routes" json in
   let virtual_key_values = list_member "virtual_keys" json in

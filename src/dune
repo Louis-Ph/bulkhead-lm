@@ -16,6 +16,7 @@
   logs
   fmt
   x509
+  mirage-crypto-ec
   str
   digestif
   uuidm

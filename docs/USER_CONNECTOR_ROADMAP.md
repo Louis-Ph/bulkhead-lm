@@ -52,10 +52,13 @@ surface is broad enough.
 
 Implementation notes:
 
-- audited and deferred: Discord, Snapchat, KakaoTalk, Zalo, QQ
-- `Discord` is technically accessible, but its gateway and interaction model diverges from the simpler direct webhook reply architecture used by the mainstream chat connectors here
+- implemented: Discord Interactions
+- deferred: Snapchat, KakaoTalk, Zalo, QQ
+- `Discord Interactions` fit after introducing a dedicated signed-webhook plus deferred-response class instead of forcing Discord into the simpler synchronous webhook-reply pattern used by most chat connectors here
+- `Discord` still is not treated as a general gateway-bot message connector here; arbitrary message-content listeners would require a separate gateway runtime class
 - `Snapchat` is globally large, but the business messaging surface is less aligned with the current direct webhook connector model
-- `KakaoTalk`, `Zalo`, and `QQ` are regionally important, but they currently impose higher regional or partner-distribution friction than the channels already implemented
+- `KakaoTalk` is regionally important, but the current official surface is stronger for channel add, chat launch, and relationship status than for a general inbound assistant conversation webhook
+- `Zalo` and `QQ` remain strategically relevant, but they currently impose higher regional or partner-distribution friction than the channels already implemented
 
 ## Architecture guardrails
 

@@ -90,6 +90,19 @@
       "allowed_open_ids": [],
       "allowed_account_ids": []
     },
+    "discord": {
+      "enabled": false,
+      "webhook_path": "/connectors/discord/webhook",
+      "public_key_env": "DISCORD_PUBLIC_KEY",
+      "authorization_env": "BULKHEAD_DISCORD_AUTH",
+      "route_model": "gpt-5-mini",
+      "system_prompt": "Reply in a concise, practical tone for chat users.",
+      "allowed_application_ids": [],
+      "allowed_user_ids": [],
+      "allowed_channel_ids": [],
+      "allowed_guild_ids": [],
+      "ephemeral_by_default": true
+    },
     "google_chat": {
       "enabled": false,
       "webhook_path": "/connectors/google-chat/webhook",

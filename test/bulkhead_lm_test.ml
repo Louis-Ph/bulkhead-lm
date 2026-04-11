@@ -33,6 +33,18 @@ let base64url_encode value =
   Base64.encode_exn ~pad:false ~alphabet:Base64.uri_safe_alphabet value
 ;;
 
+let hex_encode value =
+  let digits = "0123456789abcdef" in
+  let length = String.length value in
+  let encoded = Bytes.create (length * 2) in
+  for index = 0 to length - 1 do
+    let code = Char.code value.[index] in
+    Bytes.set encoded (index * 2) digits.[code lsr 4];
+    Bytes.set encoded ((index * 2) + 1) digits.[code land 0x0F]
+  done;
+  Bytes.unsafe_to_string encoded
+;;
+
 let string_contains haystack needle =
   match Str.search_forward (Str.regexp_string needle) haystack 0 with
   | _ -> true
@@ -45,6 +57,32 @@ let wechat_signature ~token ~timestamp ~nonce =
   |> String.concat ""
   |> Digestif.SHA1.digest_string
   |> Digestif.SHA1.to_hex
+;;
+
+let test_discord_private_key_octets =
+  String.init 32 (fun index -> Char.chr (index + 1))
+;;
+
+let signed_discord_request ~timestamp ~payload_text =
+  let private_key =
+    match Mirage_crypto_ec.Ed25519.priv_of_octets test_discord_private_key_octets with
+    | Ok key -> key
+    | Error _ -> Alcotest.fail "unable to decode deterministic discord private key"
+  in
+  let public_key =
+    Mirage_crypto_ec.Ed25519.pub_of_priv private_key
+    |> Mirage_crypto_ec.Ed25519.pub_to_octets
+  in
+  let signature =
+    Mirage_crypto_ec.Ed25519.sign ~key:private_key (timestamp ^ payload_text)
+  in
+  hex_encode public_key, hex_encode signature
+;;
+
+let run_background_jobs jobs =
+  let pending_jobs = List.rev !jobs in
+  jobs := [];
+  Lwt_list.iter_s (fun job -> job) pending_jobs
 ;;
 
 let test_google_chat_private_key_pem =
@@ -1276,6 +1314,7 @@ let telegram_connector_handles_text_webhook_test _switch () =
            ; line = None
            ; viber = None
            ; wechat = None
+           ; discord = None
            ; google_chat = None
            }
          ~routes:
@@ -1715,6 +1754,57 @@ let config_load_parses_wechat_connector_test _switch () =
   Lwt.return_unit
 ;;
 
+let config_load_parses_discord_connector_test _switch () =
+  let config_path = Filename.temp_file "bulkhead-lm-discord-connector" ".json" in
+  let config_json =
+    `Assoc
+      [ ( "user_connectors"
+        , `Assoc
+            [ ( "discord"
+              , `Assoc
+                  [ "enabled", `Bool true
+                  ; "webhook_path", `String "discord/webhook"
+                  ; "public_key_env", `String "DISCORD_PUBLIC_KEY"
+                  ; "authorization_env", `String "BULKHEAD_DISCORD_AUTH"
+                  ; "route_model", `String "gpt-5-mini"
+                  ; "system_prompt", `String "Reply plainly."
+                  ; "allowed_application_ids", `List [ `String "app-123" ]
+                  ; "allowed_user_ids", `List [ `String "user-123" ]
+                  ; "allowed_channel_ids", `List [ `String "channel-123" ]
+                  ; "allowed_guild_ids", `List [ `String "guild-123" ]
+                  ; "ephemeral_by_default", `Bool false
+                  ] )
+            ] )
+      ; "routes", `List []
+      ; "virtual_keys", `List []
+      ]
+  in
+  Yojson.Safe.to_file config_path config_json;
+  (match Bulkhead_lm.Config.load config_path with
+   | Error err -> Alcotest.failf "expected discord connector config load success: %s" err
+   | Ok config ->
+     (match config.Bulkhead_lm.Config.user_connectors.discord with
+      | None -> Alcotest.fail "expected discord connector config"
+      | Some connector ->
+        Alcotest.(check string)
+          "discord webhook path normalized"
+          "/discord/webhook"
+          connector.webhook_path;
+        Alcotest.(check string)
+          "discord public key env parsed"
+          "DISCORD_PUBLIC_KEY"
+          connector.public_key_env;
+        Alcotest.(check (list string))
+          "discord allowed application ids parsed"
+          [ "app-123" ]
+          connector.allowed_application_ids;
+        Alcotest.(check bool)
+          "discord ephemeral default parsed"
+          false
+          connector.ephemeral_by_default));
+  Lwt.return_unit
+;;
+
 let config_load_parses_google_chat_connector_test _switch () =
   let config_path = Filename.temp_file "bulkhead-lm-google-chat-connector" ".json" in
   let config_json =
@@ -1785,6 +1875,7 @@ let whatsapp_connector_handles_verification_test _switch () =
            ; line = None
            ; viber = None
            ; wechat = None
+           ; discord = None
            ; google_chat = None
            }
          ())
@@ -1858,6 +1949,7 @@ let whatsapp_connector_handles_text_webhook_test _switch () =
            ; line = None
            ; viber = None
            ; wechat = None
+           ; discord = None
            ; google_chat = None
            }
          ~routes:
@@ -2012,6 +2104,7 @@ let messenger_connector_handles_verification_test _switch () =
            ; line = None
            ; viber = None
            ; wechat = None
+           ; discord = None
            ; google_chat = None
            }
          ())
@@ -2086,6 +2179,7 @@ let messenger_connector_handles_text_webhook_test _switch () =
            ; line = None
            ; viber = None
            ; wechat = None
+           ; discord = None
            ; google_chat = None
            }
          ~routes:
@@ -2265,6 +2359,7 @@ let instagram_connector_handles_text_webhook_test _switch () =
            ; line = None
            ; viber = None
            ; wechat = None
+           ; discord = None
            ; google_chat = None
            }
          ~routes:
@@ -2440,6 +2535,7 @@ let line_connector_handles_text_webhook_test _switch () =
            ; line = Some connector
            ; viber = None
            ; wechat = None
+           ; discord = None
            ; google_chat = None
            }
          ~routes:
@@ -2611,6 +2707,7 @@ let viber_connector_handles_text_webhook_test _switch () =
            ; line = None
            ; viber = Some connector
            ; wechat = None
+           ; discord = None
            ; google_chat = None
            }
          ~routes:
@@ -2758,6 +2855,7 @@ let wechat_connector_handles_verification_test _switch () =
            ; line = None
            ; viber = None
            ; wechat = Some connector
+           ; discord = None
            ; google_chat = None
            }
          ())
@@ -2839,6 +2937,7 @@ let wechat_connector_handles_text_webhook_test _switch () =
            ; line = None
            ; viber = None
            ; wechat = Some connector
+           ; discord = None
            ; google_chat = None
            }
          ~routes:
@@ -2934,6 +3033,238 @@ let wechat_connector_handles_text_webhook_test _switch () =
       Lwt.return_unit)
 ;;
 
+let discord_connector_handles_ping_test _switch () =
+  let connector =
+    Bulkhead_lm.Config_test_support.discord_connector
+      ~public_key_env:"DISCORD_PUBLIC_KEY"
+      ~authorization_env:"BULKHEAD_DISCORD_AUTH"
+      ~route_model:"gpt-4o-mini"
+      ()
+  in
+  let store =
+    Bulkhead_lm.Runtime_state.create
+      (Bulkhead_lm.Config_test_support.sample_config
+         ~user_connectors:
+           { Bulkhead_lm.Config.telegram = None
+           ; whatsapp = None
+           ; messenger = None
+           ; instagram = None
+           ; line = None
+           ; viber = None
+           ; wechat = None
+           ; discord = Some connector
+           ; google_chat = None
+           }
+         ())
+  in
+  let payload_text = {|{"type":1}|} in
+  let timestamp = "1712832000" in
+  let public_key_hex, signature_hex =
+    signed_discord_request ~timestamp ~payload_text
+  in
+  let request =
+    Cohttp.Request.make
+      ~meth:`POST
+      ~headers:
+        (Cohttp.Header.of_list
+           [ "x-signature-ed25519", signature_hex
+           ; "x-signature-timestamp", timestamp
+           ])
+      (Uri.of_string "http://localhost/connectors/discord/webhook")
+  in
+  with_env_overrides
+    [ "DISCORD_PUBLIC_KEY", public_key_hex ]
+    (fun () ->
+      Bulkhead_lm.Discord_connector.handle_webhook
+        store
+        request
+        (Cohttp_lwt.Body.of_string payload_text)
+        connector
+      >>= fun (response, response_body) ->
+      Alcotest.(check int) "discord ping accepted" 200 (response_status_code response);
+      response_body_json response_body
+      >|= fun response_json ->
+      Alcotest.(check (option int))
+        "discord ping returns pong"
+        (Some 1)
+        (match List.assoc_opt "type" (json_assoc response_json) with
+         | Some (`Int value) -> Some value
+         | _ -> None))
+;;
+
+let discord_connector_handles_command_webhook_test _switch () =
+  let captured_request = ref None in
+  let background_jobs = ref [] in
+  let original_response_updates = ref [] in
+  let followup_messages = ref [] in
+  let invoke_chat _headers _backend (request : Bulkhead_lm.Openai_types.chat_request) =
+    captured_request := Some request;
+    Lwt.return
+      (Ok
+         (Bulkhead_lm.Provider_mock.sample_chat_response
+            ~model:request.model
+            ~content:"Discord reply"
+            ()))
+  in
+  let provider =
+    { Bulkhead_lm.Provider_client.invoke_chat = invoke_chat
+    ; invoke_chat_stream =
+        (fun headers backend request ->
+          invoke_chat headers backend request
+          >|= Result.map Bulkhead_lm.Provider_stream.of_chat_response)
+    ; invoke_embeddings =
+        (fun _headers _backend _request ->
+          Lwt.return
+            (Error
+               (Bulkhead_lm.Domain_error.unsupported_feature
+                  "embeddings not used in discord connector test")))
+    }
+  in
+  let connector =
+    Bulkhead_lm.Config_test_support.discord_connector
+      ~public_key_env:"DISCORD_PUBLIC_KEY"
+      ~authorization_env:"BULKHEAD_DISCORD_AUTH"
+      ~route_model:"gpt-4o-mini"
+      ~allowed_application_ids:[ "app-123" ]
+      ~allowed_user_ids:[ "user-123" ]
+      ~allowed_channel_ids:[ "channel-123" ]
+      ~allowed_guild_ids:[ "guild-123" ]
+      ()
+  in
+  let store =
+    Bulkhead_lm.Runtime_state.create
+      ~provider_factory:(fun _ -> provider)
+      (Bulkhead_lm.Config_test_support.sample_config
+         ~user_connectors:
+           { Bulkhead_lm.Config.telegram = None
+           ; whatsapp = None
+           ; messenger = None
+           ; instagram = None
+           ; line = None
+           ; viber = None
+           ; wechat = None
+           ; discord = Some connector
+           ; google_chat = None
+           }
+         ~routes:
+           [ Bulkhead_lm.Config_test_support.route
+               ~public_model:"gpt-4o-mini"
+               ~backends:
+                 [ Bulkhead_lm.Config_test_support.backend
+                     ~provider_id:"primary"
+                     ~provider_kind:Bulkhead_lm.Config.Openai_compat
+                     ~api_base:"https://api.example.test/v1"
+                     ~upstream_model:"gpt-4o-mini"
+                     ~api_key_env:"OPENAI_API_KEY"
+                     ()
+                 ]
+               ()
+           ]
+         ())
+  in
+  let http_patch uri ~headers:_ payload =
+    original_response_updates := (Uri.to_string uri, payload) :: !original_response_updates;
+    Lwt.return (Cohttp.Response.make ~status:`OK (), {|{"id":"message-123"}|})
+  in
+  let http_post uri ~headers:_ payload =
+    followup_messages := (Uri.to_string uri, payload) :: !followup_messages;
+    Lwt.return (Cohttp.Response.make ~status:`OK (), {|{"id":"message-124"}|})
+  in
+  let payload_text =
+    {|{"type":2,"id":"interaction-123","application_id":"app-123","token":"interaction-token-123","channel_id":"channel-123","guild_id":"guild-123","member":{"user":{"id":"user-123","username":"Ava","global_name":"Ava Lane"}},"data":{"id":"command-123","name":"bulkhead","type":1,"options":[{"type":3,"name":"message","value":"Summarize the repo"}]}}|}
+  in
+  let timestamp = "1712832000" in
+  let public_key_hex, signature_hex =
+    signed_discord_request ~timestamp ~payload_text
+  in
+  let request =
+    Cohttp.Request.make
+      ~meth:`POST
+      ~headers:
+        (Cohttp.Header.of_list
+           [ "x-signature-ed25519", signature_hex
+           ; "x-signature-timestamp", timestamp
+           ])
+      (Uri.of_string "http://localhost/connectors/discord/webhook")
+  in
+  with_env_overrides
+    [ "DISCORD_PUBLIC_KEY", public_key_hex
+    ; "BULKHEAD_DISCORD_AUTH", "sk-test"
+    ]
+    (fun () ->
+      Bulkhead_lm.Discord_connector.handle_webhook
+        ~http_post
+        ~http_patch
+        ~async_runner:(fun job -> background_jobs := job () :: !background_jobs)
+        store
+        request
+        (Cohttp_lwt.Body.of_string payload_text)
+        connector
+      >>= fun (response, response_body) ->
+      Alcotest.(check int) "discord webhook accepted" 200 (response_status_code response);
+      response_body_json response_body
+      >>= fun response_json ->
+      Alcotest.(check (option int))
+        "discord command deferred"
+        (Some 5)
+        (match List.assoc_opt "type" (json_assoc response_json) with
+         | Some (`Int value) -> Some value
+         | _ -> None);
+      Alcotest.(check (option int))
+        "discord deferred response uses ephemeral flag"
+        (Some 64)
+        (match List.assoc_opt "data" (json_assoc response_json) with
+         | Some (`Assoc data_fields) ->
+           (match List.assoc_opt "flags" data_fields with
+            | Some (`Int value) -> Some value
+            | _ -> None)
+         | _ -> None);
+      run_background_jobs background_jobs
+      >>= fun () ->
+      (match !captured_request with
+       | None -> Alcotest.fail "expected routed discord chat request"
+       | Some routed_request ->
+         Alcotest.(check string)
+           "discord connector routes configured model"
+           "gpt-4o-mini"
+           routed_request.model;
+         (match List.rev routed_request.messages with
+          | last :: _ ->
+            Alcotest.(check string)
+              "discord user text becomes pending user prompt"
+              "Summarize the repo"
+              last.content
+          | [] -> Alcotest.fail "expected discord routed request messages"));
+      (match List.rev !original_response_updates with
+       | (uri, `Assoc fields) :: _ ->
+         Alcotest.(check string)
+           "discord edits original response"
+           "https://discord.com/api/v10/webhooks/app-123/interaction-token-123/messages/@original"
+           uri;
+         Alcotest.(check (option string))
+           "discord original response text"
+           (Some "Discord reply")
+           (match List.assoc_opt "content" fields with
+            | Some (`String value) -> Some value
+            | _ -> None)
+       | _ :: _ -> Alcotest.fail "expected discord original response payload object"
+       | [] -> Alcotest.fail "expected discord original response update");
+      Alcotest.(check int)
+        "discord does not need followups for short response"
+        0
+        (List.length !followup_messages);
+      let session =
+        Bulkhead_lm.Runtime_state.get_user_connector_session
+          store
+          ~session_key:"discord:app-123:guild-123:channel-123:user-123"
+      in
+      Alcotest.(check int)
+        "discord connector remembers one exchange"
+        2
+        (Bulkhead_lm.Session_memory.stats session).recent_turn_count;
+      Lwt.return_unit)
+;;
+
 let google_chat_id_token_verifies_signed_token_test _switch () =
   let auth_config =
     Bulkhead_lm.Config_test_support.google_chat_id_token_auth
@@ -3015,6 +3346,7 @@ let google_chat_connector_handles_text_event_test _switch () =
            ; line = None
            ; viber = None
            ; wechat = None
+           ; discord = None
            ; google_chat = Some connector
            }
          ~routes:
@@ -4742,6 +5074,10 @@ let tests =
       `Quick
       config_load_parses_wechat_connector_test
   ; Alcotest_lwt.test_case
+      "config parses discord user connector"
+      `Quick
+      config_load_parses_discord_connector_test
+  ; Alcotest_lwt.test_case
       "config parses google chat user connector"
       `Quick
       config_load_parses_google_chat_connector_test
@@ -4785,6 +5121,14 @@ let tests =
       "wechat connector handles text webhook"
       `Quick
       wechat_connector_handles_text_webhook_test
+  ; Alcotest_lwt.test_case
+      "discord connector handles ping"
+      `Quick
+      discord_connector_handles_ping_test
+  ; Alcotest_lwt.test_case
+      "discord connector handles command webhook"
+      `Quick
+      discord_connector_handles_command_webhook_test
   ; Alcotest_lwt.test_case
       "google chat token verification accepts signed token"
       `Quick

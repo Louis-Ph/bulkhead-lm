@@ -32,6 +32,7 @@
   logs
   fmt
   x509
+  mirage-crypto-ec
   digestif
   uuidm
   base64

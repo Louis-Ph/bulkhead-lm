@@ -221,6 +221,32 @@ let wechat_connector
   }
 ;;
 
+let discord_connector
+  ?(webhook_path = "/connectors/discord/webhook")
+  ?system_prompt
+  ?(allowed_application_ids = [])
+  ?(allowed_user_ids = [])
+  ?(allowed_channel_ids = [])
+  ?(allowed_guild_ids = [])
+  ?(ephemeral_by_default = true)
+  ~public_key_env
+  ~authorization_env
+  ~route_model
+  ()
+  =
+  { Config.webhook_path
+  ; public_key_env
+  ; authorization_env
+  ; route_model
+  ; system_prompt
+  ; allowed_application_ids
+  ; allowed_user_ids
+  ; allowed_channel_ids
+  ; allowed_guild_ids
+  ; ephemeral_by_default
+  }
+;;
+
 let google_chat_id_token_auth
   ?(certs_url = "https://www.googleapis.com/oauth2/v1/certs")
   ~audience
@@ -259,6 +285,7 @@ let sample_config
       ; line = None
       ; viber = None
       ; wechat = None
+      ; discord = None
       ; google_chat = None
       })
   ?(virtual_keys = [ virtual_key ~token_plaintext:"sk-test" ~name:"test" () ])

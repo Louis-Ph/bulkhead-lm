@@ -11,6 +11,12 @@ type http_get =
   headers:Cohttp.Header.t ->
   (Cohttp.Response.t * string) Lwt.t
 
+type http_patch =
+  Uri.t ->
+  headers:Cohttp.Header.t ->
+  Yojson.Safe.t ->
+  (Cohttp.Response.t * string) Lwt.t
+
 type connector_descriptor =
   { channel_name : string
   ; provider_id : string
@@ -198,6 +204,16 @@ let default_http_post uri ~headers body =
 
 let default_http_get uri ~headers =
   Cohttp_lwt_unix.Client.get ~headers uri
+  >>= fun (response, body) ->
+  Cohttp_lwt.Body.to_string body >|= fun body_text -> response, body_text
+;;
+
+let default_http_patch uri ~headers body =
+  Cohttp_lwt_unix.Client.call
+    ~headers
+    ~body:(Cohttp_lwt.Body.of_string (Yojson.Safe.to_string body))
+    `PATCH
+    uri
   >>= fun (response, body) ->
   Cohttp_lwt.Body.to_string body >|= fun body_text -> response, body_text
 ;;

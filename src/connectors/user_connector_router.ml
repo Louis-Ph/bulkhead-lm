@@ -6,6 +6,7 @@ type matched_connector =
   | Line of Config.line_connector
   | Viber of Config.viber_connector
   | Wechat of Config.wechat_connector
+  | Discord of Config.discord_connector
   | Google_chat of Config.google_chat_connector
 
 let find (config : Config.t) ~path =
@@ -30,9 +31,12 @@ let find (config : Config.t) ~path =
                    (match Wechat_connector.find_webhook_config config ~path with
                     | Some connector -> Some (Wechat connector)
                     | None ->
-                      Option.map
-                        (fun connector -> Google_chat connector)
-                        (Google_chat_connector.find_webhook_config config ~path)))))))
+                      (match Discord_connector.find_webhook_config config ~path with
+                       | Some connector -> Some (Discord connector)
+                       | None ->
+                         Option.map
+                           (fun connector -> Google_chat connector)
+                           (Google_chat_connector.find_webhook_config config ~path))))))))
 ;;
 
 let handle store req body = function
@@ -43,5 +47,6 @@ let handle store req body = function
   | Line connector -> Line_connector.handle_webhook store req body connector
   | Viber connector -> Viber_connector.handle_webhook store req body connector
   | Wechat connector -> Wechat_connector.handle_webhook store req body connector
+  | Discord connector -> Discord_connector.handle_webhook store req body connector
   | Google_chat connector -> Google_chat_connector.handle_webhook store req body connector
 ;;
