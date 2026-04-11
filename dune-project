@@ -31,6 +31,7 @@
   linenoise
   logs
   fmt
+  x509
   digestif
   uuidm
   base64

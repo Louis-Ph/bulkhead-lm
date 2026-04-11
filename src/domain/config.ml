@@ -31,6 +31,49 @@ type persistence =
   ; busy_timeout_ms : int
   }
 
+type telegram_connector =
+  { webhook_path : string
+  ; bot_token_env : string
+  ; secret_token_env : string option
+  ; authorization_env : string
+  ; route_model : string
+  ; system_prompt : string option
+  ; allowed_chat_ids : string list
+  }
+
+type whatsapp_connector =
+  { webhook_path : string
+  ; verify_token_env : string
+  ; app_secret_env : string option
+  ; access_token_env : string
+  ; authorization_env : string
+  ; route_model : string
+  ; system_prompt : string option
+  ; allowed_sender_numbers : string list
+  ; api_base : string
+  }
+
+type google_chat_id_token_auth =
+  { audience : string
+  ; certs_url : string
+  }
+
+type google_chat_connector =
+  { webhook_path : string
+  ; authorization_env : string
+  ; route_model : string
+  ; system_prompt : string option
+  ; allowed_space_names : string list
+  ; allowed_user_names : string list
+  ; id_token_auth : google_chat_id_token_auth option
+  }
+
+type user_connectors =
+  { telegram : telegram_connector option
+  ; whatsapp : whatsapp_connector option
+  ; google_chat : google_chat_connector option
+  }
+
 type backend =
   { provider_id : string
   ; provider_kind : provider_kind
@@ -58,6 +101,7 @@ type t =
   ; persistence : persistence
   ; error_catalog : Yojson.Safe.t
   ; providers_schema : Yojson.Safe.t
+  ; user_connectors : user_connectors
   ; routes : route list
   ; virtual_keys : virtual_key list
   }
@@ -149,6 +193,15 @@ let int_member_with_default name json ~default =
   | _ -> default
 ;;
 
+let bool_member_with_default name json ~default =
+  match json with
+  | `Assoc fields ->
+    (match List.assoc_opt name fields with
+     | Some (`Bool value) -> value
+     | _ -> default)
+  | _ -> default
+;;
+
 let list_member name json =
   match json with
   | `Assoc fields ->
@@ -162,6 +215,43 @@ let list_of_strings_member name json =
   list_member name json
   |> List.filter_map (function
     | `String value -> Some value
+    | _ -> None)
+;;
+
+let normalize_http_path path =
+  let trimmed = String.trim path in
+  if trimmed = ""
+  then "/"
+  else if String.starts_with ~prefix:"/" trimmed
+  then trimmed
+  else "/" ^ trimmed
+;;
+
+let normalize_http_api_base value =
+  let trimmed = String.trim value in
+  if trimmed = ""
+  then ""
+  else if String.ends_with ~suffix:"/" trimmed
+  then String.sub trimmed 0 (String.length trimmed - 1)
+  else trimmed
+;;
+
+let optional_non_empty_string_member name json =
+  match object_member name json with
+  | `String value ->
+    let trimmed = String.trim value in
+    if trimmed = "" then None else Some trimmed
+  | _ -> None
+;;
+
+let string_or_int_list_member name json =
+  list_member name json
+  |> List.filter_map (function
+    | `String value ->
+      let trimmed = String.trim value in
+      if trimmed = "" then None else Some trimmed
+    | `Int value -> Some (string_of_int value)
+    | `Intlit value -> Some value
     | _ -> None)
 ;;
 
@@ -297,6 +387,118 @@ let parse_virtual_key defaults json =
     }
 ;;
 
+let parse_telegram_connector json =
+  if not (bool_member_with_default "enabled" json ~default:true)
+  then Ok None
+  else
+    string_member "bot_token_env" json
+    >>= fun bot_token_env ->
+    string_member "authorization_env" json
+    >>= fun authorization_env ->
+    string_member "route_model" json
+    >>= fun route_model ->
+    Ok
+      (Some
+         { webhook_path =
+             normalize_http_path
+               (string_member_with_default
+                  "webhook_path"
+                  json
+                  ~default:"/connectors/telegram/webhook")
+         ; bot_token_env = String.trim bot_token_env
+         ; secret_token_env = optional_non_empty_string_member "secret_token_env" json
+         ; authorization_env = String.trim authorization_env
+         ; route_model = String.trim route_model
+         ; system_prompt = optional_non_empty_string_member "system_prompt" json
+         ; allowed_chat_ids = string_or_int_list_member "allowed_chat_ids" json
+         })
+;;
+
+let parse_whatsapp_connector json =
+  if not (bool_member_with_default "enabled" json ~default:true)
+  then Ok None
+  else
+    string_member "verify_token_env" json
+    >>= fun verify_token_env ->
+    string_member "access_token_env" json
+    >>= fun access_token_env ->
+    string_member "authorization_env" json
+    >>= fun authorization_env ->
+    string_member "route_model" json
+    >>= fun route_model ->
+    Ok
+      (Some
+         { webhook_path =
+             normalize_http_path
+               (string_member_with_default
+                  "webhook_path"
+                  json
+                  ~default:"/connectors/whatsapp/webhook")
+         ; verify_token_env = String.trim verify_token_env
+         ; app_secret_env = optional_non_empty_string_member "app_secret_env" json
+         ; access_token_env = String.trim access_token_env
+         ; authorization_env = String.trim authorization_env
+         ; route_model = String.trim route_model
+         ; system_prompt = optional_non_empty_string_member "system_prompt" json
+         ; allowed_sender_numbers = string_or_int_list_member "allowed_sender_numbers" json
+         ; api_base =
+             normalize_http_api_base
+               (string_member_with_default
+                  "api_base"
+                  json
+                  ~default:"https://graph.facebook.com/v23.0")
+         })
+;;
+
+let parse_google_chat_id_token_auth json =
+  string_member "audience" json
+  >>= fun audience ->
+  Ok
+    { audience = String.trim audience
+    ; certs_url =
+        String.trim
+          (string_member_with_default
+             "certs_url"
+             json
+             ~default:"https://www.googleapis.com/oauth2/v1/certs")
+    }
+;;
+
+let parse_google_chat_connector json =
+  if not (bool_member_with_default "enabled" json ~default:true)
+  then Ok None
+  else
+    string_member "authorization_env" json
+    >>= fun authorization_env ->
+    string_member "route_model" json
+    >>= fun route_model ->
+    let id_token_auth_result =
+      match object_member "id_token_auth" json with
+      | `Assoc _ as auth_json ->
+        (match parse_google_chat_id_token_auth auth_json with
+         | Ok auth -> Ok (Some auth)
+         | Error err -> Error err)
+      | _ -> Ok None
+    in
+    id_token_auth_result
+    >>= fun id_token_auth ->
+    Ok
+      (Some
+         { webhook_path =
+             normalize_http_path
+               (string_member_with_default
+                  "webhook_path"
+                  json
+                  ~default:"/connectors/google-chat/webhook")
+         ; authorization_env = String.trim authorization_env
+         ; route_model = String.trim route_model
+         ; system_prompt = optional_non_empty_string_member "system_prompt" json
+         ; allowed_space_names = string_or_int_list_member "allowed_space_names" json
+         ; allowed_user_names = string_or_int_list_member "allowed_user_names" json
+         ; id_token_auth
+         })
+;;
+
 let load_aux_file json ~base_dir ~field =
   match string_member field json with
   | Ok path -> Yojson.Safe.from_file (resolve_path ~base_dir path)
@@ -322,6 +524,7 @@ let load path =
   let json = Yojson.Safe.from_file path in
   let base_dir = Filename.dirname path in
   let persistence_json = object_member "persistence" json in
+  let connector_json = object_member "user_connectors" json in
   let security_policy =
     match string_member "security_policy_file" json with
     | Ok security_policy_file ->
@@ -330,6 +533,26 @@ let load path =
   in
   let error_catalog = load_aux_file json ~base_dir ~field:"error_catalog_file" in
   let providers_schema = load_aux_file json ~base_dir ~field:"providers_schema_file" in
+  let user_connectors =
+    let telegram_result =
+      match object_member "telegram" connector_json with
+      | `Assoc _ as telegram_json -> parse_telegram_connector telegram_json
+      | _ -> Ok None
+    in
+    let whatsapp_result =
+      match object_member "whatsapp" connector_json with
+      | `Assoc _ as whatsapp_json -> parse_whatsapp_connector whatsapp_json
+      | _ -> Ok None
+    in
+    let google_chat_result =
+      match object_member "google_chat" connector_json with
+      | `Assoc _ as google_chat_json -> parse_google_chat_connector google_chat_json
+      | _ -> Ok None
+    in
+    match telegram_result, whatsapp_result, google_chat_result with
+    | Ok telegram, Ok whatsapp, Ok google_chat -> Ok { telegram; whatsapp; google_chat }
+    | Error err, _, _ | _, Error err, _ | _, _, Error err -> Error err
+  in
   let route_values = list_member "routes" json in
   let virtual_key_values = list_member "virtual_keys" json in
   let rec parse_all parser acc = function
@@ -339,29 +562,33 @@ let load path =
        | Ok value -> parse_all parser (value :: acc) rest
        | Error err -> Error err)
   in
-  match parse_all parse_route [] route_values with
+  match user_connectors with
   | Error err -> Error err
-  | Ok routes ->
-    (match parse_all (parse_virtual_key security_policy) [] virtual_key_values with
+  | Ok user_connectors ->
+    (match parse_all parse_route [] route_values with
      | Error err -> Error err
-     | Ok virtual_keys ->
-       let sqlite_path =
-         match object_member "sqlite_path" persistence_json with
-         | `String relative_path -> Some (resolve_path ~base_dir relative_path)
-         | _ -> None
-       in
-       let persistence =
-         { sqlite_path
-         ; busy_timeout_ms =
-             int_member_with_default "busy_timeout_ms" persistence_json ~default:5000
-         }
-       in
-       Ok
-         { security_policy
-         ; persistence
-         ; error_catalog
-         ; providers_schema
-         ; routes
-         ; virtual_keys
-         })
+     | Ok routes ->
+       (match parse_all (parse_virtual_key security_policy) [] virtual_key_values with
+        | Error err -> Error err
+        | Ok virtual_keys ->
+          let sqlite_path =
+            match object_member "sqlite_path" persistence_json with
+            | `String relative_path -> Some (resolve_path ~base_dir relative_path)
+            | _ -> None
+          in
+          let persistence =
+            { sqlite_path
+            ; busy_timeout_ms =
+                int_member_with_default "busy_timeout_ms" persistence_json ~default:5000
+            }
+          in
+          Ok
+            { security_policy
+            ; persistence
+            ; error_catalog
+            ; providers_schema
+            ; user_connectors
+            ; routes
+            ; virtual_keys
+            }))
 ;;

@@ -1,40 +1,6 @@
 open Lwt.Infix
 
-let read_json_body_limited ~max_bytes body =
-  let stream = Cohttp_lwt.Body.to_stream body in
-  let buffer = Buffer.create (max 1 (min max_bytes 4096)) in
-  let total_bytes = ref 0 in
-  let rec loop () =
-    Lwt_stream.get stream
-    >>= function
-    | None ->
-      Lwt.catch
-        (fun () ->
-          let content = Buffer.contents buffer in
-          let json =
-            if String.trim content = "" then `Assoc [] else Yojson.Safe.from_string content
-          in
-          Lwt.return (Ok json))
-        (fun _exn -> Lwt.return (Error (Domain_error.malformed_json_body ())))
-    | Some chunk ->
-      total_bytes := !total_bytes + String.length chunk;
-      if !total_bytes > max_bytes
-      then Lwt.return (Error (Domain_error.request_too_large ~max_bytes))
-      else (
-        Buffer.add_string buffer chunk;
-        loop ())
-  in
-  loop ()
-;;
-
-let read_request_json store body =
-  let server_policy = store.Runtime_state.config.security_policy.server in
-  Timeout_guard.with_timeout_ms
-    ~timeout_ms:server_policy.request_timeout_ms
-    ~on_timeout:(fun () ->
-      Error (Domain_error.request_timeout ~timeout_ms:server_policy.request_timeout_ms ()))
-    (read_json_body_limited ~max_bytes:server_policy.max_request_body_bytes body)
-;;
+let read_request_json = Request_body.read_request_json
 
 let authorization_header store req =
   let headers = Cohttp.Request.headers req in
@@ -99,7 +65,11 @@ let respond_error_with_audit
 ;;
 
 let callback store _connection req body =
-  match Cohttp.Request.meth req, Uri.path (Cohttp.Request.uri req) with
+  let path = Uri.path (Cohttp.Request.uri req) in
+  match User_connector_router.find store.Runtime_state.config ~path with
+  | Some connector -> User_connector_router.handle store req body connector
+  | None ->
+    (match Cohttp.Request.meth req, path with
   | `GET, "/health" -> Json_response.respond_json (`Assoc [ "status", `String "ok" ])
   | `GET, "/v1/models" ->
     Json_response.respond_json (models_json store.Runtime_state.config)
@@ -328,7 +298,7 @@ let callback store _connection req body =
                  error)))
   | _ ->
     Json_response.respond_error
-      (Domain_error.route_not_found (Uri.path (Cohttp.Request.uri req)))
+      (Domain_error.route_not_found path))
 ;;
 
 let start store =

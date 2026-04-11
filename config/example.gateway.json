@@ -6,6 +6,43 @@
     "sqlite_path": "../var/bulkhead-lm.sqlite",
     "busy_timeout_ms": 5000
   },
+  "user_connectors": {
+    "telegram": {
+      "enabled": false,
+      "webhook_path": "/connectors/telegram/webhook",
+      "bot_token_env": "TELEGRAM_BOT_TOKEN",
+      "secret_token_env": "TELEGRAM_WEBHOOK_SECRET",
+      "authorization_env": "BULKHEAD_TELEGRAM_AUTH",
+      "route_model": "gpt-5-mini",
+      "system_prompt": "Reply in a concise, practical tone for chat users.",
+      "allowed_chat_ids": []
+    },
+    "whatsapp": {
+      "enabled": false,
+      "webhook_path": "/connectors/whatsapp/webhook",
+      "verify_token_env": "WHATSAPP_VERIFY_TOKEN",
+      "app_secret_env": "WHATSAPP_APP_SECRET",
+      "access_token_env": "WHATSAPP_ACCESS_TOKEN",
+      "authorization_env": "BULKHEAD_WHATSAPP_AUTH",
+      "route_model": "gpt-5-mini",
+      "system_prompt": "Reply in a concise, practical tone for chat users.",
+      "allowed_sender_numbers": [],
+      "api_base": "https://graph.facebook.com/v23.0"
+    },
+    "google_chat": {
+      "enabled": false,
+      "webhook_path": "/connectors/google-chat/webhook",
+      "authorization_env": "BULKHEAD_GOOGLE_CHAT_AUTH",
+      "route_model": "gpt-5-mini",
+      "system_prompt": "Reply in a concise, practical tone for chat users.",
+      "allowed_space_names": [],
+      "allowed_user_names": [],
+      "id_token_auth": {
+        "audience": "https://your-public-host/connectors/google-chat/webhook",
+        "certs_url": "https://www.googleapis.com/oauth2/v1/certs"
+      }
+    }
+  },
   "virtual_keys": [
     {
       "name": "local-dev",

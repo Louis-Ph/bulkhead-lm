@@ -20,6 +20,7 @@
 - `src/domain/`: business types, OpenAI-compatible JSON parsing, normalized errors
 - `src/security/`: authentication, privacy filtering, threat detection, output guarding, secret redaction, egress policy, and peer mesh hop control
 - `src/runtime/`: in-memory state, budget ledger, rate limiting, routing
+- `src/connectors/`: user-facing chat connectors that translate external chat platforms into normal BulkheadLM requests
 - `src/providers/`: upstream adapters by provider family
 - `src/providers/ssh_peer_protocol.ml`: JSONL-over-SSH envelope used by `bulkhead_ssh_peer`
 - `src/http/`: HTTP handlers and SSE serialization
@@ -72,6 +73,10 @@
 - `chat`, `responses`, and `embeddings` requests all pass through the same threat-detection and privacy-filter chain inside the shared router
 - command execution is shell-free: callers send `command` plus `args`, and BulkheadLM applies timeout and output caps before returning a structured result
 - starter admin requests are plan-first: the model returns typed JSON, the user reviews it with `/plan`, and only `/apply` mutates config files or runs allowed local ops
+- `User_connector_router` centralizes webhook path dispatch instead of growing `Server` route conditionals one connector at a time
+- `User_connector_common` centralizes per-channel session memory limits, authorization normalization, audit helpers, and text splitting
+- `Google_chat_id_token` isolates Google Chat bearer-token verification from the higher-level Google Chat event bridge
+- user chat connectors reuse the same virtual-key auth path, route allowlists, budgets, and output guards instead of bypassing gateway policy
 
 ## Concurrency model
 

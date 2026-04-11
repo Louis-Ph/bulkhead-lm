@@ -1,5 +1,129 @@
 open Lwt.Infix
 
+let with_env_overrides pairs f =
+  let previous =
+    List.map (fun (name, value) -> name, Sys.getenv_opt name, value) pairs
+  in
+  List.iter (fun (name, _, value) -> Unix.putenv name value) previous;
+  Fun.protect
+    ~finally:(fun () ->
+      List.iter
+        (fun (name, previous_value, _) ->
+          Unix.putenv name (Option.value previous_value ~default:""))
+        previous)
+    f
+;;
+
+let response_status_code response =
+  Cohttp.Response.status response |> Cohttp.Code.code_of_status
+;;
+
+let response_body_json body =
+  Cohttp_lwt.Body.to_string body >|= fun text -> Yojson.Safe.from_string text
+;;
+
+let json_assoc = function
+  | `Assoc fields -> fields
+  | _ -> Alcotest.fail "expected JSON object"
+;;
+
+let response_body_text body = Cohttp_lwt.Body.to_string body
+
+let base64url_encode value =
+  Base64.encode_exn ~pad:false ~alphabet:Base64.uri_safe_alphabet value
+;;
+
+let test_google_chat_private_key_pem =
+  String.concat
+    "\n"
+    [ "-----BEGIN PRIVATE KEY-----"
+    ; "MIIEvQIBADANBgkqhkiG9w0BAQEFAASCBKcwggSjAgEAAoIBAQC7QQsLZihGyGWU"
+    ; "9WZEu54J0R5jZ8S2cwu83TNLxCQEqWn9JsTOru/t79XegpvuWxJ7FrpuyZqV/PK8"
+    ; "Nv8xv3UW0rEdU7UMKk4MkLEJU07SZMy2vyQQ8L4xVEbsaJPdluuS4uThKr2aRXeu"
+    ; "RDcVTGBsnql+TKsuwg8kMLA69b5DH74LovGCAsiRFtTIs+vLJ1z94/SbW8VLpyFF"
+    ; "m61bI//gGXBuTQW1aO7+Kc++blpGJM9yFi08ax8kSXB2LgXZ+dOwZNgjvp/7vGoH"
+    ; "T6HoI1AIVwB+SImfhQUAxHo837VwoYHuaE+dxNVS07m9CgOcp5ylcBqXtOXS1iCE"
+    ; "HjDL/uiJAgMBAAECggEAB7Mqn/j/DD0Sj0PhhQ9FdgAhPKNwV3PG3mjmonWR6Rap"
+    ; "zvD0jA6tu0Ye0F/kx1H7oi/asfJMjuEYPqTQzNQDfbEjexIdel71d2cOPpTMQ5LF"
+    ; "R7j3o9IwcfEWGwPIW8boUDGQCZHDOugjHhl8Pd4Wg3TpQZInwlwUuQ9e+cev34zp"
+    ; "JMKrWQcqiWLsHEIBaH4BG08rK2/2ivrHsUH86BSoUGw2oN6e4OTf8N/wJJDr5Qo5"
+    ; "XzteTf6IY0yoBMa7hXMR4je/NpJpSAx+rA4kxQiVBLTcn5rOobeZAO42CKl2/0YO"
+    ; "em9k+SLNXzOakXnDmCPor9xaqsrORZ+unrN6+2H0MQKBgQDvak9bsKq9gT+6AMeB"
+    ; "/pax1tEIJGIyGx5fGd6GEIxsGwDsod0nWbSRltL3KScBNb+pB9a12XjtV1CYDStC"
+    ; "/4R6M0SZQ+4AcRPydry43znURsIiR3uu/0ZHjmbc3+u7taaPvR7H2yxJyw6jv34o"
+    ; "pfc8mZM0MpodDOCdMzKvtmUSmQKBgQDIObp0ZXa4cl2wc9FrPHErFM8HJfeR77R5"
+    ; "u8UeEgEplNv/go37cvdXGTGI9wXH/47NSj9SBNtiFgTkMiy7i5FyxxRCT7IMeB6h"
+    ; "wvZpG2cV9xlRuzfX87A58nI7ZklTTM33N1foM3ivcCp3sn4J7I9PPgEpZmzdp7gl"
+    ; "jhxr1JIrcQKBgQCDoh7p2dO2h9bC7OTEm3a9Zs/dOyvmQrTLMwz/ByA93AcBE+nl"
+    ; "VdQK7DMoA69XYfbz98RcjaqITCaawzrTBmwPSBribc/w3DtMZ25R8yH3jcP1Vvow"
+    ; "+FfqxefWbyNMPI7Mnv3Kgr3yALwW2hWCQeYSopml7GCBsm/Y3qpyo8UkmQKBgH3o"
+    ; "r3OainmakYfwjPSeYZvxze501aYT0q3qgh5SvCBl16JpetdwiFFhKmEy1ZPbBPXb"
+    ; "hs4Q99RKfHDzjGWzcpd20SqR6ykkMD8Q1ttpu/14EZfv30IRn/QQnfz0aY/UcIDR"
+    ; "cJo4I+BO7KWwvMmI1OXD2/8oxbTtT0NuhjjYx8JBAoGAbUbfeA2V1kptpEzasAyi"
+    ; "lzxnvhl7cAskI3h8tZj6R8qkIMXBZMSOO9YanmuFxMTK5HCmkgbuCkESkeiZNeSE"
+    ; "p2+NQ6jubDJtTneLMdUr7tueU9eO+q9nmEqtbmOOtNgY1kPXIRXkeGiOLz5601X3"
+    ; "yWumkLF196PJRw0x6vVyjl0="
+    ; "-----END PRIVATE KEY-----"
+    ; ""
+    ]
+;;
+
+let test_google_chat_certificate_pem =
+  String.concat
+    "\n"
+    [ "-----BEGIN CERTIFICATE-----"
+    ; "MIIDCTCCAfGgAwIBAgIUG+qZE64APo4tUOsoinspU6STFbIwDQYJKoZIhvcNAQEL"
+    ; "BQAwFDESMBAGA1UEAwwJY2hhdC50ZXN0MB4XDTI2MDQxMTEwNTYyMFoXDTM2MDQw"
+    ; "ODEwNTYyMFowFDESMBAGA1UEAwwJY2hhdC50ZXN0MIIBIjANBgkqhkiG9w0BAQEF"
+    ; "AAOCAQ8AMIIBCgKCAQEAu0ELC2YoRshllPVmRLueCdEeY2fEtnMLvN0zS8QkBKlp"
+    ; "/SbEzq7v7e/V3oKb7lsSexa6bsmalfzyvDb/Mb91FtKxHVO1DCpODJCxCVNO0mTM"
+    ; "tr8kEPC+MVRG7GiT3ZbrkuLk4Sq9mkV3rkQ3FUxgbJ6pfkyrLsIPJDCwOvW+Qx++"
+    ; "C6LxggLIkRbUyLPryydc/eP0m1vFS6chRZutWyP/4Blwbk0FtWju/inPvm5aRiTP"
+    ; "chYtPGsfJElwdi4F2fnTsGTYI76f+7xqB0+h6CNQCFcAfkiJn4UFAMR6PN+1cKGB"
+    ; "7mhPncTVUtO5vQoDnKecpXAal7Tl0tYghB4wy/7oiQIDAQABo1MwUTAdBgNVHQ4E"
+    ; "FgQURRHRyu51YPp/a8Z0b9p+6xl2RxowHwYDVR0jBBgwFoAURRHRyu51YPp/a8Z0"
+    ; "b9p+6xl2RxowDwYDVR0TAQH/BAUwAwEB/zANBgkqhkiG9w0BAQsFAAOCAQEAdm1X"
+    ; "IG9uwK74w1ICUhV/jQ8EnoMxpkMINbu1eba9nBUU1wGBUsZwFly9TCY2d/GAZ2MI"
+    ; "RQmD5hD4nbNpeJACEs6RySoKzougp4lsaXAttBTH/ZmM1o4H/ZRg5yx4OunnPLfR"
+    ; "wFm3CbWRtq6Mj+DEF35i6UMLxKI9E20a1etoF2I+14MJvQfOHlTZmZJVkr0jTYuK"
+    ; "RQfjNpBmLa+yib6OxsnrPzmT88BQKwKZmFrpU2BeBRQXCp73L/acP8c+HTXsaxpU"
+    ; "EQhWPiRGXgQopfnUtgJTLrZdBeLYZ+/I4BuaNcfjkFUVHmqs59PFJr6fTqYjWk6r"
+    ; "FYmgcg1HiePWfPi6BA=="
+    ; "-----END CERTIFICATE-----"
+    ; ""
+    ]
+;;
+
+let signed_google_chat_bearer ~audience =
+  let header =
+    Yojson.Safe.to_string (`Assoc [ "alg", `String "RS256"; "kid", `String "test-key" ])
+  in
+  let exp = int_of_float (Unix.gettimeofday () +. 3600.) in
+  let payload =
+    Yojson.Safe.to_string
+      (`Assoc
+        [ "aud", `String audience
+        ; "exp", `Int exp
+        ; "iss", `String "https://accounts.google.com"
+        ; "email", `String "chat@system.gserviceaccount.com"
+        ; "email_verified", `Bool true
+        ; "sub", `String "chat-system-subject"
+        ])
+  in
+  let signing_input = base64url_encode header ^ "." ^ base64url_encode payload in
+  let private_key =
+    match X509.Private_key.decode_pem test_google_chat_private_key_pem with
+    | Ok key -> key
+    | Error (`Msg message) -> Alcotest.fail ("unable to decode test private key: " ^ message)
+  in
+  let signature =
+    match X509.Private_key.sign `SHA256 ~scheme:`RSA_PKCS1 private_key (`Message signing_input) with
+    | Ok signature -> signature
+    | Error (`Msg message) -> Alcotest.fail ("unable to sign test google chat token: " ^ message)
+  in
+  signing_input ^ "." ^ base64url_encode signature
+;;
+
 let secret_redaction_test _switch () =
   let payload =
     `Assoc
@@ -1030,6 +1154,712 @@ let config_load_accepts_openai_compatible_provider_variants_test _switch () =
   Lwt.return_unit
 ;;
 
+let config_load_parses_telegram_connector_test _switch () =
+  let config_path = Filename.temp_file "bulkhead-lm-telegram-connector" ".json" in
+  let config_json =
+    `Assoc
+      [ ( "user_connectors"
+        , `Assoc
+            [ ( "telegram"
+              , `Assoc
+                  [ "enabled", `Bool true
+                  ; "webhook_path", `String "telegram/webhook"
+                  ; "bot_token_env", `String "TELEGRAM_BOT_TOKEN"
+                  ; "secret_token_env", `String "TELEGRAM_WEBHOOK_SECRET"
+                  ; "authorization_env", `String "BULKHEAD_TELEGRAM_AUTH"
+                  ; "route_model", `String "gpt-5-mini"
+                  ; "system_prompt", `String "Speak plainly."
+                  ; "allowed_chat_ids", `List [ `Int 42; `String "-100123456" ]
+                  ] )
+            ] )
+      ; "routes", `List []
+      ; "virtual_keys", `List []
+      ]
+  in
+  Yojson.Safe.to_file config_path config_json;
+  (match Bulkhead_lm.Config.load config_path with
+   | Error err -> Alcotest.failf "expected telegram connector config load success: %s" err
+   | Ok config ->
+     (match config.Bulkhead_lm.Config.user_connectors.telegram with
+      | None -> Alcotest.fail "expected telegram connector config"
+      | Some connector ->
+        Alcotest.(check string)
+          "telegram webhook path normalized"
+          "/telegram/webhook"
+          connector.webhook_path;
+        Alcotest.(check string)
+          "telegram token env parsed"
+          "TELEGRAM_BOT_TOKEN"
+          connector.bot_token_env;
+        Alcotest.(check (option string))
+          "telegram secret env parsed"
+          (Some "TELEGRAM_WEBHOOK_SECRET")
+          connector.secret_token_env;
+        Alcotest.(check string)
+          "telegram authorization env parsed"
+          "BULKHEAD_TELEGRAM_AUTH"
+          connector.authorization_env;
+        Alcotest.(check string)
+          "telegram route model parsed"
+          "gpt-5-mini"
+          connector.route_model;
+        Alcotest.(check (option string))
+          "telegram system prompt parsed"
+          (Some "Speak plainly.")
+          connector.system_prompt;
+        Alcotest.(check (list string))
+          "telegram allowed chat ids parsed"
+          [ "42"; "-100123456" ]
+          connector.allowed_chat_ids));
+  Lwt.return_unit
+;;
+
+let telegram_connector_handles_text_webhook_test _switch () =
+  let captured_request = ref None in
+  let outbound_messages = ref [] in
+  let invoke_chat _headers _backend (request : Bulkhead_lm.Openai_types.chat_request) =
+    captured_request := Some request;
+    Lwt.return
+      (Ok
+         (Bulkhead_lm.Provider_mock.sample_chat_response
+            ~model:request.model
+            ~content:"Telegram reply"
+            ()))
+  in
+  let provider =
+    { Bulkhead_lm.Provider_client.invoke_chat = invoke_chat
+    ; invoke_chat_stream =
+        (fun headers backend request ->
+          invoke_chat headers backend request
+          >|= Result.map Bulkhead_lm.Provider_stream.of_chat_response)
+    ; invoke_embeddings =
+        (fun _headers _backend _request ->
+          Lwt.return
+            (Error
+               (Bulkhead_lm.Domain_error.unsupported_feature
+                  "embeddings not used in telegram connector test")))
+    }
+  in
+  let connector =
+    Bulkhead_lm.Config_test_support.telegram_connector
+      ~bot_token_env:"TELEGRAM_BOT_TOKEN"
+      ~authorization_env:"BULKHEAD_TELEGRAM_AUTH"
+      ~route_model:"gpt-4o-mini"
+      ~system_prompt:"Reply in a practical tone."
+      ~allowed_chat_ids:[ "42" ]
+      ~secret_token_env:"TELEGRAM_WEBHOOK_SECRET"
+      ()
+  in
+  let store =
+    Bulkhead_lm.Runtime_state.create
+      ~provider_factory:(fun _ -> provider)
+      (Bulkhead_lm.Config_test_support.sample_config
+         ~user_connectors:
+           { Bulkhead_lm.Config.telegram = Some connector
+           ; whatsapp = None
+           ; google_chat = None
+           }
+         ~routes:
+           [ Bulkhead_lm.Config_test_support.route
+               ~public_model:"gpt-4o-mini"
+               ~backends:
+                 [ Bulkhead_lm.Config_test_support.backend
+                     ~provider_id:"primary"
+                     ~provider_kind:Bulkhead_lm.Config.Openai_compat
+                     ~api_base:"https://api.example.test/v1"
+                     ~upstream_model:"gpt-4o-mini"
+                     ~api_key_env:"OPENAI_API_KEY"
+                     ()
+                 ]
+               ()
+           ]
+         ())
+  in
+  let request =
+    Cohttp.Request.make
+      ~meth:`POST
+      ~headers:
+        (Cohttp.Header.of_list [ "x-telegram-bot-api-secret-token", "secret-123" ])
+      (Uri.of_string "http://localhost/connectors/telegram/webhook")
+  in
+  let body =
+    Cohttp_lwt.Body.of_string
+      (Yojson.Safe.to_string
+         (`Assoc
+           [ "update_id", `Int 777
+           ; ( "message"
+             , `Assoc
+                 [ "message_id", `Int 9
+                 ; ( "from"
+                   , `Assoc
+                       [ "id", `Int 5
+                       ; "first_name", `String "Alice"
+                       ; "username", `String "alice"
+                       ] )
+                 ; "text", `String "Summarize the repo"
+                 ; "message_thread_id", `Int 17
+                 ; "chat", `Assoc [ "id", `Int 42; "type", `String "private" ]
+                 ] )
+           ]))
+  in
+  with_env_overrides
+    [ "TELEGRAM_BOT_TOKEN", "bot-token"
+    ; "BULKHEAD_TELEGRAM_AUTH", "sk-test"
+    ; "TELEGRAM_WEBHOOK_SECRET", "secret-123"
+    ]
+    (fun () ->
+      let http_post uri ~headers:_ payload =
+        outbound_messages := (Uri.to_string uri, payload) :: !outbound_messages;
+        Lwt.return
+          ( Cohttp.Response.make ~status:`OK ()
+          , Yojson.Safe.to_string (`Assoc [ "ok", `Bool true; "result", `Assoc [] ]) )
+      in
+      Bulkhead_lm.Telegram_connector.handle_webhook
+        ~http_post
+        store
+        request
+        body
+        connector
+      >>= fun (response, response_body) ->
+      Alcotest.(check int) "telegram webhook accepted" 200 (response_status_code response);
+      response_body_json response_body
+      >>= fun response_json ->
+      let response_fields = json_assoc response_json in
+      Alcotest.(check bool)
+        "telegram webhook acknowledges success"
+        true
+        (match List.assoc_opt "ok" response_fields with
+         | Some (`Bool value) -> value
+         | _ -> false);
+      (match !captured_request with
+       | None -> Alcotest.fail "expected routed chat request"
+       | Some routed_request ->
+         Alcotest.(check string)
+           "telegram connector routes configured model"
+           "gpt-4o-mini"
+           routed_request.model;
+         (match List.rev routed_request.messages with
+          | last :: _ ->
+            Alcotest.(check string)
+              "telegram user text becomes pending user prompt"
+              "Summarize the repo"
+              last.content
+          | [] -> Alcotest.fail "expected routed request messages"));
+      (match List.rev !outbound_messages with
+       | (_, `Assoc fields) :: _ ->
+         Alcotest.(check (option string))
+           "telegram sendMessage chat id"
+           (Some "42")
+           (match List.assoc_opt "chat_id" fields with
+            | Some (`String value) -> Some value
+            | _ -> None);
+         Alcotest.(check (option string))
+           "telegram sendMessage text"
+           (Some "Telegram reply")
+           (match List.assoc_opt "text" fields with
+            | Some (`String value) -> Some value
+            | _ -> None)
+       | _ :: _ -> Alcotest.fail "expected telegram sendMessage payload object"
+       | [] -> Alcotest.fail "expected telegram sendMessage request");
+      let session =
+        Bulkhead_lm.Runtime_state.get_user_connector_session store ~session_key:"telegram:42"
+      in
+      Alcotest.(check int)
+        "telegram connector remembers one exchange"
+        2
+        (Bulkhead_lm.Session_memory.stats session).recent_turn_count;
+      Lwt.return_unit)
+;;
+
+let config_load_parses_whatsapp_connector_test _switch () =
+  let config_path = Filename.temp_file "bulkhead-lm-whatsapp-connector" ".json" in
+  let config_json =
+    `Assoc
+      [ ( "user_connectors"
+        , `Assoc
+            [ ( "whatsapp"
+              , `Assoc
+                  [ "enabled", `Bool true
+                  ; "webhook_path", `String "whatsapp/webhook"
+                  ; "verify_token_env", `String "WHATSAPP_VERIFY_TOKEN"
+                  ; "app_secret_env", `String "WHATSAPP_APP_SECRET"
+                  ; "access_token_env", `String "WHATSAPP_ACCESS_TOKEN"
+                  ; "authorization_env", `String "BULKHEAD_WHATSAPP_AUTH"
+                  ; "route_model", `String "gpt-5-mini"
+                  ; "system_prompt", `String "Keep it short."
+                  ; "allowed_sender_numbers", `List [ `String "15550001111" ]
+                  ; "api_base", `String "https://graph.facebook.com/v23.0/"
+                  ] )
+            ] )
+      ; "routes", `List []
+      ; "virtual_keys", `List []
+      ]
+  in
+  Yojson.Safe.to_file config_path config_json;
+  (match Bulkhead_lm.Config.load config_path with
+   | Error err -> Alcotest.failf "expected whatsapp connector config load success: %s" err
+   | Ok config ->
+     (match config.Bulkhead_lm.Config.user_connectors.whatsapp with
+      | None -> Alcotest.fail "expected whatsapp connector config"
+      | Some connector ->
+        Alcotest.(check string)
+          "whatsapp webhook path normalized"
+          "/whatsapp/webhook"
+          connector.webhook_path;
+        Alcotest.(check string)
+          "whatsapp verify token env parsed"
+          "WHATSAPP_VERIFY_TOKEN"
+          connector.verify_token_env;
+        Alcotest.(check (option string))
+          "whatsapp app secret env parsed"
+          (Some "WHATSAPP_APP_SECRET")
+          connector.app_secret_env;
+        Alcotest.(check string)
+          "whatsapp api base normalized"
+          "https://graph.facebook.com/v23.0"
+          connector.api_base));
+  Lwt.return_unit
+;;
+
+let config_load_parses_google_chat_connector_test _switch () =
+  let config_path = Filename.temp_file "bulkhead-lm-google-chat-connector" ".json" in
+  let config_json =
+    `Assoc
+      [ ( "user_connectors"
+        , `Assoc
+            [ ( "google_chat"
+              , `Assoc
+                  [ "enabled", `Bool true
+                  ; "webhook_path", `String "google-chat/webhook"
+                  ; "authorization_env", `String "BULKHEAD_GOOGLE_CHAT_AUTH"
+                  ; "route_model", `String "gpt-5-mini"
+                  ; "system_prompt", `String "Reply plainly."
+                  ; "allowed_space_names", `List [ `String "spaces/AAA" ]
+                  ; "allowed_user_names", `List [ `String "users/999" ]
+                  ; ( "id_token_auth"
+                    , `Assoc
+                        [ "audience", `String "https://example.test/connectors/google-chat/webhook"
+                        ; "certs_url", `String "https://example.test/certs"
+                        ] )
+                  ] )
+            ] )
+      ; "routes", `List []
+      ; "virtual_keys", `List []
+      ]
+  in
+  Yojson.Safe.to_file config_path config_json;
+  (match Bulkhead_lm.Config.load config_path with
+   | Error err -> Alcotest.failf "expected google chat connector config load success: %s" err
+   | Ok config ->
+     (match config.Bulkhead_lm.Config.user_connectors.google_chat with
+      | None -> Alcotest.fail "expected google chat connector config"
+      | Some connector ->
+        Alcotest.(check string)
+          "google chat webhook path normalized"
+          "/google-chat/webhook"
+          connector.webhook_path;
+        Alcotest.(check string)
+          "google chat route model parsed"
+          "gpt-5-mini"
+          connector.route_model;
+        Alcotest.(check (option string))
+          "google chat auth audience parsed"
+          (Some "https://example.test/connectors/google-chat/webhook")
+          (match connector.id_token_auth with
+           | Some auth -> Some auth.audience
+           | None -> None)));
+  Lwt.return_unit
+;;
+
+let whatsapp_connector_handles_verification_test _switch () =
+  let connector =
+    Bulkhead_lm.Config_test_support.whatsapp_connector
+      ~verify_token_env:"WHATSAPP_VERIFY_TOKEN"
+      ~access_token_env:"WHATSAPP_ACCESS_TOKEN"
+      ~authorization_env:"BULKHEAD_WHATSAPP_AUTH"
+      ~route_model:"gpt-4o-mini"
+      ()
+  in
+  let store =
+    Bulkhead_lm.Runtime_state.create
+      (Bulkhead_lm.Config_test_support.sample_config
+         ~user_connectors:
+           { Bulkhead_lm.Config.telegram = None
+           ; whatsapp = Some connector
+           ; google_chat = None
+           }
+         ())
+  in
+  let request =
+    Cohttp.Request.make
+      ~meth:`GET
+      (Uri.of_string
+         "http://localhost/connectors/whatsapp/webhook?hub.mode=subscribe&hub.verify_token=verify-123&hub.challenge=abc123")
+  in
+  with_env_overrides
+    [ "WHATSAPP_VERIFY_TOKEN", "verify-123" ]
+    (fun () ->
+      Bulkhead_lm.Whatsapp_connector.handle_webhook
+        store
+        request
+        Cohttp_lwt.Body.empty
+        connector
+      >>= fun (response, response_body) ->
+      Alcotest.(check int) "whatsapp verification accepted" 200 (response_status_code response);
+      response_body_text response_body
+      >|= fun body_text ->
+      Alcotest.(check string) "whatsapp challenge echoed" "abc123" body_text)
+;;
+
+let whatsapp_connector_handles_text_webhook_test _switch () =
+  let captured_request = ref None in
+  let outbound_messages = ref [] in
+  let invoke_chat _headers _backend (request : Bulkhead_lm.Openai_types.chat_request) =
+    captured_request := Some request;
+    Lwt.return
+      (Ok
+         (Bulkhead_lm.Provider_mock.sample_chat_response
+            ~model:request.model
+            ~content:"WhatsApp reply"
+            ()))
+  in
+  let provider =
+    { Bulkhead_lm.Provider_client.invoke_chat = invoke_chat
+    ; invoke_chat_stream =
+        (fun headers backend request ->
+          invoke_chat headers backend request
+          >|= Result.map Bulkhead_lm.Provider_stream.of_chat_response)
+    ; invoke_embeddings =
+        (fun _headers _backend _request ->
+          Lwt.return
+            (Error
+               (Bulkhead_lm.Domain_error.unsupported_feature
+                  "embeddings not used in whatsapp connector test")))
+    }
+  in
+  let connector =
+    Bulkhead_lm.Config_test_support.whatsapp_connector
+      ~verify_token_env:"WHATSAPP_VERIFY_TOKEN"
+      ~app_secret_env:"WHATSAPP_APP_SECRET"
+      ~access_token_env:"WHATSAPP_ACCESS_TOKEN"
+      ~authorization_env:"BULKHEAD_WHATSAPP_AUTH"
+      ~route_model:"gpt-4o-mini"
+      ~allowed_sender_numbers:[ "15550001111" ]
+      ()
+  in
+  let store =
+    Bulkhead_lm.Runtime_state.create
+      ~provider_factory:(fun _ -> provider)
+      (Bulkhead_lm.Config_test_support.sample_config
+         ~user_connectors:
+           { Bulkhead_lm.Config.telegram = None
+           ; whatsapp = Some connector
+           ; google_chat = None
+           }
+         ~routes:
+           [ Bulkhead_lm.Config_test_support.route
+               ~public_model:"gpt-4o-mini"
+               ~backends:
+                 [ Bulkhead_lm.Config_test_support.backend
+                     ~provider_id:"primary"
+                     ~provider_kind:Bulkhead_lm.Config.Openai_compat
+                     ~api_base:"https://api.example.test/v1"
+                     ~upstream_model:"gpt-4o-mini"
+                     ~api_key_env:"OPENAI_API_KEY"
+                     ()
+                 ]
+               ()
+           ]
+         ())
+  in
+  let payload_json =
+    `Assoc
+      [ "object", `String "whatsapp_business_account"
+      ; ( "entry"
+        , `List
+            [ `Assoc
+                [ "id", `String "waba-1"
+                ; ( "changes"
+                  , `List
+                      [ `Assoc
+                          [ "field", `String "messages"
+                          ; ( "value"
+                            , `Assoc
+                                [ ( "metadata"
+                                  , `Assoc [ "phone_number_id", `String "phone-number-123" ] )
+                                ; ( "contacts"
+                                  , `List
+                                      [ `Assoc
+                                          [ "wa_id", `String "15550001111"
+                                          ; ( "profile"
+                                            , `Assoc [ "name", `String "Alice" ] )
+                                          ]
+                                      ] )
+                                ; ( "messages"
+                                  , `List
+                                      [ `Assoc
+                                          [ "from", `String "15550001111"
+                                          ; "id", `String "wamid.123"
+                                          ; "type", `String "text"
+                                          ; ( "text"
+                                            , `Assoc
+                                                [ "body", `String "Summarize the repo" ] )
+                                          ]
+                                      ] )
+                                ] )
+                          ]
+                      ] )
+                ]
+            ] )
+      ]
+  in
+  let payload_text = Yojson.Safe.to_string payload_json in
+  let signature =
+    "sha256="
+    ^ Digestif.SHA256.(to_hex (hmac_string ~key:"app-secret-123" payload_text))
+  in
+  let request =
+    Cohttp.Request.make
+      ~meth:`POST
+      ~headers:(Cohttp.Header.of_list [ "x-hub-signature-256", signature ])
+      (Uri.of_string "http://localhost/connectors/whatsapp/webhook")
+  in
+  let body = Cohttp_lwt.Body.of_string payload_text in
+  with_env_overrides
+    [ "WHATSAPP_VERIFY_TOKEN", "verify-123"
+    ; "WHATSAPP_APP_SECRET", "app-secret-123"
+    ; "WHATSAPP_ACCESS_TOKEN", "access-token"
+    ; "BULKHEAD_WHATSAPP_AUTH", "sk-test"
+    ]
+    (fun () ->
+      let http_post uri ~headers:_ payload =
+        outbound_messages := (Uri.to_string uri, payload) :: !outbound_messages;
+        Lwt.return (Cohttp.Response.make ~status:`OK (), Yojson.Safe.to_string (`Assoc []))
+      in
+      Bulkhead_lm.Whatsapp_connector.handle_webhook
+        ~http_post
+        store
+        request
+        body
+        connector
+      >>= fun (response, response_body) ->
+      Alcotest.(check int) "whatsapp webhook accepted" 200 (response_status_code response);
+      response_body_json response_body
+      >>= fun response_json ->
+      Alcotest.(check bool)
+        "whatsapp webhook acknowledges success"
+        true
+        (match List.assoc_opt "ok" (json_assoc response_json) with
+         | Some (`Bool value) -> value
+         | _ -> false);
+      (match !captured_request with
+       | None -> Alcotest.fail "expected routed whatsapp chat request"
+       | Some routed_request ->
+         Alcotest.(check string)
+           "whatsapp connector routes configured model"
+           "gpt-4o-mini"
+           routed_request.model;
+         (match List.rev routed_request.messages with
+          | last :: _ ->
+            Alcotest.(check string)
+              "whatsapp user text becomes pending user prompt"
+              "Summarize the repo"
+              last.content
+          | [] -> Alcotest.fail "expected whatsapp routed request messages"));
+      (match List.rev !outbound_messages with
+       | (_, `Assoc fields) :: _ ->
+         Alcotest.(check (option string))
+           "whatsapp recipient number"
+           (Some "15550001111")
+           (match List.assoc_opt "to" fields with
+            | Some (`String value) -> Some value
+            | _ -> None)
+       | _ :: _ -> Alcotest.fail "expected whatsapp outbound payload object"
+       | [] -> Alcotest.fail "expected whatsapp outbound request");
+      let session =
+        Bulkhead_lm.Runtime_state.get_user_connector_session
+          store
+          ~session_key:"whatsapp:15550001111"
+      in
+      Alcotest.(check int)
+        "whatsapp connector remembers one exchange"
+        2
+        (Bulkhead_lm.Session_memory.stats session).recent_turn_count;
+      Lwt.return_unit)
+;;
+
+let google_chat_id_token_verifies_signed_token_test _switch () =
+  let auth_config =
+    Bulkhead_lm.Config_test_support.google_chat_id_token_auth
+      ~audience:"https://example.test/connectors/google-chat/webhook"
+      ~certs_url:"https://example.test/certs"
+      ()
+  in
+  let token =
+    signed_google_chat_bearer ~audience:"https://example.test/connectors/google-chat/webhook"
+  in
+  let http_get _uri ~headers:_ =
+    Lwt.return
+      ( Cohttp.Response.make ~status:`OK ()
+      , Yojson.Safe.to_string (`Assoc [ "test-key", `String test_google_chat_certificate_pem ]) )
+  in
+  Bulkhead_lm.Google_chat_id_token.verify
+    ~http_get
+    auth_config
+    ("Bearer " ^ token)
+  >>= function
+  | Error err ->
+    Alcotest.failf "expected google chat token verification success: %s" err.message
+  | Ok verified ->
+    Alcotest.(check (option string))
+      "google chat token email"
+      (Some "chat@system.gserviceaccount.com")
+      verified.email;
+    Lwt.return_unit
+;;
+
+let google_chat_connector_handles_text_event_test _switch () =
+  let captured_request = ref None in
+  let invoke_chat _headers _backend (request : Bulkhead_lm.Openai_types.chat_request) =
+    captured_request := Some request;
+    Lwt.return
+      (Ok
+         (Bulkhead_lm.Provider_mock.sample_chat_response
+            ~model:request.model
+            ~content:"Google Chat reply"
+            ()))
+  in
+  let provider =
+    { Bulkhead_lm.Provider_client.invoke_chat = invoke_chat
+    ; invoke_chat_stream =
+        (fun headers backend request ->
+          invoke_chat headers backend request
+          >|= Result.map Bulkhead_lm.Provider_stream.of_chat_response)
+    ; invoke_embeddings =
+        (fun _headers _backend _request ->
+          Lwt.return
+            (Error
+               (Bulkhead_lm.Domain_error.unsupported_feature
+                  "embeddings not used in google chat connector test")))
+    }
+  in
+  let connector =
+    Bulkhead_lm.Config_test_support.google_chat_connector
+      ~authorization_env:"BULKHEAD_GOOGLE_CHAT_AUTH"
+      ~route_model:"gpt-4o-mini"
+      ~allowed_space_names:[ "spaces/AAA" ]
+      ~allowed_user_names:[ "users/999" ]
+      ?id_token_auth:
+        (Some
+           (Bulkhead_lm.Config_test_support.google_chat_id_token_auth
+              ~audience:"https://example.test/connectors/google-chat/webhook"
+              ~certs_url:"https://example.test/certs"
+              ()))
+      ()
+  in
+  let store =
+    Bulkhead_lm.Runtime_state.create
+      ~provider_factory:(fun _ -> provider)
+      (Bulkhead_lm.Config_test_support.sample_config
+         ~user_connectors:
+           { Bulkhead_lm.Config.telegram = None
+           ; whatsapp = None
+           ; google_chat = Some connector
+           }
+         ~routes:
+           [ Bulkhead_lm.Config_test_support.route
+               ~public_model:"gpt-4o-mini"
+               ~backends:
+                 [ Bulkhead_lm.Config_test_support.backend
+                     ~provider_id:"primary"
+                     ~provider_kind:Bulkhead_lm.Config.Openai_compat
+                     ~api_base:"https://api.example.test/v1"
+                     ~upstream_model:"gpt-4o-mini"
+                     ~api_key_env:"OPENAI_API_KEY"
+                     ()
+                 ]
+               ()
+           ]
+         ())
+  in
+  let token =
+    signed_google_chat_bearer ~audience:"https://example.test/connectors/google-chat/webhook"
+  in
+  let request =
+    Cohttp.Request.make
+      ~meth:`POST
+      ~headers:(Cohttp.Header.of_list [ "authorization", "Bearer " ^ token ])
+      (Uri.of_string "http://localhost/connectors/google-chat/webhook")
+  in
+  let body =
+    Cohttp_lwt.Body.of_string
+      (Yojson.Safe.to_string
+         (`Assoc
+           [ "type", `String "MESSAGE"
+           ; "space", `Assoc [ "name", `String "spaces/AAA" ]
+           ; "thread", `Assoc [ "name", `String "spaces/AAA/threads/BBB" ]
+           ; ( "message"
+             , `Assoc
+                 [ "name", `String "spaces/AAA/messages/123"
+                 ; "text", `String "<users/123> Explain the repo"
+                 ] )
+           ; ( "user"
+             , `Assoc
+                 [ "name", `String "users/999"
+                 ; "displayName", `String "Alice"
+                 ] )
+           ]))
+  in
+  with_env_overrides
+    [ "BULKHEAD_GOOGLE_CHAT_AUTH", "sk-test" ]
+    (fun () ->
+      let http_get _uri ~headers:_ =
+        Lwt.return
+          ( Cohttp.Response.make ~status:`OK ()
+          , Yojson.Safe.to_string (`Assoc [ "test-key", `String test_google_chat_certificate_pem ]) )
+      in
+      Bulkhead_lm.Google_chat_connector.handle_webhook
+        ~http_get
+        store
+        request
+        body
+        connector
+      >>= fun (response, response_body) ->
+      Alcotest.(check int) "google chat webhook accepted" 200 (response_status_code response);
+      response_body_json response_body
+      >>= fun response_json ->
+      Alcotest.(check (option string))
+        "google chat reply text"
+        (Some "Google Chat reply")
+        (match List.assoc_opt "text" (json_assoc response_json) with
+         | Some (`String value) -> Some value
+         | _ -> None);
+      (match !captured_request with
+       | None -> Alcotest.fail "expected routed google chat request"
+       | Some routed_request ->
+         Alcotest.(check string)
+           "google chat connector routes configured model"
+           "gpt-4o-mini"
+           routed_request.model;
+         (match List.rev routed_request.messages with
+          | last :: _ ->
+            Alcotest.(check string)
+              "google chat strips leading mention"
+              "Explain the repo"
+              last.content
+          | [] -> Alcotest.fail "expected google chat routed request messages"));
+      let session =
+        Bulkhead_lm.Runtime_state.get_user_connector_session
+          store
+          ~session_key:"google_chat:spaces/AAA:spaces/AAA/threads/BBB"
+      in
+      Alcotest.(check int)
+        "google chat connector remembers one exchange"
+        2
+        (Bulkhead_lm.Session_memory.stats session).recent_turn_count;
+      Lwt.return_unit)
+;;
+
 let provider_registry_routes_new_openai_compatible_kinds_test _switch () =
   let request =
     { Bulkhead_lm.Openai_types.model = "ignored"
@@ -1440,11 +2270,6 @@ let write_fixture_file path content =
   Fun.protect
     ~finally:(fun () -> close_out_noerr channel)
     (fun () -> output_string channel content)
-;;
-
-let json_assoc = function
-  | `Assoc fields -> fields
-  | _ -> Alcotest.fail "expected JSON object"
 ;;
 
 let terminal_ops_lists_directory_within_allowed_root_test _switch () =
@@ -2637,6 +3462,38 @@ let tests =
       "config parses openai-compatible provider variants"
       `Quick
       config_load_accepts_openai_compatible_provider_variants_test
+  ; Alcotest_lwt.test_case
+      "config parses telegram user connector"
+      `Quick
+      config_load_parses_telegram_connector_test
+  ; Alcotest_lwt.test_case
+      "config parses whatsapp user connector"
+      `Quick
+      config_load_parses_whatsapp_connector_test
+  ; Alcotest_lwt.test_case
+      "config parses google chat user connector"
+      `Quick
+      config_load_parses_google_chat_connector_test
+  ; Alcotest_lwt.test_case
+      "telegram connector handles text webhook"
+      `Quick
+      telegram_connector_handles_text_webhook_test
+  ; Alcotest_lwt.test_case
+      "whatsapp connector handles verification"
+      `Quick
+      whatsapp_connector_handles_verification_test
+  ; Alcotest_lwt.test_case
+      "whatsapp connector handles text webhook"
+      `Quick
+      whatsapp_connector_handles_text_webhook_test
+  ; Alcotest_lwt.test_case
+      "google chat token verification accepts signed token"
+      `Quick
+      google_chat_id_token_verifies_signed_token_test
+  ; Alcotest_lwt.test_case
+      "google chat connector handles text event"
+      `Quick
+      google_chat_connector_handles_text_event_test
   ; Alcotest_lwt.test_case
       "provider registry maps new openai-compatible kinds"
       `Quick

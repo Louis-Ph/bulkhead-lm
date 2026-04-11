@@ -15,6 +15,7 @@
   linenoise
   logs
   fmt
+  x509
   str
   digestif
   uuidm

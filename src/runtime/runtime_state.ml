@@ -18,6 +18,8 @@ type t =
   ; budget_usage_lock : Mutex.t
   ; request_windows : (string, int) Hashtbl.t
   ; request_windows_lock : Mutex.t
+  ; user_connector_sessions : (string, Session_memory.t) Hashtbl.t
+  ; user_connector_sessions_lock : Mutex.t
   ; provider_factory : provider_factory
   }
 
@@ -63,6 +65,22 @@ let with_lock lock f =
 
 let find_principal store token_hash = String_map.find_opt token_hash store.principals
 
+let get_user_connector_session store ~session_key =
+  with_lock store.user_connector_sessions_lock (fun () ->
+    Hashtbl.find_opt store.user_connector_sessions session_key
+    |> Option.value ~default:Session_memory.empty)
+;;
+
+let set_user_connector_session store ~session_key conversation =
+  with_lock store.user_connector_sessions_lock (fun () ->
+    Hashtbl.replace store.user_connector_sessions session_key conversation)
+;;
+
+let clear_user_connector_session store ~session_key =
+  with_lock store.user_connector_sessions_lock (fun () ->
+    Hashtbl.remove store.user_connector_sessions session_key)
+;;
+
 let append_audit_event store event =
   match store.persistent_store with
   | None -> ()
@@ -102,6 +120,8 @@ let create_result ?provider_factory config =
       ; budget_usage_lock = Mutex.create ()
       ; request_windows = Hashtbl.create 32
       ; request_windows_lock = Mutex.create ()
+      ; user_connector_sessions = Hashtbl.create 32
+      ; user_connector_sessions_lock = Mutex.create ()
       ; provider_factory
       }
 ;;

@@ -31,6 +31,7 @@ It targets multi-provider LLM gateway routing with a stricter design bias: expli
 - request body limits and upstream request timeouts
 - retry-aware fallback that avoids failing over on permanent upstream errors
 - multicore-safe budget and rate-limit state with a `Domain.spawn` test
+- Telegram, WhatsApp Cloud API, and Google Chat user connectors over webhook, with per-conversation memory routed through normal BulkheadLM virtual-key auth
 
 ## Quick start
 
@@ -84,6 +85,129 @@ opam install . --deps-only --with-test
 dune runtest
 dune exec bulkhead-lm -- --config config/example.gateway.json --port 4200
 ```
+
+## User chat connectors
+
+BulkheadLM can now expose three user-facing chat connectors through the same
+HTTP server architecture:
+
+- Telegram Bot API
+- WhatsApp Cloud API
+- Google Chat HTTP app webhooks
+
+Each connector keeps the same gateway guarantees:
+
+- it reuses a normal BulkheadLM virtual key from `authorization_env`
+- route allowlists, budgets, rate limits, privacy filtering, and output guards still apply
+- conversation memory is scoped per external conversation instead of being shared globally
+- `/help` and `/reset` are supported on the text channels implemented here
+
+### Telegram
+
+Reference checked for this connector work: 2026-04-11.
+
+```bash
+export TELEGRAM_BOT_TOKEN="123456:telegram-bot-token"
+export TELEGRAM_WEBHOOK_SECRET="choose-a-random-secret"
+export BULKHEAD_TELEGRAM_AUTH="sk-bulkhead-lm-dev"
+```
+
+```json
+{
+  "user_connectors": {
+    "telegram": {
+      "enabled": true,
+      "webhook_path": "/connectors/telegram/webhook",
+      "bot_token_env": "TELEGRAM_BOT_TOKEN",
+      "secret_token_env": "TELEGRAM_WEBHOOK_SECRET",
+      "authorization_env": "BULKHEAD_TELEGRAM_AUTH",
+      "route_model": "gpt-5-mini",
+      "system_prompt": "Reply in a concise, practical tone for chat users.",
+      "allowed_chat_ids": []
+    }
+  }
+}
+```
+
+```bash
+curl -sS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
+  -H 'content-type: application/json' \
+  -d '{
+    "url": "https://your-public-host/connectors/telegram/webhook",
+    "secret_token": "'"${TELEGRAM_WEBHOOK_SECRET}"'",
+    "allowed_updates": ["message"]
+  }'
+```
+
+### WhatsApp Cloud API
+
+Reference checked for this connector work: 2026-04-11.
+
+```bash
+export WHATSAPP_VERIFY_TOKEN="choose-a-random-verify-token"
+export WHATSAPP_APP_SECRET="meta-app-secret"
+export WHATSAPP_ACCESS_TOKEN="meta-access-token"
+export BULKHEAD_WHATSAPP_AUTH="sk-bulkhead-lm-dev"
+```
+
+```json
+{
+  "user_connectors": {
+    "whatsapp": {
+      "enabled": true,
+      "webhook_path": "/connectors/whatsapp/webhook",
+      "verify_token_env": "WHATSAPP_VERIFY_TOKEN",
+      "app_secret_env": "WHATSAPP_APP_SECRET",
+      "access_token_env": "WHATSAPP_ACCESS_TOKEN",
+      "authorization_env": "BULKHEAD_WHATSAPP_AUTH",
+      "route_model": "gpt-5-mini",
+      "system_prompt": "Reply in a concise, practical tone for chat users.",
+      "allowed_sender_numbers": [],
+      "api_base": "https://graph.facebook.com/v23.0"
+    }
+  }
+}
+```
+
+Implementation notes:
+
+- `verify_token_env` is used for Meta's initial webhook challenge
+- `app_secret_env` enables `X-Hub-Signature-256` verification for webhook POSTs
+- inbound text replies are sent back through the configured Graph API base
+
+### Google Chat
+
+Reference checked for this connector work: 2026-04-11.
+
+```bash
+export BULKHEAD_GOOGLE_CHAT_AUTH="sk-bulkhead-lm-dev"
+```
+
+```json
+{
+  "user_connectors": {
+    "google_chat": {
+      "enabled": true,
+      "webhook_path": "/connectors/google-chat/webhook",
+      "authorization_env": "BULKHEAD_GOOGLE_CHAT_AUTH",
+      "route_model": "gpt-5-mini",
+      "system_prompt": "Reply in a concise, practical tone for chat users.",
+      "allowed_space_names": [],
+      "allowed_user_names": [],
+      "id_token_auth": {
+        "audience": "https://your-public-host/connectors/google-chat/webhook",
+        "certs_url": "https://www.googleapis.com/oauth2/v1/certs"
+      }
+    }
+  }
+}
+```
+
+Implementation notes:
+
+- this connector uses synchronous Google Chat responses, so the model call must finish within Google's response window
+- `id_token_auth` enables verification of the Google-signed bearer token sent in the `Authorization` header for self-hosted HTTP endpoints
+- conversation memory is scoped to the Google Chat thread when a thread exists, otherwise to the space
 
 ## Local starter
 
