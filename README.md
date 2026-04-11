@@ -505,7 +505,7 @@ The starter:
 - reuses your configured provider keys from the shell environment
 - asks which configured model you want to use now
 - can generate a starter config that expands one provider key into several curated model routes for that provider
-- can build a personal portable JSON config at `config/starter.gateway.json`
+- can build a personal portable JSON config at `config/local_only/starter.gateway.json`
 - uses real line editing in the human starter: left/right arrows, in-line edits, history recall, and tab completion
 - keeps a followed conversation thread by default and compresses older turns into a shorter memory summary when the session grows
 - includes an administrative assistant that prepares explicit plans before changing BulkheadLM config or attempting local system actions
@@ -829,6 +829,8 @@ config/
     prc_defense_overlay_profile.json
     prc_regulated_network_profile.json
     us_dod_unclassified_profile.json
+  local_only/
+    .gitignore
   example.gateway.json
 
 docs/

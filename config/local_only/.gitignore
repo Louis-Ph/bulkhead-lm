@@ -1,0 +1,4 @@
+# Local sensitive configs live here.
+# Keep this policy file tracked, ignore everything else in this directory.
+*
+!.gitignore

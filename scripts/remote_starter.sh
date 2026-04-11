@@ -5,7 +5,7 @@ SCRIPT_DIR=$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)
 . "${SCRIPT_DIR}/remote_common.sh"
 
 CONFIG=${BULKHEAD_LM_REMOTE_CONFIG:-${BULKHEAD_LM_REMOTE_ROOT_DIR}/config/example.gateway.json}
-STARTER_OUTPUT=${BULKHEAD_LM_REMOTE_STARTER_OUTPUT:-${BULKHEAD_LM_REMOTE_ROOT_DIR}/config/starter.gateway.json}
+STARTER_OUTPUT=${BULKHEAD_LM_REMOTE_STARTER_OUTPUT:-${BULKHEAD_LM_REMOTE_ROOT_DIR}/config/local_only/starter.gateway.json}
 
 print_help() {
   cat <<EOF

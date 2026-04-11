@@ -5252,9 +5252,9 @@ let starter_local_tools_parse_exec_words_test _switch () =
 
 let starter_session_tracks_streaming_state_test _switch () =
   let state =
-    Bulkhead_lm.Starter_session.create
+      Bulkhead_lm.Starter_session.create
       ~model:"claude-sonnet"
-      ~config_path:"config/starter.gateway.json"
+      ~config_path:"config/local_only/starter.gateway.json"
   in
   let streaming_state, effect = Bulkhead_lm.Starter_session.step state "Hello there" in
   (match effect with
@@ -5280,9 +5280,9 @@ let starter_session_tracks_streaming_state_test _switch () =
 
 let starter_session_toggles_conversation_mode_test _switch () =
   let state =
-    Bulkhead_lm.Starter_session.create
+      Bulkhead_lm.Starter_session.create
       ~model:"claude-sonnet"
-      ~config_path:"config/starter.gateway.json"
+      ~config_path:"config/local_only/starter.gateway.json"
   in
   Alcotest.(check bool)
     "conversation starts enabled"
@@ -5482,7 +5482,7 @@ let starter_control_plane_lines_reflect_current_config_test _switch () =
        "./scripts/with_local_toolchain.sh dune exec bulkhead-lm -- --config '/tmp/control gateway.json'");
   let disabled_text =
     Bulkhead_lm.Starter_wizard.control_plane_lines
-      ~config_path:"config/starter.gateway.json"
+      ~config_path:"config/local_only/starter.gateway.json"
       (Bulkhead_lm.Config_test_support.sample_config ())
     |> String.concat "\n"
   in

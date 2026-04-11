@@ -4,7 +4,7 @@ BulkheadLM is not just a locked-down gateway. Architecturally, it is a secure AI
 
 ## Layers
 
-- `config/`: hierarchical instance configuration and default policy catalogs
+- `config/`: hierarchical instance configuration, default policy catalogs, and a `local_only/` subtree for sensitive local configs that must stay out of git
 - `src/client/`: direct terminal client and JSONL worker mode over the shared runtime
 - `run.sh`: clone-and-run local wrapper that dispatches to the supported OS starter for macOS, Ubuntu, or FreeBSD
 - `scripts/starter_common.sh`: shared shell bootstrap layer for the local starters, including env loading, opam checks, build validation, and local-switch fallback
