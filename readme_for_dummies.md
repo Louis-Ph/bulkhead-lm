@@ -1,5 +1,7 @@
 # BulkheadLM For Dummies
 
+BulkheadLM is an easy front door to a very powerful AI system: a secure AI router, a multi-provider connector, and a powerful agent provider that can also link machines together and feed larger agent-swarm platforms.
+
 This guide is for someone who is about 10 years old, knows almost nothing about computers, and just wants BulkheadLM to start and let them chat.
 
 If a word looks scary, ignore it and follow the steps one by one.

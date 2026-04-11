@@ -1,5 +1,7 @@
 # Architecture
 
+BulkheadLM is not just a locked-down gateway. Architecturally, it is a secure AI router and hyper-connector: multi-provider, multi-machine, multi-client, and peer-to-peer, with enough structure to act as a powerful agent provider for swarm platforms without collapsing into routing chaos.
+
 ## Layers
 
 - `config/`: hierarchical instance configuration and default policy catalogs

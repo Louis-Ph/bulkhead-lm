@@ -1,5 +1,7 @@
 # Security Posture
 
+BulkheadLM security matters precisely because this system is more than a single API facade. It is a secure AI router and hyper-connector that can span providers, peers, machines, clients, and chat surfaces, so the control set has to protect both isolation and connectivity at the same time.
+
 For supported versions and vulnerability reporting instructions, see the
 repository [Security Policy](../SECURITY.md). This document describes the
 technical control set and current gaps.

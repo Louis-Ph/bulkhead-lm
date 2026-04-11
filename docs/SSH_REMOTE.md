@@ -1,5 +1,7 @@
 # SSH Remote Usage
 
+BulkheadLM is designed to stay accessible even when the useful machine is not the one in front of you. SSH mode turns remote hosts into part of the same secure AI fabric, so one repo can serve humans, workers, peers, and later the agent-provider layer used by swarm platforms across multiple machines.
+
 This repository can be used remotely over SSH without running the HTTP gateway
 as a separate microservice. The intended split is:
 

@@ -1,6 +1,6 @@
 # Peer Mesh
 
-BulkheadLM can treat another BulkheadLM instance as an upstream LLM endpoint.
+BulkheadLM can treat another BulkheadLM instance as an upstream LLM endpoint. This is where the project stops looking like a simple gateway and becomes a horizontal AI mesh: peer-to-peer, multi-machine, and explicitly routed instead of loosely chained.
 
 There are two explicit peer transports:
 

@@ -1,5 +1,7 @@
 # User Connector Roadmap
 
+The point of this roadmap is simple: advanced AI infrastructure should feel immediate to normal people. BulkheadLM already acts as a secure AI router and hyper-connector under the hood, and this rollout is how that power reaches mainstream chat surfaces with the least adaptation cost.
+
 This roadmap keeps connector growth explicit, hierarchical, and grounded in
 two constraints:
 

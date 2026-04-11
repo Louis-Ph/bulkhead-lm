@@ -2,6 +2,10 @@
 
 [![CI](https://github.com/Louis-Ph/bulkhead-lm/actions/workflows/ci.yml/badge.svg)](https://github.com/Louis-Ph/bulkhead-lm/actions/workflows/ci.yml)
 
+BulkheadLM is a secure AI router, AI hyper-connector, and powerful AI agent provider. It connects multiple AI providers, multiple machines, multiple clients, and peer-to-peer BulkheadLM nodes, while staying accessible through the chat interfaces people already use.
+
+In other words: it looks like a hardened bulkhead, but it behaves like a high-trust AI fabric for routing, peering, orchestration, and fast user access. It is meant to be used by agent-swarm platforms, not to replace them.
+
 New here? Start with the very simple guide: [readme_for_dummies.md](readme_for_dummies.md)
 
 BulkheadLM is a security-first LLM gateway written in OCaml. It exposes an OpenAI-compatible API, routes requests across explicit provider backends, and keeps routing, security policy, and error behavior in hierarchical JSON instead of ad-hoc runtime discovery.
