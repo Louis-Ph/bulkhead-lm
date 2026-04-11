@@ -1259,6 +1259,8 @@ let telegram_connector_handles_text_webhook_test _switch () =
            ; whatsapp = None
            ; messenger = None
            ; instagram = None
+           ; line = None
+           ; viber = None
            ; google_chat = None
            }
          ~routes:
@@ -1537,6 +1539,119 @@ let config_load_parses_instagram_connector_test _switch () =
   Lwt.return_unit
 ;;
 
+let config_load_parses_line_connector_test _switch () =
+  let config_path = Filename.temp_file "bulkhead-lm-line-connector" ".json" in
+  let config_json =
+    `Assoc
+      [ ( "user_connectors"
+        , `Assoc
+            [ ( "line"
+              , `Assoc
+                  [ "enabled", `Bool true
+                  ; "webhook_path", `String "line/webhook"
+                  ; "channel_secret_env", `String "LINE_CHANNEL_SECRET"
+                  ; "access_token_env", `String "LINE_ACCESS_TOKEN"
+                  ; "authorization_env", `String "BULKHEAD_LINE_AUTH"
+                  ; "route_model", `String "gpt-5-mini"
+                  ; "system_prompt", `String "Reply plainly."
+                  ; "allowed_user_ids", `List [ `String "user-123" ]
+                  ; "allowed_group_ids", `List [ `String "group-456" ]
+                  ; "allowed_room_ids", `List [ `String "room-789" ]
+                  ; "api_base", `String "https://api.line.me/v2/bot/"
+                  ] )
+            ] )
+      ; "routes", `List []
+      ; "virtual_keys", `List []
+      ]
+  in
+  Yojson.Safe.to_file config_path config_json;
+  (match Bulkhead_lm.Config.load config_path with
+   | Error err -> Alcotest.failf "expected line connector config load success: %s" err
+   | Ok config ->
+     (match config.Bulkhead_lm.Config.user_connectors.line with
+      | None -> Alcotest.fail "expected line connector config"
+      | Some connector ->
+        Alcotest.(check string)
+          "line webhook path normalized"
+          "/line/webhook"
+          connector.webhook_path;
+        Alcotest.(check string)
+          "line channel secret env parsed"
+          "LINE_CHANNEL_SECRET"
+          connector.channel_secret_env;
+        Alcotest.(check (list string))
+          "line allowed user ids parsed"
+          [ "user-123" ]
+          connector.allowed_user_ids;
+        Alcotest.(check (list string))
+          "line allowed group ids parsed"
+          [ "group-456" ]
+          connector.allowed_group_ids;
+        Alcotest.(check (list string))
+          "line allowed room ids parsed"
+          [ "room-789" ]
+          connector.allowed_room_ids;
+        Alcotest.(check string)
+          "line api base normalized"
+          "https://api.line.me/v2/bot"
+          connector.api_base));
+  Lwt.return_unit
+;;
+
+let config_load_parses_viber_connector_test _switch () =
+  let config_path = Filename.temp_file "bulkhead-lm-viber-connector" ".json" in
+  let config_json =
+    `Assoc
+      [ ( "user_connectors"
+        , `Assoc
+            [ ( "viber"
+              , `Assoc
+                  [ "enabled", `Bool true
+                  ; "webhook_path", `String "viber/webhook"
+                  ; "auth_token_env", `String "VIBER_AUTH_TOKEN"
+                  ; "authorization_env", `String "BULKHEAD_VIBER_AUTH"
+                  ; "route_model", `String "gpt-5-mini"
+                  ; "system_prompt", `String "Reply plainly."
+                  ; "allowed_sender_ids", `List [ `String "viber-user-123" ]
+                  ; "sender_name", `String "BulkheadLM"
+                  ; "sender_avatar", `String "https://example.test/avatar.png"
+                  ; "api_base", `String "https://chatapi.viber.com/pa/"
+                  ] )
+            ] )
+      ; "routes", `List []
+      ; "virtual_keys", `List []
+      ]
+  in
+  Yojson.Safe.to_file config_path config_json;
+  (match Bulkhead_lm.Config.load config_path with
+   | Error err -> Alcotest.failf "expected viber connector config load success: %s" err
+   | Ok config ->
+     (match config.Bulkhead_lm.Config.user_connectors.viber with
+      | None -> Alcotest.fail "expected viber connector config"
+      | Some connector ->
+        Alcotest.(check string)
+          "viber webhook path normalized"
+          "/viber/webhook"
+          connector.webhook_path;
+        Alcotest.(check string)
+          "viber auth token env parsed"
+          "VIBER_AUTH_TOKEN"
+          connector.auth_token_env;
+        Alcotest.(check (list string))
+          "viber allowed sender ids parsed"
+          [ "viber-user-123" ]
+          connector.allowed_sender_ids;
+        Alcotest.(check (option string))
+          "viber sender name parsed"
+          (Some "BulkheadLM")
+          connector.sender_name;
+        Alcotest.(check string)
+          "viber api base normalized"
+          "https://chatapi.viber.com/pa"
+          connector.api_base));
+  Lwt.return_unit
+;;
+
 let config_load_parses_google_chat_connector_test _switch () =
   let config_path = Filename.temp_file "bulkhead-lm-google-chat-connector" ".json" in
   let config_json =
@@ -1604,6 +1719,8 @@ let whatsapp_connector_handles_verification_test _switch () =
            ; whatsapp = Some connector
            ; messenger = None
            ; instagram = None
+           ; line = None
+           ; viber = None
            ; google_chat = None
            }
          ())
@@ -1674,6 +1791,8 @@ let whatsapp_connector_handles_text_webhook_test _switch () =
            ; whatsapp = Some connector
            ; messenger = None
            ; instagram = None
+           ; line = None
+           ; viber = None
            ; google_chat = None
            }
          ~routes:
@@ -1825,6 +1944,8 @@ let messenger_connector_handles_verification_test _switch () =
            ; whatsapp = None
            ; messenger = Some connector
            ; instagram = None
+           ; line = None
+           ; viber = None
            ; google_chat = None
            }
          ())
@@ -1896,6 +2017,8 @@ let messenger_connector_handles_text_webhook_test _switch () =
            ; whatsapp = None
            ; messenger = Some connector
            ; instagram = None
+           ; line = None
+           ; viber = None
            ; google_chat = None
            }
          ~routes:
@@ -2072,6 +2195,8 @@ let instagram_connector_handles_text_webhook_test _switch () =
            ; whatsapp = None
            ; messenger = None
            ; instagram = Some connector
+           ; line = None
+           ; viber = None
            ; google_chat = None
            }
          ~routes:
@@ -2200,6 +2325,350 @@ let instagram_connector_handles_text_webhook_test _switch () =
       Lwt.return_unit)
 ;;
 
+let line_connector_handles_text_webhook_test _switch () =
+  let captured_request = ref None in
+  let outbound_messages = ref [] in
+  let invoke_chat _headers _backend (request : Bulkhead_lm.Openai_types.chat_request) =
+    captured_request := Some request;
+    Lwt.return
+      (Ok
+         (Bulkhead_lm.Provider_mock.sample_chat_response
+            ~model:request.model
+            ~content:"LINE reply"
+            ()))
+  in
+  let provider =
+    { Bulkhead_lm.Provider_client.invoke_chat = invoke_chat
+    ; invoke_chat_stream =
+        (fun headers backend request ->
+          invoke_chat headers backend request
+          >|= Result.map Bulkhead_lm.Provider_stream.of_chat_response)
+    ; invoke_embeddings =
+        (fun _headers _backend _request ->
+          Lwt.return
+            (Error
+               (Bulkhead_lm.Domain_error.unsupported_feature
+                  "embeddings not used in line connector test")))
+    }
+  in
+  let connector =
+    Bulkhead_lm.Config_test_support.line_connector
+      ~channel_secret_env:"LINE_CHANNEL_SECRET"
+      ~access_token_env:"LINE_ACCESS_TOKEN"
+      ~authorization_env:"BULKHEAD_LINE_AUTH"
+      ~route_model:"gpt-4o-mini"
+      ~allowed_user_ids:[ "user-123" ]
+      ()
+  in
+  let store =
+    Bulkhead_lm.Runtime_state.create
+      ~provider_factory:(fun _ -> provider)
+      (Bulkhead_lm.Config_test_support.sample_config
+         ~user_connectors:
+           { Bulkhead_lm.Config.telegram = None
+           ; whatsapp = None
+           ; messenger = None
+           ; instagram = None
+           ; line = Some connector
+           ; viber = None
+           ; google_chat = None
+           }
+         ~routes:
+           [ Bulkhead_lm.Config_test_support.route
+               ~public_model:"gpt-4o-mini"
+               ~backends:
+                 [ Bulkhead_lm.Config_test_support.backend
+                     ~provider_id:"primary"
+                     ~provider_kind:Bulkhead_lm.Config.Openai_compat
+                     ~api_base:"https://api.example.test/v1"
+                     ~upstream_model:"gpt-4o-mini"
+                     ~api_key_env:"OPENAI_API_KEY"
+                     ()
+                 ]
+               ()
+           ]
+         ())
+  in
+  let payload_json =
+    `Assoc
+      [ ( "events"
+        , `List
+            [ `Assoc
+                [ "type", `String "message"
+                ; "replyToken", `String "reply-123"
+                ; "source", `Assoc [ "type", `String "user"; "userId", `String "user-123" ]
+                ; ( "message"
+                  , `Assoc
+                      [ "id", `String "msg-123"
+                      ; "type", `String "text"
+                      ; "text", `String "Summarize the repo"
+                      ] )
+                ]
+            ] )
+      ]
+  in
+  let payload_text = Yojson.Safe.to_string payload_json in
+  let signature =
+    Digestif.SHA256.(to_raw_string (hmac_string ~key:"line-secret-123" payload_text))
+    |> Base64.encode_exn
+  in
+  let request =
+    Cohttp.Request.make
+      ~meth:`POST
+      ~headers:(Cohttp.Header.of_list [ "x-line-signature", signature ])
+      (Uri.of_string "http://localhost/connectors/line/webhook")
+  in
+  let body = Cohttp_lwt.Body.of_string payload_text in
+  with_env_overrides
+    [ "LINE_CHANNEL_SECRET", "line-secret-123"
+    ; "LINE_ACCESS_TOKEN", "line-access-token"
+    ; "BULKHEAD_LINE_AUTH", "sk-test"
+    ]
+    (fun () ->
+      let http_post uri ~headers:_ payload =
+        outbound_messages := (Uri.to_string uri, payload) :: !outbound_messages;
+        Lwt.return (Cohttp.Response.make ~status:`OK (), Yojson.Safe.to_string (`Assoc []))
+      in
+      Bulkhead_lm.Line_connector.handle_webhook
+        ~http_post
+        store
+        request
+        body
+        connector
+      >>= fun (response, response_body) ->
+      Alcotest.(check int) "line webhook accepted" 200 (response_status_code response);
+      response_body_json response_body
+      >>= fun response_json ->
+      Alcotest.(check bool)
+        "line webhook acknowledges success"
+        true
+        (match List.assoc_opt "ok" (json_assoc response_json) with
+         | Some (`Bool value) -> value
+         | _ -> false);
+      (match !captured_request with
+       | None -> Alcotest.fail "expected routed line chat request"
+       | Some routed_request ->
+         Alcotest.(check string)
+           "line connector routes configured model"
+           "gpt-4o-mini"
+           routed_request.model;
+         (match List.rev routed_request.messages with
+          | last :: _ ->
+            Alcotest.(check string)
+              "line user text becomes pending user prompt"
+              "Summarize the repo"
+              last.content
+          | [] -> Alcotest.fail "expected line routed request messages"));
+      (match List.rev !outbound_messages with
+       | (uri, `Assoc fields) :: _ ->
+         Alcotest.(check string)
+           "line uses reply endpoint"
+           "https://api.line.me/v2/bot/message/reply"
+           uri;
+         Alcotest.(check (option string))
+           "line reply token"
+           (Some "reply-123")
+           (match List.assoc_opt "replyToken" fields with
+            | Some (`String value) -> Some value
+            | _ -> None);
+         Alcotest.(check (option string))
+           "line outbound text"
+           (Some "LINE reply")
+           (match List.assoc_opt "messages" fields with
+            | Some (`List [ `Assoc [ ("type", `String "text"); ("text", `String value) ] ]) ->
+              Some value
+            | Some (`List [ `Assoc message_fields ]) ->
+              (match List.assoc_opt "text" message_fields with
+               | Some (`String value) -> Some value
+               | _ -> None)
+            | _ -> None)
+       | _ :: _ -> Alcotest.fail "expected line outbound payload object"
+       | [] -> Alcotest.fail "expected line outbound request");
+      let session =
+        Bulkhead_lm.Runtime_state.get_user_connector_session
+          store
+          ~session_key:"line:user:user-123"
+      in
+      Alcotest.(check int)
+        "line connector remembers one exchange"
+        2
+        (Bulkhead_lm.Session_memory.stats session).recent_turn_count;
+      Lwt.return_unit)
+;;
+
+let viber_connector_handles_text_webhook_test _switch () =
+  let captured_request = ref None in
+  let outbound_messages = ref [] in
+  let invoke_chat _headers _backend (request : Bulkhead_lm.Openai_types.chat_request) =
+    captured_request := Some request;
+    Lwt.return
+      (Ok
+         (Bulkhead_lm.Provider_mock.sample_chat_response
+            ~model:request.model
+            ~content:"Viber reply"
+            ()))
+  in
+  let provider =
+    { Bulkhead_lm.Provider_client.invoke_chat = invoke_chat
+    ; invoke_chat_stream =
+        (fun headers backend request ->
+          invoke_chat headers backend request
+          >|= Result.map Bulkhead_lm.Provider_stream.of_chat_response)
+    ; invoke_embeddings =
+        (fun _headers _backend _request ->
+          Lwt.return
+            (Error
+               (Bulkhead_lm.Domain_error.unsupported_feature
+                  "embeddings not used in viber connector test")))
+    }
+  in
+  let connector =
+    Bulkhead_lm.Config_test_support.viber_connector
+      ~auth_token_env:"VIBER_AUTH_TOKEN"
+      ~authorization_env:"BULKHEAD_VIBER_AUTH"
+      ~route_model:"gpt-4o-mini"
+      ~allowed_sender_ids:[ "viber-user-123" ]
+      ()
+  in
+  let store =
+    Bulkhead_lm.Runtime_state.create
+      ~provider_factory:(fun _ -> provider)
+      (Bulkhead_lm.Config_test_support.sample_config
+         ~user_connectors:
+           { Bulkhead_lm.Config.telegram = None
+           ; whatsapp = None
+           ; messenger = None
+           ; instagram = None
+           ; line = None
+           ; viber = Some connector
+           ; google_chat = None
+           }
+         ~routes:
+           [ Bulkhead_lm.Config_test_support.route
+               ~public_model:"gpt-4o-mini"
+               ~backends:
+                 [ Bulkhead_lm.Config_test_support.backend
+                     ~provider_id:"primary"
+                     ~provider_kind:Bulkhead_lm.Config.Openai_compat
+                     ~api_base:"https://api.example.test/v1"
+                     ~upstream_model:"gpt-4o-mini"
+                     ~api_key_env:"OPENAI_API_KEY"
+                     ()
+                 ]
+               ()
+           ]
+         ())
+  in
+  let payload_json =
+    `Assoc
+      [ "event", `String "message"
+      ; "timestamp", `Int 1457764197
+      ; "message_token", `Intlit "4912661846655238145"
+      ; ( "sender"
+        , `Assoc
+            [ "id", `String "viber-user-123"
+            ; "name", `String "Alice"
+            ; "avatar", `String "https://example.test/alice.png"
+            ; "country", `String "UK"
+            ; "language", `String "en"
+            ; "api_version", `Int 1
+            ] )
+      ; ( "message"
+        , `Assoc
+            [ "type", `String "text"
+            ; "text", `String "Explain the repo"
+            ] )
+      ]
+  in
+  let payload_text = Yojson.Safe.to_string payload_json in
+  let signature =
+    Digestif.SHA256.(to_hex (hmac_string ~key:"viber-token-123" payload_text))
+  in
+  let request =
+    Cohttp.Request.make
+      ~meth:`POST
+      ~headers:(Cohttp.Header.of_list [ "x-viber-content-signature", signature ])
+      (Uri.of_string "http://localhost/connectors/viber/webhook")
+  in
+  let body = Cohttp_lwt.Body.of_string payload_text in
+  with_env_overrides
+    [ "VIBER_AUTH_TOKEN", "viber-token-123"
+    ; "BULKHEAD_VIBER_AUTH", "sk-test"
+    ]
+    (fun () ->
+      let http_post uri ~headers:_ payload =
+        outbound_messages := (Uri.to_string uri, payload) :: !outbound_messages;
+        Lwt.return
+          ( Cohttp.Response.make ~status:`OK ()
+          , Yojson.Safe.to_string
+              (`Assoc
+                [ "status", `Int 0
+                ; "status_message", `String "ok"
+                ; "message_token", `Int 123
+                ]) )
+      in
+      Bulkhead_lm.Viber_connector.handle_webhook
+        ~http_post
+        store
+        request
+        body
+        connector
+      >>= fun (response, response_body) ->
+      Alcotest.(check int) "viber webhook accepted" 200 (response_status_code response);
+      response_body_json response_body
+      >>= fun response_json ->
+      Alcotest.(check bool)
+        "viber webhook acknowledges success"
+        true
+        (match List.assoc_opt "ok" (json_assoc response_json) with
+         | Some (`Bool value) -> value
+         | _ -> false);
+      (match !captured_request with
+       | None -> Alcotest.fail "expected routed viber chat request"
+       | Some routed_request ->
+         Alcotest.(check string)
+           "viber connector routes configured model"
+           "gpt-4o-mini"
+           routed_request.model;
+         (match List.rev routed_request.messages with
+          | last :: _ ->
+            Alcotest.(check string)
+              "viber user text becomes pending user prompt"
+              "Explain the repo"
+              last.content
+          | [] -> Alcotest.fail "expected viber routed request messages"));
+      (match List.rev !outbound_messages with
+       | (uri, `Assoc fields) :: _ ->
+         Alcotest.(check string)
+           "viber uses send_message endpoint"
+           "https://chatapi.viber.com/pa/send_message"
+           uri;
+         Alcotest.(check (option string))
+           "viber recipient id"
+           (Some "viber-user-123")
+           (match List.assoc_opt "receiver" fields with
+            | Some (`String value) -> Some value
+            | _ -> None);
+         Alcotest.(check (option string))
+           "viber outbound text"
+           (Some "Viber reply")
+           (match List.assoc_opt "text" fields with
+            | Some (`String value) -> Some value
+            | _ -> None)
+       | _ :: _ -> Alcotest.fail "expected viber outbound payload object"
+       | [] -> Alcotest.fail "expected viber outbound request");
+      let session =
+        Bulkhead_lm.Runtime_state.get_user_connector_session
+          store
+          ~session_key:"viber:viber-user-123"
+      in
+      Alcotest.(check int)
+        "viber connector remembers one exchange"
+        2
+        (Bulkhead_lm.Session_memory.stats session).recent_turn_count;
+      Lwt.return_unit)
+;;
+
 let google_chat_id_token_verifies_signed_token_test _switch () =
   let auth_config =
     Bulkhead_lm.Config_test_support.google_chat_id_token_auth
@@ -2278,6 +2747,8 @@ let google_chat_connector_handles_text_event_test _switch () =
            ; whatsapp = None
            ; messenger = None
            ; instagram = None
+           ; line = None
+           ; viber = None
            ; google_chat = Some connector
            }
          ~routes:
@@ -3993,6 +4464,14 @@ let tests =
       `Quick
       config_load_parses_instagram_connector_test
   ; Alcotest_lwt.test_case
+      "config parses line user connector"
+      `Quick
+      config_load_parses_line_connector_test
+  ; Alcotest_lwt.test_case
+      "config parses viber user connector"
+      `Quick
+      config_load_parses_viber_connector_test
+  ; Alcotest_lwt.test_case
       "config parses google chat user connector"
       `Quick
       config_load_parses_google_chat_connector_test
@@ -4020,6 +4499,14 @@ let tests =
       "instagram connector handles text webhook"
       `Quick
       instagram_connector_handles_text_webhook_test
+  ; Alcotest_lwt.test_case
+      "line connector handles text webhook"
+      `Quick
+      line_connector_handles_text_webhook_test
+  ; Alcotest_lwt.test_case
+      "viber connector handles text webhook"
+      `Quick
+      viber_connector_handles_text_webhook_test
   ; Alcotest_lwt.test_case
       "google chat token verification accepts signed token"
       `Quick

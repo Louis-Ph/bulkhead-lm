@@ -1,7 +1,11 @@
 open Lwt.Infix
 
 let parse_json_string content =
-  if String.trim content = "" then Ok (`Assoc []) else Ok (Yojson.Safe.from_string content)
+  if String.trim content = ""
+  then Ok (`Assoc [])
+  else
+    try Ok (Yojson.Safe.from_string content) with
+    | _exn -> Error (Domain_error.malformed_json_body ())
 ;;
 
 let read_text_body_limited ~max_bytes body =

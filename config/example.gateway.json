@@ -55,6 +55,31 @@
       "allowed_sender_ids": [],
       "api_base": "https://graph.instagram.com/v23.0"
     },
+    "line": {
+      "enabled": false,
+      "webhook_path": "/connectors/line/webhook",
+      "channel_secret_env": "LINE_CHANNEL_SECRET",
+      "access_token_env": "LINE_ACCESS_TOKEN",
+      "authorization_env": "BULKHEAD_LINE_AUTH",
+      "route_model": "gpt-5-mini",
+      "system_prompt": "Reply in a concise, practical tone for chat users.",
+      "allowed_user_ids": [],
+      "allowed_group_ids": [],
+      "allowed_room_ids": [],
+      "api_base": "https://api.line.me/v2/bot"
+    },
+    "viber": {
+      "enabled": false,
+      "webhook_path": "/connectors/viber/webhook",
+      "auth_token_env": "VIBER_AUTH_TOKEN",
+      "authorization_env": "BULKHEAD_VIBER_AUTH",
+      "route_model": "gpt-5-mini",
+      "system_prompt": "Reply in a concise, practical tone for chat users.",
+      "allowed_sender_ids": [],
+      "sender_name": "BulkheadLM",
+      "sender_avatar": "",
+      "api_base": "https://chatapi.viber.com/pa"
+    },
     "google_chat": {
       "enabled": false,
       "webhook_path": "/connectors/google-chat/webhook",

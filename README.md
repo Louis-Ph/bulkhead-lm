@@ -31,7 +31,7 @@ It targets multi-provider LLM gateway routing with a stricter design bias: expli
 - request body limits and upstream request timeouts
 - retry-aware fallback that avoids failing over on permanent upstream errors
 - multicore-safe budget and rate-limit state with a `Domain.spawn` test
-- Telegram, WhatsApp Cloud API, Facebook Messenger, Instagram Direct, and Google Chat user connectors over webhook, with per-conversation memory routed through normal BulkheadLM virtual-key auth
+- Telegram, WhatsApp Cloud API, Facebook Messenger, Instagram Direct, LINE, Viber, and Google Chat user connectors over webhook, with per-conversation memory routed through normal BulkheadLM virtual-key auth
 
 ## Connector rollout roadmap
 
@@ -39,8 +39,9 @@ The chat-connector backlog is staged by global reach, API availability, and the
 amount of adaptation a mainstream user needs before the assistant feels native.
 
 - Wave 1: WhatsApp Cloud API, Telegram Bot API, Facebook Messenger, Instagram Direct
-- Wave 2: LINE, TikTok Direct Messages, Viber, WeChat
-- Wave 3: Discord, Snapchat, KakaoTalk, Zalo, QQ
+- Wave 2: LINE, Viber
+- Wave 2 deferred: TikTok Direct Messages, WeChat
+- Wave 3 deferred: Discord, Snapchat, KakaoTalk, Zalo, QQ
 
 The longer rationale lives in [docs/USER_CONNECTOR_ROADMAP.md](docs/USER_CONNECTOR_ROADMAP.md).
 
@@ -99,13 +100,15 @@ dune exec bulkhead-lm -- --config config/example.gateway.json --port 4200
 
 ## User chat connectors
 
-BulkheadLM can now expose five user-facing chat connectors through the same
+BulkheadLM can now expose seven user-facing chat connectors through the same
 HTTP server architecture:
 
 - Telegram Bot API
 - WhatsApp Cloud API
 - Facebook Messenger
 - Instagram Direct
+- LINE Messaging API
+- Viber REST Bot API
 - Google Chat HTTP app webhooks
 
 Each connector keeps the same gateway guarantees:
@@ -263,6 +266,76 @@ Implementation notes:
 - inbound events are parsed from `object=instagram` with `entry[].messaging[]`
 - outbound text replies are sent to `/me/messages`
 - conversation memory is scoped per `instagram_account_id + sender_id`
+
+### LINE
+
+Reference checked for this connector work: 2026-04-11.
+
+```bash
+export LINE_CHANNEL_SECRET="line-channel-secret"
+export LINE_ACCESS_TOKEN="line-channel-access-token"
+export BULKHEAD_LINE_AUTH="sk-bulkhead-lm-dev"
+```
+
+```json
+{
+  "user_connectors": {
+    "line": {
+      "enabled": true,
+      "webhook_path": "/connectors/line/webhook",
+      "channel_secret_env": "LINE_CHANNEL_SECRET",
+      "access_token_env": "LINE_ACCESS_TOKEN",
+      "authorization_env": "BULKHEAD_LINE_AUTH",
+      "route_model": "gpt-5-mini",
+      "system_prompt": "Reply in a concise, practical tone for chat users.",
+      "allowed_user_ids": [],
+      "allowed_group_ids": [],
+      "allowed_room_ids": [],
+      "api_base": "https://api.line.me/v2/bot"
+    }
+  }
+}
+```
+
+Implementation notes:
+
+- `channel_secret_env` verifies the `X-Line-Signature` HMAC on webhook POSTs
+- replies use LINE's reply-token flow through `/message/reply`
+- conversation memory is scoped to the smallest stable LINE conversation source: user, group, or room
+
+### Viber
+
+Reference checked for this connector work: 2026-04-11.
+
+```bash
+export VIBER_AUTH_TOKEN="viber-bot-auth-token"
+export BULKHEAD_VIBER_AUTH="sk-bulkhead-lm-dev"
+```
+
+```json
+{
+  "user_connectors": {
+    "viber": {
+      "enabled": true,
+      "webhook_path": "/connectors/viber/webhook",
+      "auth_token_env": "VIBER_AUTH_TOKEN",
+      "authorization_env": "BULKHEAD_VIBER_AUTH",
+      "route_model": "gpt-5-mini",
+      "system_prompt": "Reply in a concise, practical tone for chat users.",
+      "allowed_sender_ids": [],
+      "sender_name": "BulkheadLM",
+      "sender_avatar": "https://example.test/avatar.png",
+      "api_base": "https://chatapi.viber.com/pa"
+    }
+  }
+}
+```
+
+Implementation notes:
+
+- `auth_token_env` is reused for both webhook signature validation (`X-Viber-Content-Signature`) and outbound `X-Viber-Auth-Token`
+- outbound text replies are sent through `send_message`
+- `conversation_started` receives an onboarding reply, while normal text messages reuse the standard BulkheadLM route and session memory path
 
 ### Google Chat
 

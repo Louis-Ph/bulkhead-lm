@@ -31,10 +31,12 @@ request-response webhook architecture.
 
 Implementation notes:
 
-- `LINE` fits the current webhook and reply-token model well and is the most straightforward next step
-- `TikTok Direct Messages` is strategically relevant but still operationally heavier because the business messaging surface is newer
-- `Viber` is structurally close to the current connectors but lower priority by global reach
-- `WeChat` matters for reach but usually carries the highest operational and regional complexity in this wave
+- implemented: LINE, Viber
+- deferred: TikTok Direct Messages, WeChat
+- `LINE` fits the current webhook and reply-token model directly, so it extends the existing architecture without adding a new runtime class
+- `Viber` also fits the webhook plus send-message pattern, with one auth token reused for webhook verification and outbound delivery
+- `TikTok Direct Messages` remains strategically relevant, but the business messaging surface is still operationally heavier and less open than the connectors already shipped here
+- `WeChat` matters for reach, but it usually adds more regional, operational, and protocol complexity than the rest of this wave
 
 ## Wave 3
 
@@ -49,9 +51,10 @@ surface is broad enough.
 
 Implementation notes:
 
-- `Discord` is technically accessible, but its community/server dynamics differ from direct consumer messaging
+- audited and deferred: Discord, Snapchat, KakaoTalk, Zalo, QQ
+- `Discord` is technically accessible, but its gateway and interaction model diverges from the simpler direct webhook reply architecture used by the mainstream chat connectors here
 - `Snapchat` is globally large, but the business messaging surface is less aligned with the current direct webhook connector model
-- `KakaoTalk`, `Zalo`, and `QQ` are regionally important and should be staged after broader global channels are covered
+- `KakaoTalk`, `Zalo`, and `QQ` are regionally important, but they currently impose higher regional or partner-distribution friction than the channels already implemented
 
 ## Architecture guardrails
 

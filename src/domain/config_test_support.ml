@@ -151,6 +151,56 @@ let instagram_connector
   }
 ;;
 
+let line_connector
+  ?(webhook_path = "/connectors/line/webhook")
+  ?system_prompt
+  ?(allowed_user_ids = [])
+  ?(allowed_group_ids = [])
+  ?(allowed_room_ids = [])
+  ?(api_base = "https://api.line.me/v2/bot")
+  ~channel_secret_env
+  ~access_token_env
+  ~authorization_env
+  ~route_model
+  ()
+  =
+  { Config.webhook_path
+  ; channel_secret_env
+  ; access_token_env
+  ; authorization_env
+  ; route_model
+  ; system_prompt
+  ; allowed_user_ids
+  ; allowed_group_ids
+  ; allowed_room_ids
+  ; api_base
+  }
+;;
+
+let viber_connector
+  ?(webhook_path = "/connectors/viber/webhook")
+  ?system_prompt
+  ?(allowed_sender_ids = [])
+  ?sender_name
+  ?sender_avatar
+  ?(api_base = "https://chatapi.viber.com/pa")
+  ~auth_token_env
+  ~authorization_env
+  ~route_model
+  ()
+  =
+  { Config.webhook_path
+  ; auth_token_env
+  ; authorization_env
+  ; route_model
+  ; system_prompt
+  ; allowed_sender_ids
+  ; sender_name
+  ; sender_avatar
+  ; api_base
+  }
+;;
+
 let google_chat_id_token_auth
   ?(certs_url = "https://www.googleapis.com/oauth2/v1/certs")
   ~audience
@@ -186,6 +236,8 @@ let sample_config
       ; whatsapp = None
       ; messenger = None
       ; instagram = None
+      ; line = None
+      ; viber = None
       ; google_chat = None
       })
   ?(virtual_keys = [ virtual_key ~token_plaintext:"sk-test" ~name:"test" () ])
