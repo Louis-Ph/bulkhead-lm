@@ -3155,7 +3155,7 @@ let wechat_connector_handles_text_webhook_test _switch () =
 
 let wechat_connector_handles_encrypted_verification_test _switch () =
   let encoding_aes_key = "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG" in
-  let app_id = "wxba5fad812f8e6fb9" in
+  let app_id = "wechat-app-id-example" in
   let connector =
     Bulkhead_lm.Config_test_support.wechat_connector
       ~signature_token_env:"WECHAT_SIGNATURE_TOKEN"
@@ -3242,7 +3242,7 @@ let wechat_connector_handles_encrypted_verification_test _switch () =
 
 let wechat_connector_handles_encrypted_text_webhook_test _switch () =
   let encoding_aes_key = "abcdefghijklmnopqrstuvwxyz0123456789ABCDEFG" in
-  let app_id = "wxba5fad812f8e6fb9" in
+  let app_id = "wechat-app-id-example" in
   let captured_request = ref None in
   let invoke_chat _headers _backend (request : Bulkhead_lm.Openai_types.chat_request) =
     captured_request := Some request;

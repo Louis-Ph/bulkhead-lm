@@ -352,7 +352,7 @@ Reference checked for this connector work: 2026-04-11.
 ```bash
 export WECHAT_SIGNATURE_TOKEN="wechat-signature-token"
 export WECHAT_ENCODING_AES_KEY="43-char-wechat-encoding-aes-key"
-export WECHAT_APP_ID="wx1234567890abcdef"
+export WECHAT_APP_ID="wechat-app-id-example"
 export BULKHEAD_WECHAT_AUTH="sk-bulkhead-lm-dev"
 ```
 
