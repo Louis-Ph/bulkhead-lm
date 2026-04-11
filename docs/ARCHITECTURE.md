@@ -77,6 +77,8 @@ BulkheadLM is not just a locked-down gateway. Architecturally, it is a secure AI
 - starter admin requests are plan-first: the model returns typed JSON, the user reviews it with `/plan`, and only `/apply` mutates config files or runs allowed local ops
 - `User_connector_router` centralizes webhook path dispatch instead of growing `Server` route conditionals one connector at a time
 - `User_connector_registry` makes connector rollout order and runtime class explicit, so webhook dispatch stays hierarchical as the connector list grows
+- `Runtime_control` owns the reloadable top-level gateway state: config path, startup port override, validated runtime swaps, and preservation of in-memory connector sessions across reloads
+- `Admin_control` exposes the HTTP control plane UI plus guarded JSON endpoints for status and in-place config reload without mixing those concerns into the inference routes
 - `User_connector_common` centralizes per-channel session memory limits, authorization normalization, audit helpers, and text splitting
 - `Meta_connector_common` centralizes the shared Meta webhook challenge flow, optional HMAC verification, inbound `entry[].messaging[]` parsing, and Graph send API text delivery for Messenger and Instagram
 - `Line_connector` adds LINE-specific reply-token handling and source-scoped session identity without leaking LINE protocol details into the generic router
@@ -88,6 +90,7 @@ BulkheadLM is not just a locked-down gateway. Architecturally, it is a secure AI
 - `Google_chat_id_token` isolates Google Chat bearer-token verification from the higher-level Google Chat event bridge
 - user chat connectors reuse the same virtual-key auth path, route allowlists, budgets, and output guards instead of bypassing gateway policy
 - connector config is fail-closed on duplicate `webhook_path` values so one HTTP path cannot ambiguously match multiple enabled connectors
+- control-plane config is fail-closed on `path_prefix` collisions with `/health`, `/v1/*`, or enabled chat webhooks so the admin surface cannot shadow production endpoints
 - `docs/USER_CONNECTOR_ROADMAP.md` keeps the wave-based rollout order explicit, including implemented versus deferred platforms, instead of letting connector growth become opportunistic
 
 ## Concurrency model

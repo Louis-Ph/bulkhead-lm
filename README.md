@@ -509,6 +509,7 @@ The starter:
 - uses real line editing in the human starter: left/right arrows, in-line edits, history recall, and tab completion
 - keeps a followed conversation thread by default and compresses older turns into a shorter memory summary when the session grows
 - includes an administrative assistant that prepares explicit plans before changing BulkheadLM config or attempting local system actions
+- can expose a browser-based admin control plane with live route status and hot config reload under `security_policy.control_plane`
 - includes a guided packaging flow that can build a distributable package for macOS, Ubuntu, or FreeBSD from the same assistant terminal
 - shows masked environment and provider readiness state from inside the REPL
 - drops you into a simple terminal session with `/tools`, `/file PATH`, `/files`, `/clearfiles`, `/explore PATH`, `/open PATH`, `/run CMD`, `/admin`, `/package`, `/plan`, `/apply`, `/discard`, `/model`, `/models`, `/swap`, `/memory`, `/forget`, `/thread on|off`, `/providers`, `/env`, `/config`, `/help`, and `/quit`
@@ -544,6 +545,22 @@ For non-interactive local development, the same project-local toolchain is avail
 ./scripts/with_local_toolchain.sh dune build @install
 ./scripts/with_local_toolchain.sh dune runtest --no-buffer
 ```
+
+HTTP control plane for the running gateway:
+
+```json
+{
+  "control_plane": {
+    "enabled": true,
+    "path_prefix": "/_bulkhead/control",
+    "ui_enabled": true,
+    "allow_reload": true,
+    "admin_token_env": "BULKHEAD_ADMIN_TOKEN"
+  }
+}
+```
+
+Set `BULKHEAD_ADMIN_TOKEN`, start the server normally, then open `http://127.0.0.1:4100/_bulkhead/control`. The UI shows the active config path, route readiness, enabled chat connectors, virtual-key inventory, and exposes a guarded `reload` action that swaps the runtime in place. Changes to `listen_host` and `listen_port` still require a restart because the listening socket is already bound.
 
 ## Terminal client
 
@@ -891,7 +908,6 @@ dune build @runtest
 - provider-native upstream streaming is not implemented yet; SSE is currently normalized by the gateway from the provider-normalized response
 - provider coverage is intentionally narrow and explicit
 - Moonshot is currently modeled as chat-only in the provider schema
-- there is no admin UI or hot-reload control plane yet
 - the worker protocol is currently JSONL over stdio rather than a binary IPC protocol
 - the guided local starter currently targets macOS, Ubuntu, and FreeBSD; other systems should use `bulkhead-lm-client starter` directly
 - military or sovereign-environment compliance still requires deployment hardening, supply-chain evidence, identity integration, and formal assessment artifacts

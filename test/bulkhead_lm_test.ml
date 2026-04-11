@@ -1961,6 +1961,55 @@ let config_load_rejects_duplicate_user_connector_webhook_paths_test _switch () =
   Lwt.return_unit
 ;;
 
+let config_load_rejects_control_plane_path_collisions_test _switch () =
+  let config_path = Filename.temp_file "bulkhead-lm-control-plane-collision" ".json" in
+  let security_policy_path =
+    Filename.temp_file "bulkhead-lm-control-plane-security" ".json"
+  in
+  Yojson.Safe.to_file
+    security_policy_path
+    (`Assoc
+      [ ( "control_plane"
+        , `Assoc
+            [ "enabled", `Bool true
+            ; "path_prefix", `String "/connectors"
+            ; "ui_enabled", `Bool true
+            ; "allow_reload", `Bool true
+            ; "admin_token_env", `String "BULKHEAD_ADMIN_TOKEN"
+            ] )
+      ]);
+  Yojson.Safe.to_file
+    config_path
+    (`Assoc
+      [ "security_policy_file", `String security_policy_path
+      ; ( "user_connectors"
+        , `Assoc
+            [ ( "telegram"
+              , `Assoc
+                  [ "enabled", `Bool true
+                  ; "webhook_path", `String "/connectors/telegram/webhook"
+                  ; "bot_token_env", `String "TELEGRAM_BOT_TOKEN"
+                  ; "authorization_env", `String "BULKHEAD_TELEGRAM_AUTH"
+                  ; "route_model", `String "gpt-5-mini"
+                  ] )
+            ] )
+      ; "routes", `List []
+      ; "virtual_keys", `List []
+      ]);
+  (match Bulkhead_lm.Config.load config_path with
+   | Ok _ -> Alcotest.fail "expected control-plane path collision to be rejected"
+   | Error err ->
+     Alcotest.(check bool)
+       "control-plane collision error is explicit"
+       true
+       (string_contains err "security_policy.control_plane.path_prefix");
+     Alcotest.(check bool)
+       "colliding webhook path is reported"
+       true
+       (string_contains err "/connectors/telegram/webhook"));
+  Lwt.return_unit
+;;
+
 let user_connector_registry_is_hierarchical_test _switch () =
   let described =
     Bulkhead_lm.User_connector_registry.descriptors
@@ -4250,6 +4299,21 @@ let client_ops_security_policy
   }
 ;;
 
+let control_plane_security_policy
+  ?(enabled = true)
+  ?(path_prefix = "/_bulkhead/control")
+  ?(ui_enabled = true)
+  ?(allow_reload = true)
+  ?admin_token_env
+  ()
+  =
+  let base = Bulkhead_lm.Security_policy.default () in
+  { base with
+    Bulkhead_lm.Security_policy.control_plane =
+      { enabled; path_prefix; ui_enabled; allow_reload; admin_token_env }
+  }
+;;
+
 let rec remove_path_recursively path =
   if Sys.file_exists path
   then (
@@ -4281,6 +4345,233 @@ let write_fixture_file path content =
   Fun.protect
     ~finally:(fun () -> close_out_noerr channel)
     (fun () -> output_string channel content)
+;;
+
+let write_gateway_config_file ~path ~security_policy_file ~public_model =
+  Yojson.Safe.to_file
+    path
+    (`Assoc
+      [ "security_policy_file", `String security_policy_file
+      ; ( "routes"
+        , `List
+            [ `Assoc
+                [ "public_model", `String public_model
+                ; ( "backends"
+                  , `List
+                      [ `Assoc
+                          [ "provider_id", `String "primary"
+                          ; "provider_kind", `String "openai_compat"
+                          ; "upstream_model", `String public_model
+                          ; "api_base", `String "https://api.example.test/v1"
+                          ; "api_key_env", `String "OPENAI_API_KEY"
+                          ]
+                      ] )
+                ]
+            ] )
+      ; ( "virtual_keys"
+        , `List
+            [ `Assoc
+                [ "name", `String "test"
+                ; "token_plaintext", `String "sk-test"
+                ; "daily_token_budget", `Int 1000
+                ; "requests_per_minute", `Int 60
+                ; "allowed_routes", `List [ `String public_model ]
+                ]
+            ] )
+      ])
+;;
+
+let write_control_plane_security_policy_file
+  ~path
+  ?(path_prefix = "/_bulkhead/control")
+  ?(admin_token_env = Some "BULKHEAD_ADMIN_TOKEN")
+  ()
+  =
+  let policy =
+    control_plane_security_policy ?admin_token_env ~path_prefix ~enabled:true ()
+  in
+  Yojson.Safe.to_file
+    path
+    (`Assoc
+      [ ( "server"
+        , `Assoc
+            [ "listen_host", `String policy.server.listen_host
+            ; "listen_port", `Int policy.server.listen_port
+            ; "max_request_body_bytes", `Int policy.server.max_request_body_bytes
+            ; "request_timeout_ms", `Int policy.server.request_timeout_ms
+            ] )
+      ; ( "auth"
+        , `Assoc
+            [ "header", `String policy.auth.header
+            ; "bearer_prefix", `String policy.auth.bearer_prefix
+            ; "hash_algorithm", `String policy.auth.hash_algorithm
+            ; "require_virtual_key", `Bool policy.auth.require_virtual_key
+            ] )
+      ; ( "control_plane"
+        , `Assoc
+            [ "enabled", `Bool policy.control_plane.enabled
+            ; "path_prefix", `String policy.control_plane.path_prefix
+            ; "ui_enabled", `Bool policy.control_plane.ui_enabled
+            ; "allow_reload", `Bool policy.control_plane.allow_reload
+            ; ( "admin_token_env"
+              , match policy.control_plane.admin_token_env with
+                | Some env_name -> `String env_name
+                | None -> `String "" )
+            ] )
+      ])
+;;
+
+let control_plane_exposes_ui_and_status_test _switch () =
+  with_temp_dir "bulkhead-lm-control-plane-ui" (fun root ->
+    let gateway_path = Filename.concat root "gateway.json" in
+    let security_policy_path = Filename.concat root "security.json" in
+    write_control_plane_security_policy_file ~path:security_policy_path ();
+    write_gateway_config_file
+      ~path:gateway_path
+      ~security_policy_file:security_policy_path
+      ~public_model:"gpt-4o-mini";
+    with_env_overrides
+      [ "BULKHEAD_ADMIN_TOKEN", "bulkhead-admin-token"; "OPENAI_API_KEY", "sk-openai-test" ]
+      (fun () ->
+        let control =
+          match
+            Bulkhead_lm.Runtime_control.create_result
+              ~config_path:gateway_path
+              ~port_override:None
+              ()
+          with
+          | Ok control -> control
+          | Error err -> Alcotest.failf "expected control-plane runtime success: %s" err
+        in
+        let ui_request =
+          Cohttp.Request.make
+            ~meth:`GET
+            (Uri.of_string "http://localhost/_bulkhead/control")
+        in
+        Bulkhead_lm.Server.callback
+          control
+          ()
+          ui_request
+          (Cohttp_lwt.Body.of_string "")
+        >>= fun (ui_response, ui_body) ->
+        Alcotest.(check int) "control-plane ui status" 200 (response_status_code ui_response);
+        response_body_text ui_body >>= fun ui_text ->
+        Alcotest.(check bool)
+          "control-plane ui title rendered"
+          true
+          (string_contains ui_text "BulkheadLM Control Plane");
+        let status_request =
+          Cohttp.Request.make
+            ~meth:`GET
+            ~headers:(Cohttp.Header.of_list [ "authorization", "Bearer bulkhead-admin-token" ])
+            (Uri.of_string "http://localhost/_bulkhead/control/api/status")
+        in
+        Bulkhead_lm.Server.callback
+          control
+          ()
+          status_request
+          (Cohttp_lwt.Body.of_string "")
+        >>= fun (status_response, status_body) ->
+        Alcotest.(check int)
+          "control-plane status accepted"
+          200
+          (response_status_code status_response);
+        response_body_json status_body >|= fun status_json ->
+        let fields = json_assoc status_json in
+        Alcotest.(check (option string))
+          "status includes config path"
+          (Some gateway_path)
+          (match List.assoc_opt "config_path" fields with
+           | Some (`String value) -> Some value
+           | _ -> None);
+        Alcotest.(check (option int))
+          "status includes route count"
+          (Some 1)
+          (match List.assoc_opt "routes" fields with
+           | Some (`List routes) -> Some (List.length routes)
+           | _ -> None))
+  )
+;;
+
+let control_plane_reload_swaps_active_runtime_test _switch () =
+  with_temp_dir "bulkhead-lm-control-plane-reload" (fun root ->
+    let gateway_path = Filename.concat root "gateway.json" in
+    let security_policy_path = Filename.concat root "security.json" in
+    write_control_plane_security_policy_file ~path:security_policy_path ();
+    write_gateway_config_file
+      ~path:gateway_path
+      ~security_policy_file:security_policy_path
+      ~public_model:"gpt-4o-mini";
+    with_env_overrides
+      [ "BULKHEAD_ADMIN_TOKEN", "bulkhead-admin-token"; "OPENAI_API_KEY", "sk-openai-test" ]
+      (fun () ->
+        let control =
+          match
+            Bulkhead_lm.Runtime_control.create_result
+              ~config_path:gateway_path
+              ~port_override:None
+              ()
+          with
+          | Ok control -> control
+          | Error err -> Alcotest.failf "expected control-plane runtime success: %s" err
+        in
+        write_gateway_config_file
+          ~path:gateway_path
+          ~security_policy_file:security_policy_path
+          ~public_model:"gpt-5-mini";
+        let reload_request =
+          Cohttp.Request.make
+            ~meth:`POST
+            ~headers:(Cohttp.Header.of_list [ "authorization", "Bearer bulkhead-admin-token" ])
+            (Uri.of_string "http://localhost/_bulkhead/control/api/reload")
+        in
+        Bulkhead_lm.Server.callback
+          control
+          ()
+          reload_request
+          (Cohttp_lwt.Body.of_string "{}")
+        >>= fun (reload_response, reload_body) ->
+        Alcotest.(check int)
+          "control-plane reload accepted"
+          200
+          (response_status_code reload_response);
+        response_body_json reload_body >>= fun reload_json ->
+        let reload_fields = json_assoc reload_json in
+        Alcotest.(check (option string))
+          "reload result named"
+          (Some "reloaded")
+          (match List.assoc_opt "result" reload_fields with
+           | Some (`String value) -> Some value
+           | _ -> None);
+        let models_request =
+          Cohttp.Request.make
+            ~meth:`GET
+            (Uri.of_string "http://localhost/v1/models")
+        in
+        Bulkhead_lm.Server.callback
+          control
+          ()
+          models_request
+          (Cohttp_lwt.Body.of_string "")
+        >>= fun (models_response, models_body) ->
+        Alcotest.(check int) "models endpoint stays live" 200 (response_status_code models_response);
+        response_body_json models_body >|= fun models_json ->
+        let fields = json_assoc models_json in
+        let model_ids =
+          match List.assoc_opt "data" fields with
+          | Some (`List values) ->
+            values
+            |> List.filter_map (fun item ->
+              match List.assoc_opt "id" (json_assoc item) with
+              | Some (`String value) -> Some value
+              | _ -> None)
+          | _ -> []
+        in
+        Alcotest.(check (list string))
+          "models endpoint reflects reloaded config"
+          [ "gpt-5-mini" ]
+          model_ids)
+  )
 ;;
 
 let terminal_ops_lists_directory_within_allowed_root_test _switch () =
@@ -5525,6 +5816,10 @@ let tests =
       `Quick
       config_load_rejects_duplicate_user_connector_webhook_paths_test
   ; Alcotest_lwt.test_case
+      "config rejects control-plane path collisions"
+      `Quick
+      config_load_rejects_control_plane_path_collisions_test
+  ; Alcotest_lwt.test_case
       "user connector registry stays hierarchical"
       `Quick
       user_connector_registry_is_hierarchical_test
@@ -5617,6 +5912,14 @@ let tests =
       `Quick
       persistent_budget_survives_restart_test
   ; Alcotest_lwt.test_case "audit log is persisted" `Quick audit_log_is_persisted_test
+  ; Alcotest_lwt.test_case
+      "control plane exposes ui and status"
+      `Quick
+      control_plane_exposes_ui_and_status_test
+  ; Alcotest_lwt.test_case
+      "control plane reload swaps active runtime"
+      `Quick
+      control_plane_reload_swaps_active_runtime_test
   ; Alcotest_lwt.test_case
       "terminal client resolves single plaintext virtual key"
       `Quick

@@ -64,12 +64,16 @@ let respond_error_with_audit
   Json_response.respond_error error
 ;;
 
-let callback store _connection req body =
+let callback control _connection req body =
+  let store = Runtime_control.current_store control in
   let path = Uri.path (Cohttp.Request.uri req) in
-  match User_connector_router.find store.Runtime_state.config ~path with
-  | Some connector -> User_connector_router.handle store req body connector
-  | None ->
-    (match Cohttp.Request.meth req, path with
+  if Admin_control.matches control path
+  then Admin_control.handle control req body
+  else
+    (match User_connector_router.find store.Runtime_state.config ~path with
+     | Some connector -> User_connector_router.handle store req body connector
+     | None ->
+       match Cohttp.Request.meth req, path with
   | `GET, "/health" -> Json_response.respond_json (`Assoc [ "status", `String "ok" ])
   | `GET, "/v1/models" ->
     Json_response.respond_json (models_json store.Runtime_state.config)
@@ -301,10 +305,11 @@ let callback store _connection req body =
       (Domain_error.route_not_found path))
 ;;
 
-let start store =
+let start control =
+  let store = Runtime_control.current_store control in
   let port = store.Runtime_state.config.security_policy.server.listen_port in
   let mode = `TCP (`Port port) in
-  let server = Cohttp_lwt_unix.Server.make ~callback:(callback store) () in
+  let server = Cohttp_lwt_unix.Server.make ~callback:(callback control) () in
   Logs.app (fun m ->
     m
       "BulkheadLM listening on http://%s:%d"

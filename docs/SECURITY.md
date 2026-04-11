@@ -40,4 +40,4 @@ technical control set and current gaps.
 - audit storage is persistent, but not yet tamper-evident or WORM-like
 - there is no integrated SSO, mTLS, HSM, or hardware-backed key management path yet
 - provider-native upstream streaming is not yet implemented per backend
-- there is no administrator control plane for live key rotation or policy changes
+- the administrator control plane is token-guarded and local-web oriented; it does not yet provide fleet-wide key rotation workflows, SSO, or multi-operator change governance

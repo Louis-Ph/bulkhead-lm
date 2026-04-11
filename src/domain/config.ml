@@ -880,6 +880,47 @@ let validate_user_connector_webhook_paths user_connectors =
          (String.concat "; " (List.rev duplicates)))
 ;;
 
+let path_prefix_matches_request prefix request_path =
+  prefix = request_path
+  || (prefix <> "/"
+      && String.starts_with ~prefix:(prefix ^ "/") request_path)
+;;
+
+let validate_control_plane_paths security_policy user_connectors =
+  let control_plane = security_policy.Security_policy.control_plane in
+  if not control_plane.enabled
+  then Ok ()
+  else (
+    let configured_webhooks =
+      configured_user_connector_webhook_paths user_connectors |> List.map snd
+    in
+    let reserved_paths =
+      [ "/health"
+      ; "/v1/models"
+      ; "/v1/chat/completions"
+      ; "/v1/embeddings"
+      ; "/v1/responses"
+      ]
+    in
+    if control_plane.path_prefix = "/"
+    then
+      Error
+        "security_policy.control_plane.path_prefix must not be the root path when the control plane is enabled."
+    else
+      let conflicting_paths =
+        reserved_paths @ configured_webhooks
+        |> List.filter (path_prefix_matches_request control_plane.path_prefix)
+      in
+      match conflicting_paths with
+      | [] -> Ok ()
+      | _ ->
+        Error
+          (Fmt.str
+             "security_policy.control_plane.path_prefix %s conflicts with existing routes: %s."
+             control_plane.path_prefix
+             (String.concat ", " conflicting_paths)))
+;;
+
 let load path =
   let json = Yojson.Safe.from_file path in
   let base_dir = Filename.dirname path in
@@ -992,30 +1033,33 @@ let load path =
   match user_connectors with
   | Error err -> Error err
   | Ok user_connectors ->
-    (match parse_all parse_route [] route_values with
+    (match validate_control_plane_paths security_policy user_connectors with
      | Error err -> Error err
-     | Ok routes ->
-       (match parse_all (parse_virtual_key security_policy) [] virtual_key_values with
+     | Ok () ->
+       (match parse_all parse_route [] route_values with
         | Error err -> Error err
-        | Ok virtual_keys ->
-          let sqlite_path =
-            match object_member "sqlite_path" persistence_json with
-            | `String relative_path -> Some (resolve_path ~base_dir relative_path)
-            | _ -> None
-          in
-          let persistence =
-            { sqlite_path
-            ; busy_timeout_ms =
-                int_member_with_default "busy_timeout_ms" persistence_json ~default:5000
-            }
-          in
-          Ok
-            { security_policy
-            ; persistence
-            ; error_catalog
-            ; providers_schema
-            ; user_connectors
-            ; routes
-            ; virtual_keys
-            }))
+        | Ok routes ->
+          (match parse_all (parse_virtual_key security_policy) [] virtual_key_values with
+           | Error err -> Error err
+           | Ok virtual_keys ->
+             let sqlite_path =
+               match object_member "sqlite_path" persistence_json with
+               | `String relative_path -> Some (resolve_path ~base_dir relative_path)
+               | _ -> None
+             in
+             let persistence =
+               { sqlite_path
+               ; busy_timeout_ms =
+                   int_member_with_default "busy_timeout_ms" persistence_json ~default:5000
+               }
+             in
+             Ok
+               { security_policy
+               ; persistence
+               ; error_catalog
+               ; providers_schema
+               ; user_connectors
+               ; routes
+               ; virtual_keys
+               })))
 ;;

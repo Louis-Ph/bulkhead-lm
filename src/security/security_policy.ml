@@ -55,6 +55,14 @@ type mesh =
   ; hop_count_header : string
   }
 
+type control_plane =
+  { enabled : bool
+  ; path_prefix : string
+  ; ui_enabled : bool
+  ; allow_reload : bool
+  ; admin_token_env : string option
+  }
+
 type client_files =
   { enabled : bool
   ; read_roots : string list
@@ -92,11 +100,21 @@ type t =
   ; output_guard : output_guard
   ; egress : egress
   ; mesh : mesh
+  ; control_plane : control_plane
   ; client_ops : client_ops
   ; routing : routing
   ; rate_limit : rate_limit
   ; budget : budget
   }
+
+let normalize_http_path path =
+  let trimmed = String.trim path in
+  if trimmed = ""
+  then "/"
+  else if String.starts_with ~prefix:"/" trimmed
+  then trimmed
+  else "/" ^ trimmed
+;;
 
 let default () =
   { server =
@@ -186,6 +204,13 @@ let default () =
       ; request_id_header = "x-bulkhead-lm-request-id"
       ; hop_count_header = "x-bulkhead-lm-hop-count"
       }
+  ; control_plane =
+      { enabled = false
+      ; path_prefix = "/_bulkhead/control"
+      ; ui_enabled = true
+      ; allow_reload = true
+      ; admin_token_env = None
+      }
   ; client_ops =
       { files =
           { enabled = false
@@ -264,6 +289,7 @@ let of_yojson json =
   let output_guard_json = object_member "output_guard" json in
   let egress_json = object_member "egress" json in
   let mesh_json = object_member "mesh" json in
+  let control_plane_json = object_member "control_plane" json in
   let client_ops_json = object_member "client_ops" json in
   let client_files_json = object_member "files" client_ops_json in
   let client_exec_json = object_member "exec" client_ops_json in
@@ -416,6 +442,35 @@ let of_yojson json =
             "hop_count_header"
             mesh_json
             ~default:defaults.mesh.hop_count_header
+      }
+  ; control_plane =
+      { enabled =
+          bool_member
+            "enabled"
+            control_plane_json
+            ~default:defaults.control_plane.enabled
+      ; path_prefix =
+          normalize_http_path
+            (string_member
+               "path_prefix"
+               control_plane_json
+               ~default:defaults.control_plane.path_prefix)
+      ; ui_enabled =
+          bool_member
+            "ui_enabled"
+            control_plane_json
+            ~default:defaults.control_plane.ui_enabled
+      ; allow_reload =
+          bool_member
+            "allow_reload"
+            control_plane_json
+            ~default:defaults.control_plane.allow_reload
+      ; admin_token_env =
+          (match object_member "admin_token_env" control_plane_json with
+           | `String value ->
+             let trimmed = String.trim value in
+             if trimmed = "" then None else Some trimmed
+           | _ -> defaults.control_plane.admin_token_env)
       }
   ; client_ops =
       { files =

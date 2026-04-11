@@ -79,6 +79,13 @@
     "request_id_header": "x-bulkhead-lm-request-id",
     "hop_count_header": "x-bulkhead-lm-hop-count"
   },
+  "control_plane": {
+    "enabled": false,
+    "path_prefix": "/_bulkhead/control",
+    "ui_enabled": true,
+    "allow_reload": true,
+    "admin_token_env": ""
+  },
   "client_ops": {
     "files": {
       "enabled": false,
