@@ -1,14 +1,28 @@
+# Build and tool outputs
 _build/
 _opam/
 .opam-root/
 .bulkhead-tools/
+
+# Local editor state
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+
+# OS metadata
 .DS_Store
+
+# OCaml generated files
 *.install
 *.merlin
 *.a
 *.cm*
 *.o
 *.opam.locked
+
+# Packaged/runtime artifacts
 dist/
 var/
 config/var/
