@@ -149,6 +149,7 @@ module Text = struct
        not upstream secrets."
     ; "Selecting one provider includes several curated model routes for that provider \
        key."
+    ; "The saved starter config now lives under config/local_only/ and is ignored by Git."
     ]
   ;;
 
@@ -298,6 +299,18 @@ module Text = struct
 
   let compression_notice archived =
     Fmt.str "Conversation memory compressed: %d older turns were summarized." archived
+  ;;
+
+  let starter_saved_config_bootstrapped path =
+    Fmt.str
+      "Created a first-run local starter config at %s. It stays out of Git and uses the current curated provider endpoints."
+      path
+  ;;
+
+  let starter_saved_config_migrated path =
+    Fmt.str
+      "Updated the saved starter config at %s so its catalog references match the local-only location."
+      path
   ;;
 
   let no_admin_plan = Admin_assistant_constants.Text.no_plan

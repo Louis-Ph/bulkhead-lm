@@ -64,6 +64,7 @@ BulkheadLM is not just a locked-down gateway. Architecturally, it is a secure AI
 - `Terminal_ops` owns the structured `ops` protocol for filesystem and command requests under explicit security-policy roots
 - `Starter_constants` centralizes the public starter command strings and defaults
 - `Starter_conversation` keeps a compressed local transcript and converts older turns into a shorter summary message
+- `Starter_saved_config` owns first-run bootstrap and safe migration of the git-ignored local starter config under `config/local_only/`
 - `Starter_runtime` isolates mutable starter session data, such as conversation memory and pending admin plans, from the finite-state command parser
 - `Starter_session` models the starter REPL as a finite-state machine with explicit `Ready`, `Streaming`, and `Closed` states plus explicit admin-plan effects
 - `Starter_terminal` owns human-facing line editing, persistent history, and slash-command/model completion

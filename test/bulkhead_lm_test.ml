@@ -4946,6 +4946,9 @@ let starter_profile_writes_portable_config_json_test _switch () =
   in
   let json =
     Bulkhead_lm.Starter_profile.config_json
+      ~security_policy_file:"../defaults/security_policy.json"
+      ~error_catalog_file:"../defaults/error_catalog.json"
+      ~providers_schema_file:"../defaults/providers.schema.json"
       ~selected_presets:presets
       ~virtual_key_name:"local-dev"
       ~token_plaintext:"sk-local"
@@ -4956,6 +4959,24 @@ let starter_profile_writes_portable_config_json_test _switch () =
   in
   match json with
   | `Assoc fields ->
+    Alcotest.(check (option string))
+      "security policy path"
+      (Some "../defaults/security_policy.json")
+      (match List.assoc_opt "security_policy_file" fields with
+       | Some (`String value) -> Some value
+       | _ -> None);
+    Alcotest.(check (option string))
+      "error catalog path"
+      (Some "../defaults/error_catalog.json")
+      (match List.assoc_opt "error_catalog_file" fields with
+       | Some (`String value) -> Some value
+       | _ -> None);
+    Alcotest.(check (option string))
+      "providers schema path"
+      (Some "../defaults/providers.schema.json")
+      (match List.assoc_opt "providers_schema_file" fields with
+       | Some (`String value) -> Some value
+       | _ -> None);
     let routes =
       match List.assoc_opt "routes" fields with
       | Some (`List values) -> values
@@ -4970,6 +4991,105 @@ let starter_profile_writes_portable_config_json_test _switch () =
     Alcotest.(check int) "one virtual key written" 1 (List.length virtual_keys);
     Lwt.return_unit
   | _ -> Alcotest.fail "expected starter config object"
+;;
+
+let starter_saved_config_derives_local_only_catalog_references_test _switch () =
+  let references =
+    Bulkhead_lm.Starter_saved_config.catalog_references_for_output_path
+      ~base_config_path:"config/example.gateway.json"
+      "config/local_only/starter.gateway.json"
+  in
+  Alcotest.(check string)
+    "security policy reference"
+    "../defaults/security_policy.json"
+    references.security_policy_file;
+  Alcotest.(check string)
+    "error catalog reference"
+    "../defaults/error_catalog.json"
+    references.error_catalog_file;
+  Alcotest.(check string)
+    "providers schema reference"
+    "../defaults/providers.schema.json"
+    references.providers_schema_file;
+  Lwt.return_unit
+;;
+
+let starter_saved_config_bootstraps_first_run_file_test _switch () =
+  let repo = repo_root () in
+  let base_config_path = Filename.concat repo "config/example.gateway.json" in
+  let output_path =
+    Filename.concat repo "config/local_only/starter.bootstrap.test.gateway.json"
+  in
+  Lwt.finalize
+    (fun () ->
+      if Sys.file_exists output_path then Sys.remove output_path;
+      match
+        Bulkhead_lm.Starter_saved_config.ensure ~base_config_path ~output_path
+      with
+      | Error message ->
+        Alcotest.failf "expected starter bootstrap, got error: %s" message
+      | Ok Bulkhead_lm.Starter_saved_config.Bootstrapped ->
+        let fields = Yojson.Safe.from_file output_path |> json_assoc in
+        Alcotest.(check (option string))
+          "bootstrapped security policy reference"
+          (Some "../defaults/security_policy.json")
+          (match List.assoc_opt "security_policy_file" fields with
+           | Some (`String value) -> Some value
+           | _ -> None);
+        Alcotest.(check int)
+          "bootstrapped route count"
+          (List.length Bulkhead_lm.Starter_profile.presets)
+          (match List.assoc_opt "routes" fields with
+           | Some (`List values) -> List.length values
+           | _ -> 0);
+        Lwt.return_unit
+      | Ok _ -> Alcotest.fail "expected bootstrapped starter config outcome")
+    (fun () ->
+      if Sys.file_exists output_path then Sys.remove output_path;
+      Lwt.return_unit)
+;;
+
+let starter_saved_config_migrates_legacy_catalog_references_test _switch () =
+  let repo = repo_root () in
+  let base_config_path = Filename.concat repo "config/example.gateway.json" in
+  let output_path =
+    Filename.concat repo "config/local_only/starter.migrate.test.gateway.json"
+  in
+  Lwt.finalize
+    (fun () ->
+      Yojson.Safe.to_file
+        output_path
+        (`Assoc
+          [ "security_policy_file", `String "defaults/security_policy.json"
+          ; "error_catalog_file", `String "defaults/error_catalog.json"
+          ; "providers_schema_file", `String "defaults/providers.schema.json"
+          ; "virtual_keys", `List []
+          ; "routes", `List []
+          ]);
+      match
+        Bulkhead_lm.Starter_saved_config.ensure ~base_config_path ~output_path
+      with
+      | Error message ->
+        Alcotest.failf "expected starter migration, got error: %s" message
+      | Ok Bulkhead_lm.Starter_saved_config.Migrated ->
+        let fields = Yojson.Safe.from_file output_path |> json_assoc in
+        Alcotest.(check (option string))
+          "migrated security policy reference"
+          (Some "../defaults/security_policy.json")
+          (match List.assoc_opt "security_policy_file" fields with
+           | Some (`String value) -> Some value
+           | _ -> None);
+        Alcotest.(check (option string))
+          "migrated error catalog reference"
+          (Some "../defaults/error_catalog.json")
+          (match List.assoc_opt "error_catalog_file" fields with
+           | Some (`String value) -> Some value
+           | _ -> None);
+        Lwt.return_unit
+      | Ok _ -> Alcotest.fail "expected migrated starter config outcome")
+    (fun () ->
+      if Sys.file_exists output_path then Sys.remove output_path;
+      Lwt.return_unit)
 ;;
 
 let starter_profile_masks_environment_values_test _switch () =
@@ -6046,6 +6166,18 @@ let tests =
       "starter profile writes portable config json"
       `Quick
       starter_profile_writes_portable_config_json_test
+  ; Alcotest_lwt.test_case
+      "starter saved config derives local-only catalog references"
+      `Quick
+      starter_saved_config_derives_local_only_catalog_references_test
+  ; Alcotest_lwt.test_case
+      "starter saved config bootstraps first-run file"
+      `Quick
+      starter_saved_config_bootstraps_first_run_file_test
+  ; Alcotest_lwt.test_case
+      "starter saved config migrates legacy catalog references"
+      `Quick
+      starter_saved_config_migrates_legacy_catalog_references_test
   ; Alcotest_lwt.test_case
       "starter profile masks environment values"
       `Quick

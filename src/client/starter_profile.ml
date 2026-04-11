@@ -188,6 +188,9 @@ let route_json (preset : provider_preset) =
 ;;
 
 let config_json
+  ?(security_policy_file = "defaults/security_policy.json")
+  ?(error_catalog_file = "defaults/error_catalog.json")
+  ?(providers_schema_file = "defaults/providers.schema.json")
   ~(selected_presets : provider_preset list)
   ~virtual_key_name
   ~token_plaintext
@@ -197,9 +200,9 @@ let config_json
   ()
   =
   `Assoc
-    [ "security_policy_file", `String "defaults/security_policy.json"
-    ; "error_catalog_file", `String "defaults/error_catalog.json"
-    ; "providers_schema_file", `String "defaults/providers.schema.json"
+    [ "security_policy_file", `String security_policy_file
+    ; "error_catalog_file", `String error_catalog_file
+    ; "providers_schema_file", `String providers_schema_file
     ; ( "persistence"
       , `Assoc
           [ "sqlite_path", `String sqlite_path

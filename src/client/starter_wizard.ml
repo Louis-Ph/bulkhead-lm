@@ -1065,6 +1065,27 @@ let run ~base_config_path ~starter_output_path () =
   print_wrapped_styled
     ~style:Starter_constants.Ansi.dim
     Starter_constants.Text.terminal_ready;
+  (match
+     Starter_saved_config.ensure
+       ~base_config_path
+       ~output_path:starter_output_path
+   with
+   | Ok Starter_saved_config.Already_present -> ()
+   | Ok Starter_saved_config.Bootstrapped ->
+     print_line "";
+     print_wrapped_styled
+       ~style:Starter_constants.Ansi.green
+       (Starter_constants.Text.starter_saved_config_bootstrapped starter_output_path)
+   | Ok Starter_saved_config.Migrated ->
+     print_line "";
+     print_wrapped_styled
+       ~style:Starter_constants.Ansi.green
+       (Starter_constants.Text.starter_saved_config_migrated starter_output_path)
+   | Error message ->
+     print_line "";
+     print_wrapped_styled
+       ~style:Starter_constants.Ansi.yellow
+       (Fmt.str "Starter local config bootstrap warning: %s" message));
   let selected_path =
     match choose_config_source ~base_config_path ~starter_output_path with
     | Example_config -> Ok base_config_path
