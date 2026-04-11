@@ -650,11 +650,9 @@ let prompt_input model =
       Starter_terminal.read_line
         ~record_history:true
         ~prompt:
-          (Starter_terminal.mask_prompt_ansi_sequences
-             (Fmt.str
-                "%s"
-                (Starter_constants.Ansi.bold
-                   (Starter_constants.Ansi.green model ^ "> "))))
+          (* linenoise measures prompt width from the raw prompt string, so ANSI
+             escapes shift the editing cursor to the right. Keep the input prompt plain. *)
+          (Fmt.str "%s> " model)
         ()
     with
     | Some line -> line

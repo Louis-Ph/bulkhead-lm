@@ -2306,19 +2306,6 @@ let starter_terminal_history_file_prefers_override_test _switch () =
   Lwt.return_unit
 ;;
 
-let starter_terminal_masks_prompt_ansi_sequences_test _switch () =
-  let prompt =
-    Bulkhead_lm.Starter_constants.Ansi.bold
-      (Bulkhead_lm.Starter_constants.Ansi.green "gpt-5-mini" ^ "> ")
-  in
-  let masked = Bulkhead_lm.Starter_terminal.mask_prompt_ansi_sequences prompt in
-  Alcotest.(check string)
-    "ansi escapes are wrapped as non-printing prompt segments"
-    "\001\027[1m\002\001\027[32m\002gpt-5-mini\001\027[0m\002> \001\027[22m\002"
-    masked;
-  Lwt.return_unit
-;;
-
 let starter_response_signal_streams_chunked_directives_test _switch () =
   let module Signal = Bulkhead_lm.Starter_response_signal in
   let state = Signal.initial_state in
@@ -2767,10 +2754,6 @@ let tests =
       "starter terminal history file prefers override"
       `Quick
       starter_terminal_history_file_prefers_override_test
-  ; Alcotest_lwt.test_case
-      "starter terminal masks ansi prompt sequences"
-      `Quick
-      starter_terminal_masks_prompt_ansi_sequences_test
   ; Alcotest_lwt.test_case
       "starter response signal parses chunked directives"
       `Quick

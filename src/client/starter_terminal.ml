@@ -7,46 +7,8 @@ let history_max_entries = 200
 let initialized = ref false
 let history_loaded = ref false
 let context = ref { commands = []; models = [] }
-let prompt_invisible_open = "\001"
-let prompt_invisible_close = "\002"
 
 let trim text = String.trim text
-
-let is_ansi_csi_final_byte ch =
-  let code = Char.code ch in
-  code >= Char.code '@' && code <= Char.code '~'
-;;
-
-let mask_prompt_ansi_sequences prompt =
-  let length = String.length prompt in
-  let buffer = Buffer.create (length + 16) in
-  let rec loop index =
-    if index >= length
-    then Buffer.contents buffer
-    else if index + 1 < length && Char.equal prompt.[index] '\027' && Char.equal prompt.[index + 1] '['
-    then (
-      let rec find_end cursor =
-        if cursor >= length
-        then None
-        else if is_ansi_csi_final_byte prompt.[cursor]
-        then Some cursor
-        else find_end (cursor + 1)
-      in
-      match find_end (index + 2) with
-      | Some stop ->
-        Buffer.add_string buffer prompt_invisible_open;
-        Buffer.add_substring buffer prompt index (stop - index + 1);
-        Buffer.add_string buffer prompt_invisible_close;
-        loop (stop + 1)
-      | None ->
-        Buffer.add_substring buffer prompt index (length - index);
-        Buffer.contents buffer)
-    else (
-      Buffer.add_char buffer prompt.[index];
-      loop (index + 1))
-  in
-  loop 0
-;;
 
 let rec ensure_dir path =
   if path = "" || path = "." || path = "/"
