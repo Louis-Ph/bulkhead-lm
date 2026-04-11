@@ -29,6 +29,32 @@
       "allowed_sender_numbers": [],
       "api_base": "https://graph.facebook.com/v23.0"
     },
+    "messenger": {
+      "enabled": false,
+      "webhook_path": "/connectors/messenger/webhook",
+      "verify_token_env": "MESSENGER_VERIFY_TOKEN",
+      "app_secret_env": "MESSENGER_APP_SECRET",
+      "access_token_env": "MESSENGER_ACCESS_TOKEN",
+      "authorization_env": "BULKHEAD_MESSENGER_AUTH",
+      "route_model": "gpt-5-mini",
+      "system_prompt": "Reply in a concise, practical tone for chat users.",
+      "allowed_page_ids": [],
+      "allowed_sender_ids": [],
+      "api_base": "https://graph.facebook.com/v23.0"
+    },
+    "instagram": {
+      "enabled": false,
+      "webhook_path": "/connectors/instagram/webhook",
+      "verify_token_env": "INSTAGRAM_VERIFY_TOKEN",
+      "app_secret_env": "INSTAGRAM_APP_SECRET",
+      "access_token_env": "INSTAGRAM_ACCESS_TOKEN",
+      "authorization_env": "BULKHEAD_INSTAGRAM_AUTH",
+      "route_model": "gpt-5-mini",
+      "system_prompt": "Reply in a concise, practical tone for chat users.",
+      "allowed_account_ids": [],
+      "allowed_sender_ids": [],
+      "api_base": "https://graph.instagram.com/v23.0"
+    },
     "google_chat": {
       "enabled": false,
       "webhook_path": "/connectors/google-chat/webhook",

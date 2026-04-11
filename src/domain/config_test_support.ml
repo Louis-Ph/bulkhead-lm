@@ -99,6 +99,58 @@ let whatsapp_connector
   }
 ;;
 
+let messenger_connector
+  ?(webhook_path = "/connectors/messenger/webhook")
+  ?app_secret_env
+  ?system_prompt
+  ?(allowed_page_ids = [])
+  ?(allowed_sender_ids = [])
+  ?(api_base = "https://graph.facebook.com/v23.0")
+  ~verify_token_env
+  ~access_token_env
+  ~authorization_env
+  ~route_model
+  ()
+  =
+  { Config.webhook_path
+  ; verify_token_env
+  ; app_secret_env
+  ; access_token_env
+  ; authorization_env
+  ; route_model
+  ; system_prompt
+  ; allowed_page_ids
+  ; allowed_sender_ids
+  ; api_base
+  }
+;;
+
+let instagram_connector
+  ?(webhook_path = "/connectors/instagram/webhook")
+  ?app_secret_env
+  ?system_prompt
+  ?(allowed_account_ids = [])
+  ?(allowed_sender_ids = [])
+  ?(api_base = "https://graph.instagram.com/v23.0")
+  ~verify_token_env
+  ~access_token_env
+  ~authorization_env
+  ~route_model
+  ()
+  =
+  { Config.webhook_path
+  ; verify_token_env
+  ; app_secret_env
+  ; access_token_env
+  ; authorization_env
+  ; route_model
+  ; system_prompt
+  ; allowed_account_ids
+  ; allowed_sender_ids
+  ; api_base
+  }
+;;
+
 let google_chat_id_token_auth
   ?(certs_url = "https://www.googleapis.com/oauth2/v1/certs")
   ~audience
@@ -129,7 +181,13 @@ let google_chat_connector
 
 let sample_config
   ?security_policy
-  ?(user_connectors = { Config.telegram = None; whatsapp = None; google_chat = None })
+  ?(user_connectors =
+      { Config.telegram = None
+      ; whatsapp = None
+      ; messenger = None
+      ; instagram = None
+      ; google_chat = None
+      })
   ?(virtual_keys = [ virtual_key ~token_plaintext:"sk-test" ~name:"test" () ])
   ?(routes = [ route ~public_model:"gpt-4o-mini" ~backends:[] () ])
   ()

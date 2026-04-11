@@ -53,6 +53,32 @@ type whatsapp_connector =
   ; api_base : string
   }
 
+type messenger_connector =
+  { webhook_path : string
+  ; verify_token_env : string
+  ; app_secret_env : string option
+  ; access_token_env : string
+  ; authorization_env : string
+  ; route_model : string
+  ; system_prompt : string option
+  ; allowed_page_ids : string list
+  ; allowed_sender_ids : string list
+  ; api_base : string
+  }
+
+type instagram_connector =
+  { webhook_path : string
+  ; verify_token_env : string
+  ; app_secret_env : string option
+  ; access_token_env : string
+  ; authorization_env : string
+  ; route_model : string
+  ; system_prompt : string option
+  ; allowed_account_ids : string list
+  ; allowed_sender_ids : string list
+  ; api_base : string
+  }
+
 type google_chat_id_token_auth =
   { audience : string
   ; certs_url : string
@@ -71,6 +97,8 @@ type google_chat_connector =
 type user_connectors =
   { telegram : telegram_connector option
   ; whatsapp : whatsapp_connector option
+  ; messenger : messenger_connector option
+  ; instagram : instagram_connector option
   ; google_chat : google_chat_connector option
   }
 
@@ -450,6 +478,90 @@ let parse_whatsapp_connector json =
          })
 ;;
 
+type parsed_meta_connector_base =
+  { webhook_path : string
+  ; verify_token_env : string
+  ; app_secret_env : string option
+  ; access_token_env : string
+  ; authorization_env : string
+  ; route_model : string
+  ; system_prompt : string option
+  ; api_base : string
+  }
+
+let parse_meta_connector_base json ~default_webhook_path ~default_api_base =
+  string_member "verify_token_env" json
+  >>= fun verify_token_env ->
+  string_member "access_token_env" json
+  >>= fun access_token_env ->
+  string_member "authorization_env" json
+  >>= fun authorization_env ->
+  string_member "route_model" json
+  >>= fun route_model ->
+  Ok
+    { webhook_path =
+        normalize_http_path
+          (string_member_with_default "webhook_path" json ~default:default_webhook_path)
+    ; verify_token_env = String.trim verify_token_env
+    ; app_secret_env = optional_non_empty_string_member "app_secret_env" json
+    ; access_token_env = String.trim access_token_env
+    ; authorization_env = String.trim authorization_env
+    ; route_model = String.trim route_model
+    ; system_prompt = optional_non_empty_string_member "system_prompt" json
+    ; api_base =
+        normalize_http_api_base
+          (string_member_with_default "api_base" json ~default:default_api_base)
+    }
+;;
+
+let parse_messenger_connector json =
+  if not (bool_member_with_default "enabled" json ~default:true)
+  then Ok None
+  else
+    parse_meta_connector_base
+      json
+      ~default_webhook_path:"/connectors/messenger/webhook"
+      ~default_api_base:"https://graph.facebook.com/v23.0"
+    >>= fun base ->
+    Ok
+      (Some
+         { webhook_path = base.webhook_path
+         ; verify_token_env = base.verify_token_env
+         ; app_secret_env = base.app_secret_env
+         ; access_token_env = base.access_token_env
+         ; authorization_env = base.authorization_env
+         ; route_model = base.route_model
+         ; system_prompt = base.system_prompt
+         ; allowed_page_ids = string_or_int_list_member "allowed_page_ids" json
+         ; allowed_sender_ids = string_or_int_list_member "allowed_sender_ids" json
+         ; api_base = base.api_base
+         })
+;;
+
+let parse_instagram_connector json =
+  if not (bool_member_with_default "enabled" json ~default:true)
+  then Ok None
+  else
+    parse_meta_connector_base
+      json
+      ~default_webhook_path:"/connectors/instagram/webhook"
+      ~default_api_base:"https://graph.instagram.com/v23.0"
+    >>= fun base ->
+    Ok
+      (Some
+         { webhook_path = base.webhook_path
+         ; verify_token_env = base.verify_token_env
+         ; app_secret_env = base.app_secret_env
+         ; access_token_env = base.access_token_env
+         ; authorization_env = base.authorization_env
+         ; route_model = base.route_model
+         ; system_prompt = base.system_prompt
+         ; allowed_account_ids = string_or_int_list_member "allowed_account_ids" json
+         ; allowed_sender_ids = string_or_int_list_member "allowed_sender_ids" json
+         ; api_base = base.api_base
+         })
+;;
+
 let parse_google_chat_id_token_auth json =
   string_member "audience" json
   >>= fun audience ->
@@ -544,14 +656,35 @@ let load path =
       | `Assoc _ as whatsapp_json -> parse_whatsapp_connector whatsapp_json
       | _ -> Ok None
     in
+    let messenger_result =
+      match object_member "messenger" connector_json with
+      | `Assoc _ as messenger_json -> parse_messenger_connector messenger_json
+      | _ -> Ok None
+    in
+    let instagram_result =
+      match object_member "instagram" connector_json with
+      | `Assoc _ as instagram_json -> parse_instagram_connector instagram_json
+      | _ -> Ok None
+    in
     let google_chat_result =
       match object_member "google_chat" connector_json with
       | `Assoc _ as google_chat_json -> parse_google_chat_connector google_chat_json
       | _ -> Ok None
     in
-    match telegram_result, whatsapp_result, google_chat_result with
-    | Ok telegram, Ok whatsapp, Ok google_chat -> Ok { telegram; whatsapp; google_chat }
-    | Error err, _, _ | _, Error err, _ | _, _, Error err -> Error err
+    match
+      telegram_result,
+      whatsapp_result,
+      messenger_result,
+      instagram_result,
+      google_chat_result
+    with
+    | Ok telegram, Ok whatsapp, Ok messenger, Ok instagram, Ok google_chat ->
+      Ok { telegram; whatsapp; messenger; instagram; google_chat }
+    | Error err, _, _, _, _
+    | _, Error err, _, _, _
+    | _, _, Error err, _, _
+    | _, _, _, Error err, _
+    | _, _, _, _, Error err -> Error err
   in
   let route_values = list_member "routes" json in
   let virtual_key_values = list_member "virtual_keys" json in

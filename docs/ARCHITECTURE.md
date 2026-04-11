@@ -75,8 +75,10 @@
 - starter admin requests are plan-first: the model returns typed JSON, the user reviews it with `/plan`, and only `/apply` mutates config files or runs allowed local ops
 - `User_connector_router` centralizes webhook path dispatch instead of growing `Server` route conditionals one connector at a time
 - `User_connector_common` centralizes per-channel session memory limits, authorization normalization, audit helpers, and text splitting
+- `Meta_connector_common` centralizes the shared Meta webhook challenge flow, optional HMAC verification, inbound `entry[].messaging[]` parsing, and Graph send API text delivery for Messenger and Instagram
 - `Google_chat_id_token` isolates Google Chat bearer-token verification from the higher-level Google Chat event bridge
 - user chat connectors reuse the same virtual-key auth path, route allowlists, budgets, and output guards instead of bypassing gateway policy
+- `docs/USER_CONNECTOR_ROADMAP.md` keeps the wave-based rollout order explicit instead of letting connector growth become opportunistic
 
 ## Concurrency model
 

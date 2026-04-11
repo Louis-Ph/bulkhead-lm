@@ -31,7 +31,18 @@ It targets multi-provider LLM gateway routing with a stricter design bias: expli
 - request body limits and upstream request timeouts
 - retry-aware fallback that avoids failing over on permanent upstream errors
 - multicore-safe budget and rate-limit state with a `Domain.spawn` test
-- Telegram, WhatsApp Cloud API, and Google Chat user connectors over webhook, with per-conversation memory routed through normal BulkheadLM virtual-key auth
+- Telegram, WhatsApp Cloud API, Facebook Messenger, Instagram Direct, and Google Chat user connectors over webhook, with per-conversation memory routed through normal BulkheadLM virtual-key auth
+
+## Connector rollout roadmap
+
+The chat-connector backlog is staged by global reach, API availability, and the
+amount of adaptation a mainstream user needs before the assistant feels native.
+
+- Wave 1: WhatsApp Cloud API, Telegram Bot API, Facebook Messenger, Instagram Direct
+- Wave 2: LINE, TikTok Direct Messages, Viber, WeChat
+- Wave 3: Discord, Snapchat, KakaoTalk, Zalo, QQ
+
+The longer rationale lives in [docs/USER_CONNECTOR_ROADMAP.md](docs/USER_CONNECTOR_ROADMAP.md).
 
 ## Quick start
 
@@ -88,11 +99,13 @@ dune exec bulkhead-lm -- --config config/example.gateway.json --port 4200
 
 ## User chat connectors
 
-BulkheadLM can now expose three user-facing chat connectors through the same
+BulkheadLM can now expose five user-facing chat connectors through the same
 HTTP server architecture:
 
 - Telegram Bot API
 - WhatsApp Cloud API
+- Facebook Messenger
+- Instagram Direct
 - Google Chat HTTP app webhooks
 
 Each connector keeps the same gateway guarantees:
@@ -174,6 +187,82 @@ Implementation notes:
 - `verify_token_env` is used for Meta's initial webhook challenge
 - `app_secret_env` enables `X-Hub-Signature-256` verification for webhook POSTs
 - inbound text replies are sent back through the configured Graph API base
+
+### Facebook Messenger
+
+Reference checked for this connector work: 2026-04-11.
+
+```bash
+export MESSENGER_VERIFY_TOKEN="choose-a-random-verify-token"
+export MESSENGER_APP_SECRET="meta-app-secret"
+export MESSENGER_ACCESS_TOKEN="facebook-page-access-token"
+export BULKHEAD_MESSENGER_AUTH="sk-bulkhead-lm-dev"
+```
+
+```json
+{
+  "user_connectors": {
+    "messenger": {
+      "enabled": true,
+      "webhook_path": "/connectors/messenger/webhook",
+      "verify_token_env": "MESSENGER_VERIFY_TOKEN",
+      "app_secret_env": "MESSENGER_APP_SECRET",
+      "access_token_env": "MESSENGER_ACCESS_TOKEN",
+      "authorization_env": "BULKHEAD_MESSENGER_AUTH",
+      "route_model": "gpt-5-mini",
+      "system_prompt": "Reply in a concise, practical tone for chat users.",
+      "allowed_page_ids": [],
+      "allowed_sender_ids": [],
+      "api_base": "https://graph.facebook.com/v23.0"
+    }
+  }
+}
+```
+
+Implementation notes:
+
+- `access_token_env` should hold the Page access token used to send replies
+- webhook verification and optional `X-Hub-Signature-256` validation follow the normal Meta webhook flow
+- outbound text replies are sent to `/{page-id}/messages`
+- conversation memory is scoped per `page_id + sender_id`
+
+### Instagram Direct
+
+Reference checked for this connector work: 2026-04-11.
+
+```bash
+export INSTAGRAM_VERIFY_TOKEN="choose-a-random-verify-token"
+export INSTAGRAM_APP_SECRET="meta-app-secret"
+export INSTAGRAM_ACCESS_TOKEN="instagram-access-token"
+export BULKHEAD_INSTAGRAM_AUTH="sk-bulkhead-lm-dev"
+```
+
+```json
+{
+  "user_connectors": {
+    "instagram": {
+      "enabled": true,
+      "webhook_path": "/connectors/instagram/webhook",
+      "verify_token_env": "INSTAGRAM_VERIFY_TOKEN",
+      "app_secret_env": "INSTAGRAM_APP_SECRET",
+      "access_token_env": "INSTAGRAM_ACCESS_TOKEN",
+      "authorization_env": "BULKHEAD_INSTAGRAM_AUTH",
+      "route_model": "gpt-5-mini",
+      "system_prompt": "Reply in a concise, practical tone for chat users.",
+      "allowed_account_ids": [],
+      "allowed_sender_ids": [],
+      "api_base": "https://graph.instagram.com/v23.0"
+    }
+  }
+}
+```
+
+Implementation notes:
+
+- webhook verification and optional `X-Hub-Signature-256` validation follow the normal Meta webhook flow
+- inbound events are parsed from `object=instagram` with `entry[].messaging[]`
+- outbound text replies are sent to `/me/messages`
+- conversation memory is scoped per `instagram_account_id + sender_id`
 
 ### Google Chat
 

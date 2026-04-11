@@ -1257,6 +1257,8 @@ let telegram_connector_handles_text_webhook_test _switch () =
          ~user_connectors:
            { Bulkhead_lm.Config.telegram = Some connector
            ; whatsapp = None
+           ; messenger = None
+           ; instagram = None
            ; google_chat = None
            }
          ~routes:
@@ -1421,6 +1423,120 @@ let config_load_parses_whatsapp_connector_test _switch () =
   Lwt.return_unit
 ;;
 
+let config_load_parses_messenger_connector_test _switch () =
+  let config_path = Filename.temp_file "bulkhead-lm-messenger-connector" ".json" in
+  let config_json =
+    `Assoc
+      [ ( "user_connectors"
+        , `Assoc
+            [ ( "messenger"
+              , `Assoc
+                  [ "enabled", `Bool true
+                  ; "webhook_path", `String "messenger/webhook"
+                  ; "verify_token_env", `String "MESSENGER_VERIFY_TOKEN"
+                  ; "app_secret_env", `String "MESSENGER_APP_SECRET"
+                  ; "access_token_env", `String "MESSENGER_ACCESS_TOKEN"
+                  ; "authorization_env", `String "BULKHEAD_MESSENGER_AUTH"
+                  ; "route_model", `String "gpt-5-mini"
+                  ; "system_prompt", `String "Be concise."
+                  ; "allowed_page_ids", `List [ `String "page-123" ]
+                  ; "allowed_sender_ids", `List [ `String "user-456" ]
+                  ; "api_base", `String "https://graph.facebook.com/v23.0/"
+                  ] )
+            ] )
+      ; "routes", `List []
+      ; "virtual_keys", `List []
+      ]
+  in
+  Yojson.Safe.to_file config_path config_json;
+  (match Bulkhead_lm.Config.load config_path with
+   | Error err -> Alcotest.failf "expected messenger connector config load success: %s" err
+   | Ok config ->
+     (match config.Bulkhead_lm.Config.user_connectors.messenger with
+      | None -> Alcotest.fail "expected messenger connector config"
+      | Some connector ->
+        Alcotest.(check string)
+          "messenger webhook path normalized"
+          "/messenger/webhook"
+          connector.webhook_path;
+        Alcotest.(check string)
+          "messenger verify token env parsed"
+          "MESSENGER_VERIFY_TOKEN"
+          connector.verify_token_env;
+        Alcotest.(check (option string))
+          "messenger app secret env parsed"
+          (Some "MESSENGER_APP_SECRET")
+          connector.app_secret_env;
+        Alcotest.(check (list string))
+          "messenger allowed page ids parsed"
+          [ "page-123" ]
+          connector.allowed_page_ids;
+        Alcotest.(check (list string))
+          "messenger allowed sender ids parsed"
+          [ "user-456" ]
+          connector.allowed_sender_ids;
+        Alcotest.(check string)
+          "messenger api base normalized"
+          "https://graph.facebook.com/v23.0"
+          connector.api_base));
+  Lwt.return_unit
+;;
+
+let config_load_parses_instagram_connector_test _switch () =
+  let config_path = Filename.temp_file "bulkhead-lm-instagram-connector" ".json" in
+  let config_json =
+    `Assoc
+      [ ( "user_connectors"
+        , `Assoc
+            [ ( "instagram"
+              , `Assoc
+                  [ "enabled", `Bool true
+                  ; "webhook_path", `String "instagram/webhook"
+                  ; "verify_token_env", `String "INSTAGRAM_VERIFY_TOKEN"
+                  ; "app_secret_env", `String "INSTAGRAM_APP_SECRET"
+                  ; "access_token_env", `String "INSTAGRAM_ACCESS_TOKEN"
+                  ; "authorization_env", `String "BULKHEAD_INSTAGRAM_AUTH"
+                  ; "route_model", `String "gpt-5-mini"
+                  ; "system_prompt", `String "Be concise."
+                  ; "allowed_account_ids", `List [ `String "17841400000000000" ]
+                  ; "allowed_sender_ids", `List [ `String "igsid-456" ]
+                  ; "api_base", `String "https://graph.instagram.com/v23.0/"
+                  ] )
+            ] )
+      ; "routes", `List []
+      ; "virtual_keys", `List []
+      ]
+  in
+  Yojson.Safe.to_file config_path config_json;
+  (match Bulkhead_lm.Config.load config_path with
+   | Error err -> Alcotest.failf "expected instagram connector config load success: %s" err
+   | Ok config ->
+     (match config.Bulkhead_lm.Config.user_connectors.instagram with
+      | None -> Alcotest.fail "expected instagram connector config"
+      | Some connector ->
+        Alcotest.(check string)
+          "instagram webhook path normalized"
+          "/instagram/webhook"
+          connector.webhook_path;
+        Alcotest.(check string)
+          "instagram verify token env parsed"
+          "INSTAGRAM_VERIFY_TOKEN"
+          connector.verify_token_env;
+        Alcotest.(check (list string))
+          "instagram allowed account ids parsed"
+          [ "17841400000000000" ]
+          connector.allowed_account_ids;
+        Alcotest.(check (list string))
+          "instagram allowed sender ids parsed"
+          [ "igsid-456" ]
+          connector.allowed_sender_ids;
+        Alcotest.(check string)
+          "instagram api base normalized"
+          "https://graph.instagram.com/v23.0"
+          connector.api_base));
+  Lwt.return_unit
+;;
+
 let config_load_parses_google_chat_connector_test _switch () =
   let config_path = Filename.temp_file "bulkhead-lm-google-chat-connector" ".json" in
   let config_json =
@@ -1486,6 +1602,8 @@ let whatsapp_connector_handles_verification_test _switch () =
          ~user_connectors:
            { Bulkhead_lm.Config.telegram = None
            ; whatsapp = Some connector
+           ; messenger = None
+           ; instagram = None
            ; google_chat = None
            }
          ())
@@ -1554,6 +1672,8 @@ let whatsapp_connector_handles_text_webhook_test _switch () =
          ~user_connectors:
            { Bulkhead_lm.Config.telegram = None
            ; whatsapp = Some connector
+           ; messenger = None
+           ; instagram = None
            ; google_chat = None
            }
          ~routes:
@@ -1688,6 +1808,398 @@ let whatsapp_connector_handles_text_webhook_test _switch () =
       Lwt.return_unit)
 ;;
 
+let messenger_connector_handles_verification_test _switch () =
+  let connector =
+    Bulkhead_lm.Config_test_support.messenger_connector
+      ~verify_token_env:"MESSENGER_VERIFY_TOKEN"
+      ~access_token_env:"MESSENGER_ACCESS_TOKEN"
+      ~authorization_env:"BULKHEAD_MESSENGER_AUTH"
+      ~route_model:"gpt-4o-mini"
+      ()
+  in
+  let store =
+    Bulkhead_lm.Runtime_state.create
+      (Bulkhead_lm.Config_test_support.sample_config
+         ~user_connectors:
+           { Bulkhead_lm.Config.telegram = None
+           ; whatsapp = None
+           ; messenger = Some connector
+           ; instagram = None
+           ; google_chat = None
+           }
+         ())
+  in
+  let request =
+    Cohttp.Request.make
+      ~meth:`GET
+      (Uri.of_string
+         "http://localhost/connectors/messenger/webhook?hub.mode=subscribe&hub.verify_token=verify-123&hub.challenge=abc123")
+  in
+  with_env_overrides
+    [ "MESSENGER_VERIFY_TOKEN", "verify-123" ]
+    (fun () ->
+      Bulkhead_lm.Messenger_connector.handle_webhook
+        store
+        request
+        Cohttp_lwt.Body.empty
+        connector
+      >>= fun (response, response_body) ->
+      Alcotest.(check int) "messenger verification accepted" 200 (response_status_code response);
+      response_body_text response_body
+      >|= fun body_text ->
+      Alcotest.(check string) "messenger challenge echoed" "abc123" body_text)
+;;
+
+let messenger_connector_handles_text_webhook_test _switch () =
+  let captured_request = ref None in
+  let outbound_messages = ref [] in
+  let invoke_chat _headers _backend (request : Bulkhead_lm.Openai_types.chat_request) =
+    captured_request := Some request;
+    Lwt.return
+      (Ok
+         (Bulkhead_lm.Provider_mock.sample_chat_response
+            ~model:request.model
+            ~content:"Messenger reply"
+            ()))
+  in
+  let provider =
+    { Bulkhead_lm.Provider_client.invoke_chat = invoke_chat
+    ; invoke_chat_stream =
+        (fun headers backend request ->
+          invoke_chat headers backend request
+          >|= Result.map Bulkhead_lm.Provider_stream.of_chat_response)
+    ; invoke_embeddings =
+        (fun _headers _backend _request ->
+          Lwt.return
+            (Error
+               (Bulkhead_lm.Domain_error.unsupported_feature
+                  "embeddings not used in messenger connector test")))
+    }
+  in
+  let connector =
+    Bulkhead_lm.Config_test_support.messenger_connector
+      ~verify_token_env:"MESSENGER_VERIFY_TOKEN"
+      ~app_secret_env:"MESSENGER_APP_SECRET"
+      ~access_token_env:"MESSENGER_ACCESS_TOKEN"
+      ~authorization_env:"BULKHEAD_MESSENGER_AUTH"
+      ~route_model:"gpt-4o-mini"
+      ~allowed_page_ids:[ "page-123" ]
+      ~allowed_sender_ids:[ "user-456" ]
+      ()
+  in
+  let store =
+    Bulkhead_lm.Runtime_state.create
+      ~provider_factory:(fun _ -> provider)
+      (Bulkhead_lm.Config_test_support.sample_config
+         ~user_connectors:
+           { Bulkhead_lm.Config.telegram = None
+           ; whatsapp = None
+           ; messenger = Some connector
+           ; instagram = None
+           ; google_chat = None
+           }
+         ~routes:
+           [ Bulkhead_lm.Config_test_support.route
+               ~public_model:"gpt-4o-mini"
+               ~backends:
+                 [ Bulkhead_lm.Config_test_support.backend
+                     ~provider_id:"primary"
+                     ~provider_kind:Bulkhead_lm.Config.Openai_compat
+                     ~api_base:"https://api.example.test/v1"
+                     ~upstream_model:"gpt-4o-mini"
+                     ~api_key_env:"OPENAI_API_KEY"
+                     ()
+                 ]
+               ()
+           ]
+         ())
+  in
+  let payload_json =
+    `Assoc
+      [ "object", `String "page"
+      ; ( "entry"
+        , `List
+            [ `Assoc
+                [ "id", `String "page-123"
+                ; ( "messaging"
+                  , `List
+                      [ `Assoc
+                          [ "sender", `Assoc [ "id", `String "user-456" ]
+                          ; "recipient", `Assoc [ "id", `String "page-123" ]
+                          ; "timestamp", `Int 1712832000
+                          ; ( "message"
+                            , `Assoc
+                                [ "mid", `String "mid.1"
+                                ; "text", `String "Summarize the repo"
+                                ] )
+                          ]
+                      ] )
+                ]
+            ] )
+      ]
+  in
+  let payload_text = Yojson.Safe.to_string payload_json in
+  let signature =
+    "sha256="
+    ^ Digestif.SHA256.(to_hex (hmac_string ~key:"app-secret-123" payload_text))
+  in
+  let request =
+    Cohttp.Request.make
+      ~meth:`POST
+      ~headers:(Cohttp.Header.of_list [ "x-hub-signature-256", signature ])
+      (Uri.of_string "http://localhost/connectors/messenger/webhook")
+  in
+  let body = Cohttp_lwt.Body.of_string payload_text in
+  with_env_overrides
+    [ "MESSENGER_VERIFY_TOKEN", "verify-123"
+    ; "MESSENGER_APP_SECRET", "app-secret-123"
+    ; "MESSENGER_ACCESS_TOKEN", "access-token"
+    ; "BULKHEAD_MESSENGER_AUTH", "sk-test"
+    ]
+    (fun () ->
+      let http_post uri ~headers:_ payload =
+        outbound_messages := (Uri.to_string uri, payload) :: !outbound_messages;
+        Lwt.return (Cohttp.Response.make ~status:`OK (), Yojson.Safe.to_string (`Assoc []))
+      in
+      Bulkhead_lm.Messenger_connector.handle_webhook
+        ~http_post
+        store
+        request
+        body
+        connector
+      >>= fun (response, response_body) ->
+      Alcotest.(check int) "messenger webhook accepted" 200 (response_status_code response);
+      response_body_json response_body
+      >>= fun response_json ->
+      Alcotest.(check bool)
+        "messenger webhook acknowledges success"
+        true
+        (match List.assoc_opt "ok" (json_assoc response_json) with
+         | Some (`Bool value) -> value
+         | _ -> false);
+      (match !captured_request with
+       | None -> Alcotest.fail "expected routed messenger chat request"
+       | Some routed_request ->
+         Alcotest.(check string)
+           "messenger connector routes configured model"
+           "gpt-4o-mini"
+           routed_request.model;
+         (match List.rev routed_request.messages with
+          | last :: _ ->
+            Alcotest.(check string)
+              "messenger user text becomes pending user prompt"
+              "Summarize the repo"
+              last.content
+          | [] -> Alcotest.fail "expected messenger routed request messages"));
+      (match List.rev !outbound_messages with
+       | (uri, `Assoc fields) :: _ ->
+         Alcotest.(check string)
+           "messenger uses page send endpoint"
+           "https://graph.facebook.com/v23.0/page-123/messages"
+           uri;
+         Alcotest.(check (option string))
+           "messenger recipient id"
+           (Some "user-456")
+           (match List.assoc_opt "recipient" fields with
+            | Some (`Assoc recipient_fields) ->
+              (match List.assoc_opt "id" recipient_fields with
+               | Some (`String value) -> Some value
+               | _ -> None)
+            | _ -> None);
+         Alcotest.(check (option string))
+           "messenger messaging type"
+           (Some "RESPONSE")
+           (match List.assoc_opt "messaging_type" fields with
+            | Some (`String value) -> Some value
+            | _ -> None)
+       | _ :: _ -> Alcotest.fail "expected messenger outbound payload object"
+       | [] -> Alcotest.fail "expected messenger outbound request");
+      let session =
+        Bulkhead_lm.Runtime_state.get_user_connector_session
+          store
+          ~session_key:"messenger:page-123:user-456"
+      in
+      Alcotest.(check int)
+        "messenger connector remembers one exchange"
+        2
+        (Bulkhead_lm.Session_memory.stats session).recent_turn_count;
+      Lwt.return_unit)
+;;
+
+let instagram_connector_handles_text_webhook_test _switch () =
+  let captured_request = ref None in
+  let outbound_messages = ref [] in
+  let invoke_chat _headers _backend (request : Bulkhead_lm.Openai_types.chat_request) =
+    captured_request := Some request;
+    Lwt.return
+      (Ok
+         (Bulkhead_lm.Provider_mock.sample_chat_response
+            ~model:request.model
+            ~content:"Instagram reply"
+            ()))
+  in
+  let provider =
+    { Bulkhead_lm.Provider_client.invoke_chat = invoke_chat
+    ; invoke_chat_stream =
+        (fun headers backend request ->
+          invoke_chat headers backend request
+          >|= Result.map Bulkhead_lm.Provider_stream.of_chat_response)
+    ; invoke_embeddings =
+        (fun _headers _backend _request ->
+          Lwt.return
+            (Error
+               (Bulkhead_lm.Domain_error.unsupported_feature
+                  "embeddings not used in instagram connector test")))
+    }
+  in
+  let connector =
+    Bulkhead_lm.Config_test_support.instagram_connector
+      ~verify_token_env:"INSTAGRAM_VERIFY_TOKEN"
+      ~app_secret_env:"INSTAGRAM_APP_SECRET"
+      ~access_token_env:"INSTAGRAM_ACCESS_TOKEN"
+      ~authorization_env:"BULKHEAD_INSTAGRAM_AUTH"
+      ~route_model:"gpt-4o-mini"
+      ~allowed_account_ids:[ "17841400000000000" ]
+      ~allowed_sender_ids:[ "igsid-456" ]
+      ()
+  in
+  let store =
+    Bulkhead_lm.Runtime_state.create
+      ~provider_factory:(fun _ -> provider)
+      (Bulkhead_lm.Config_test_support.sample_config
+         ~user_connectors:
+           { Bulkhead_lm.Config.telegram = None
+           ; whatsapp = None
+           ; messenger = None
+           ; instagram = Some connector
+           ; google_chat = None
+           }
+         ~routes:
+           [ Bulkhead_lm.Config_test_support.route
+               ~public_model:"gpt-4o-mini"
+               ~backends:
+                 [ Bulkhead_lm.Config_test_support.backend
+                     ~provider_id:"primary"
+                     ~provider_kind:Bulkhead_lm.Config.Openai_compat
+                     ~api_base:"https://api.example.test/v1"
+                     ~upstream_model:"gpt-4o-mini"
+                     ~api_key_env:"OPENAI_API_KEY"
+                     ()
+                 ]
+               ()
+           ]
+         ())
+  in
+  let payload_json =
+    `Assoc
+      [ "object", `String "instagram"
+      ; ( "entry"
+        , `List
+            [ `Assoc
+                [ "id", `String "17841400000000000"
+                ; ( "messaging"
+                  , `List
+                      [ `Assoc
+                          [ "sender", `Assoc [ "id", `String "igsid-456" ]
+                          ; "recipient", `Assoc [ "id", `String "17841400000000000" ]
+                          ; "timestamp", `Int 1712832000
+                          ; ( "message"
+                            , `Assoc
+                                [ "mid", `String "mid.2"
+                                ; "text", `String "Explain the repo"
+                                ] )
+                          ]
+                      ] )
+                ]
+            ] )
+      ]
+  in
+  let payload_text = Yojson.Safe.to_string payload_json in
+  let signature =
+    "sha256="
+    ^ Digestif.SHA256.(to_hex (hmac_string ~key:"app-secret-ig" payload_text))
+  in
+  let request =
+    Cohttp.Request.make
+      ~meth:`POST
+      ~headers:(Cohttp.Header.of_list [ "x-hub-signature-256", signature ])
+      (Uri.of_string "http://localhost/connectors/instagram/webhook")
+  in
+  let body = Cohttp_lwt.Body.of_string payload_text in
+  with_env_overrides
+    [ "INSTAGRAM_VERIFY_TOKEN", "verify-123"
+    ; "INSTAGRAM_APP_SECRET", "app-secret-ig"
+    ; "INSTAGRAM_ACCESS_TOKEN", "access-token"
+    ; "BULKHEAD_INSTAGRAM_AUTH", "sk-test"
+    ]
+    (fun () ->
+      let http_post uri ~headers:_ payload =
+        outbound_messages := (Uri.to_string uri, payload) :: !outbound_messages;
+        Lwt.return (Cohttp.Response.make ~status:`OK (), Yojson.Safe.to_string (`Assoc []))
+      in
+      Bulkhead_lm.Instagram_connector.handle_webhook
+        ~http_post
+        store
+        request
+        body
+        connector
+      >>= fun (response, response_body) ->
+      Alcotest.(check int) "instagram webhook accepted" 200 (response_status_code response);
+      response_body_json response_body
+      >>= fun response_json ->
+      Alcotest.(check bool)
+        "instagram webhook acknowledges success"
+        true
+        (match List.assoc_opt "ok" (json_assoc response_json) with
+         | Some (`Bool value) -> value
+         | _ -> false);
+      (match !captured_request with
+       | None -> Alcotest.fail "expected routed instagram chat request"
+       | Some routed_request ->
+         Alcotest.(check string)
+           "instagram connector routes configured model"
+           "gpt-4o-mini"
+           routed_request.model;
+         (match List.rev routed_request.messages with
+          | last :: _ ->
+            Alcotest.(check string)
+              "instagram user text becomes pending user prompt"
+              "Explain the repo"
+              last.content
+          | [] -> Alcotest.fail "expected instagram routed request messages"));
+      (match List.rev !outbound_messages with
+       | (uri, `Assoc fields) :: _ ->
+         Alcotest.(check string)
+           "instagram uses me/messages endpoint"
+           "https://graph.instagram.com/v23.0/me/messages"
+           uri;
+         Alcotest.(check (option string))
+           "instagram recipient id"
+           (Some "igsid-456")
+           (match List.assoc_opt "recipient" fields with
+            | Some (`Assoc recipient_fields) ->
+              (match List.assoc_opt "id" recipient_fields with
+               | Some (`String value) -> Some value
+               | _ -> None)
+            | _ -> None);
+         Alcotest.(check bool)
+           "instagram does not force messenger messaging_type"
+           true
+           (not (List.mem_assoc "messaging_type" fields))
+       | _ :: _ -> Alcotest.fail "expected instagram outbound payload object"
+       | [] -> Alcotest.fail "expected instagram outbound request");
+      let session =
+        Bulkhead_lm.Runtime_state.get_user_connector_session
+          store
+          ~session_key:"instagram:17841400000000000:igsid-456"
+      in
+      Alcotest.(check int)
+        "instagram connector remembers one exchange"
+        2
+        (Bulkhead_lm.Session_memory.stats session).recent_turn_count;
+      Lwt.return_unit)
+;;
+
 let google_chat_id_token_verifies_signed_token_test _switch () =
   let auth_config =
     Bulkhead_lm.Config_test_support.google_chat_id_token_auth
@@ -1764,6 +2276,8 @@ let google_chat_connector_handles_text_event_test _switch () =
          ~user_connectors:
            { Bulkhead_lm.Config.telegram = None
            ; whatsapp = None
+           ; messenger = None
+           ; instagram = None
            ; google_chat = Some connector
            }
          ~routes:
@@ -3471,6 +3985,14 @@ let tests =
       `Quick
       config_load_parses_whatsapp_connector_test
   ; Alcotest_lwt.test_case
+      "config parses messenger user connector"
+      `Quick
+      config_load_parses_messenger_connector_test
+  ; Alcotest_lwt.test_case
+      "config parses instagram user connector"
+      `Quick
+      config_load_parses_instagram_connector_test
+  ; Alcotest_lwt.test_case
       "config parses google chat user connector"
       `Quick
       config_load_parses_google_chat_connector_test
@@ -3486,6 +4008,18 @@ let tests =
       "whatsapp connector handles text webhook"
       `Quick
       whatsapp_connector_handles_text_webhook_test
+  ; Alcotest_lwt.test_case
+      "messenger connector handles verification"
+      `Quick
+      messenger_connector_handles_verification_test
+  ; Alcotest_lwt.test_case
+      "messenger connector handles text webhook"
+      `Quick
+      messenger_connector_handles_text_webhook_test
+  ; Alcotest_lwt.test_case
+      "instagram connector handles text webhook"
+      `Quick
+      instagram_connector_handles_text_webhook_test
   ; Alcotest_lwt.test_case
       "google chat token verification accepts signed token"
       `Quick
