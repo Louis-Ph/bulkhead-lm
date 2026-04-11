@@ -89,6 +89,7 @@ module Command = struct
   let help = "/help"
   let tools = "/tools"
   let admin = "/admin"
+  let control = "/control"
   let package = "/package"
   let plan = "/plan"
   let apply = "/apply"
@@ -155,6 +156,7 @@ module Text = struct
     [ "Commands:"
     ; "  /tools      show the most useful starter actions, including file insertion"
     ; "  /admin TEXT ask the assistant to prepare a safe admin plan"
+    ; "  /control    show the real HTTP admin control-plane status for this config"
     ; "  /package    build a distributable package for this operating system"
     ; "  /plan       show the pending admin plan"
     ; "  /apply      apply the pending admin plan"
@@ -189,6 +191,7 @@ module Text = struct
     ; "  /open PATH  preview one local text file"
     ; "  /run CMD    execute one local command without a shell"
     ; "  /admin ...  ask the assistant to change BulkheadLM or local settings safely"
+    ; "  /control    show whether the browser control plane is enabled and where it lives"
     ; "  /package    build a distributable package for this operating system"
     ]
   ;;
@@ -216,13 +219,20 @@ module Text = struct
           proactive and guide the user based on the BulkheadLM documentation, its \
           codebase, and the user's needs. The user can use local starter commands such \
           as /help, /tools, /file PATH, /files, /clearfiles, /explore PATH, /open PATH, \
-          /run CMD, /admin TEXT, /package, /model, /models, /swap NAME, /providers, \
-          /env, /memory, /thread on, /thread off, and /quit. If the user asks how to \
-          send a file, explain /file PATH and /files instead of saying file upload is \
-          impossible. If the user asks to inspect local files or run a local command, \
-          mention /explore, /open, or /run. Treat OpenRouter as a supported provider \
-          family using provider_kind openrouter_openai, api_base \
-          https://openrouter.ai/api/v1, and OPEN_ROUTER_KEY by default."
+          /run CMD, /admin TEXT, /control, /package, /model, /models, /swap NAME, \
+          /providers, /env, /memory, /thread on, /thread off, and /quit. If the user \
+          asks how to send a file, explain /file PATH and /files instead of saying file \
+          upload is impossible. If the user asks to inspect local files or run a local \
+          command, mention /explore, /open, or /run. If the user asks how to \
+          administer BulkheadLM or how to reach the admin UI, prefer /control for \
+          factual status from the current config, and explain that /admin TEXT only \
+          prepares a plan. Never invent starter commands, subcommands, URLs, ports, or \
+          browser-opening behavior. Do not claim that /admin opens a pane or has \
+          subcommands such as /admin open or /admin status. If you do not know whether \
+          the HTTP control plane is enabled, tell the user to run /control. Treat \
+          OpenRouter as a supported provider family using provider_kind \
+          openrouter_openai, api_base https://openrouter.ai/api/v1, and OPEN_ROUTER_KEY \
+          by default."
        ]
        @ Assistant_signal.usage_lines)
   ;;
@@ -268,6 +278,23 @@ module Text = struct
   ;;
 
   let memory_cleared = "Conversation memory was cleared."
+
+  let control_plane_intro =
+    "This starter is the interactive client. The HTTP control plane belongs to the \
+     running gateway server for the current config."
+  ;;
+
+  let control_plane_enabled = "HTTP control plane: enabled."
+  let control_plane_disabled = "HTTP control plane: disabled in this config."
+
+  let control_plane_terminal_admin_lines =
+    [ "Terminal admin flow inside this starter:"
+    ; "  /admin TEXT"
+    ; "  /plan"
+    ; "  /apply"
+    ; "  /discard"
+    ]
+  ;;
 
   let compression_notice archived =
     Fmt.str "Conversation memory compressed: %d older turns were summarized." archived

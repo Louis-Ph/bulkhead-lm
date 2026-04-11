@@ -107,6 +107,8 @@ let hint_for_input input =
   then Some (" <command and args>", LNoise.Yellow, false)
   else if prefix_matches ~prefix:Starter_constants.Command.admin input
   then Some (" <plain-language admin request>", LNoise.Yellow, false)
+  else if prefix_matches ~prefix:Starter_constants.Command.control input
+  then Some (" show the real admin control-plane status", LNoise.Yellow, false)
   else if prefix_matches ~prefix:Starter_constants.Command.package input
   then Some (" build a local distributable package", LNoise.Yellow, false)
   else if prefix_matches ~prefix:Starter_constants.Command.swap input

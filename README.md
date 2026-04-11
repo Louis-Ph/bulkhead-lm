@@ -512,7 +512,7 @@ The starter:
 - can expose a browser-based admin control plane with live route status and hot config reload under `security_policy.control_plane`
 - includes a guided packaging flow that can build a distributable package for macOS, Ubuntu, or FreeBSD from the same assistant terminal
 - shows masked environment and provider readiness state from inside the REPL
-- drops you into a simple terminal session with `/tools`, `/file PATH`, `/files`, `/clearfiles`, `/explore PATH`, `/open PATH`, `/run CMD`, `/admin`, `/package`, `/plan`, `/apply`, `/discard`, `/model`, `/models`, `/swap`, `/memory`, `/forget`, `/thread on|off`, `/providers`, `/env`, `/config`, `/help`, and `/quit`
+- drops you into a simple terminal session with `/tools`, `/file PATH`, `/files`, `/clearfiles`, `/explore PATH`, `/open PATH`, `/run CMD`, `/admin TEXT`, `/control`, `/package`, `/plan`, `/apply`, `/discard`, `/model`, `/models`, `/swap`, `/memory`, `/forget`, `/thread on|off`, `/providers`, `/env`, `/config`, `/help`, and `/quit`
 
 Admin assistant flow inside the starter:
 
@@ -521,6 +521,14 @@ Admin assistant flow inside the starter:
 /plan
 /apply
 ```
+
+Control-plane check inside the starter:
+
+```text
+/control
+```
+
+`/control` tells you whether the current config actually enables the HTTP control plane, shows the exact UI and API URLs derived from that config, and reminds you that the starter itself is not the HTTP gateway server.
 
 The assistant uses the selected model together with the active BulkheadLM config, the referenced security policy, local repository documentation, and bounded local system context. It proposes structured config changes first and only falls back to `ops`-style filesystem or command actions when configuration alone is not enough.
 
@@ -560,7 +568,7 @@ HTTP control plane for the running gateway:
 }
 ```
 
-Set `BULKHEAD_ADMIN_TOKEN`, start the server normally, then open `http://127.0.0.1:4100/_bulkhead/control`. The UI shows the active config path, route readiness, enabled chat connectors, virtual-key inventory, and exposes a guarded `reload` action that swaps the runtime in place. Changes to `listen_host` and `listen_port` still require a restart because the listening socket is already bound.
+Set `BULKHEAD_ADMIN_TOKEN`, start the server normally, then open `http://127.0.0.1:4100/_bulkhead/control`. Inside the starter, `/control` prints the same derived URL set from the active config and makes the distinction explicit between the interactive starter client and the separate running gateway server. The UI shows the active config path, route readiness, enabled chat connectors, virtual-key inventory, and exposes a guarded `reload` action that swaps the runtime in place. Changes to `listen_host` and `listen_port` still require a restart because the listening socket is already bound.
 
 ## Terminal client
 

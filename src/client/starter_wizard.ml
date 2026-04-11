@@ -395,9 +395,86 @@ let print_models store =
   |> List.iter (fun status -> print_line ("  " ^ route_status_summary status))
 ;;
 
+let control_plane_url ~host ~port ~path =
+  Uri.make ~scheme:"http" ~host ~port ~path () |> Uri.to_string
+;;
+
+let control_plane_lines ?(lookup_env = Sys.getenv_opt) ~config_path (config : Config.t) =
+  let security_policy = config.security_policy in
+  let server = security_policy.server in
+  let control_plane = security_policy.control_plane in
+  let url_for_path path = control_plane_url ~host:server.listen_host ~port:server.listen_port ~path in
+  let admin_token_line =
+    match control_plane.admin_token_env with
+    | None -> "Admin token: not required by current config."
+    | Some env_name ->
+      let status =
+        match lookup_env env_name with
+        | Some value when String.trim value <> "" -> "set"
+        | _ -> "missing"
+      in
+      Fmt.str "Admin token env: %s (%s)" env_name status
+  in
+  let config_lines =
+    if String.trim config_path = ""
+    then []
+    else
+      [ Fmt.str "Current config: %s" config_path
+      ; Fmt.str
+          "Start command: ./scripts/with_local_toolchain.sh dune exec bulkhead-lm -- --config %s"
+          (Filename.quote config_path)
+      ]
+  in
+  let status_lines =
+    if control_plane.enabled
+    then
+      [ Starter_constants.Text.control_plane_enabled
+      ; (if control_plane.ui_enabled
+         then Fmt.str "Browser UI: %s" (url_for_path control_plane.path_prefix)
+         else "Browser UI: disabled in this config.")
+      ; Fmt.str
+          "Status API: %s"
+          (url_for_path
+             (control_plane.path_prefix ^ Admin_control_constants.Path.status_suffix))
+      ; (if control_plane.allow_reload
+         then
+           Fmt.str
+             "Reload API: %s"
+             (url_for_path
+                (control_plane.path_prefix ^ Admin_control_constants.Path.reload_suffix))
+         else "Hot reload: disabled in this config.")
+      ; admin_token_line
+      ; "The browser control plane appears only when the gateway server is running separately from this starter."
+      ]
+    else
+      [ Starter_constants.Text.control_plane_disabled
+      ; "Use terminal administration in this starter, or enable the HTTP control plane in config and run the gateway server separately."
+      ; Fmt.str
+          "Suggested request: %s enable the HTTP control plane at %s and keep it bound to 127.0.0.1"
+          Starter_constants.Command.admin
+          control_plane.path_prefix
+      ]
+  in
+  [ Starter_constants.Text.control_plane_intro
+  ; Fmt.str "Gateway bind: %s:%d" server.listen_host server.listen_port
+  ]
+  @ config_lines
+  @ status_lines
+  @ Starter_constants.Text.control_plane_terminal_admin_lines
+;;
+
+let print_control_plane_status store state =
+  print_line "";
+  control_plane_lines
+    ~config_path:(Starter_session.current_config_path state |> Option.value ~default:"")
+    store.Runtime_state.config
+  |> print_lines
+;;
+
 let starter_commands () =
   [ Starter_constants.Command.tools
   ; Starter_constants.Command.admin
+  ; Starter_constants.Command.control
   ; Starter_constants.Command.package
   ; Starter_constants.Command.plan
   ; Starter_constants.Command.apply
@@ -831,6 +908,9 @@ let rec repl store ~authorization state runtime =
     repl store ~authorization next_state runtime
   | Starter_session.Show_tools_panel ->
     print_tools_help ();
+    repl store ~authorization next_state runtime
+  | Starter_session.Show_control_plane_status ->
+    print_control_plane_status store next_state;
     repl store ~authorization next_state runtime
   | Starter_session.Begin_admin_request goal ->
     let model =

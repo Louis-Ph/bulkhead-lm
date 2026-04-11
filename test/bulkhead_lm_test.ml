@@ -5115,6 +5115,9 @@ let starter_session_parses_beginner_commands_test _switch () =
   (match Bulkhead_lm.Starter_session.parse_command "/tools" with
    | Bulkhead_lm.Starter_session.Show_tools -> ()
    | _ -> Alcotest.fail "expected /tools command");
+  (match Bulkhead_lm.Starter_session.parse_command "/control" with
+   | Bulkhead_lm.Starter_session.Show_control_plane -> ()
+   | _ -> Alcotest.fail "expected /control command");
   (match
      Bulkhead_lm.Starter_session.parse_command
        "/admin enable local file access in this repo"
@@ -5385,6 +5388,7 @@ let starter_terminal_completes_commands_and_models_test _switch () =
         ; "/thread"
         ; "/quit"
         ; "/tools"
+        ; "/control"
         ; "/file"
         ; "/explore"
         ; "/open"
@@ -5418,8 +5422,102 @@ let starter_terminal_completes_commands_and_models_test _switch () =
     Bulkhead_lm.Starter_terminal.completion_candidates ~context "/to"
   in
   Alcotest.(check (list string)) "tools command completion" [ "/tools" ] tool_candidates;
+  let control_candidates =
+    Bulkhead_lm.Starter_terminal.completion_candidates ~context "/co"
+  in
+  Alcotest.(check (list string))
+    "control command completion"
+    [ "/control" ]
+    control_candidates;
   let run_candidates = Bulkhead_lm.Starter_terminal.completion_candidates ~context "/r" in
   Alcotest.(check (list string)) "run command completion" [ "/run" ] run_candidates;
+  Lwt.return_unit
+;;
+
+let starter_control_plane_lines_reflect_current_config_test _switch () =
+  let enabled_config =
+    Bulkhead_lm.Config_test_support.sample_config
+      ~security_policy:
+        (control_plane_security_policy ~admin_token_env:"BULKHEAD_ADMIN_TOKEN" ())
+      ()
+  in
+  let enabled_text =
+    Bulkhead_lm.Starter_wizard.control_plane_lines
+      ~lookup_env:(function
+        | "BULKHEAD_ADMIN_TOKEN" -> Some "present"
+        | _ -> None)
+      ~config_path:"/tmp/control gateway.json"
+      enabled_config
+    |> String.concat "\n"
+  in
+  Alcotest.(check bool)
+    "control intro explains starter role"
+    true
+    (string_contains enabled_text "This starter is the interactive client.");
+  Alcotest.(check bool)
+    "enabled control plane is reported"
+    true
+    (string_contains enabled_text "HTTP control plane: enabled.");
+  Alcotest.(check bool)
+    "browser url is derived from config"
+    true
+    (string_contains enabled_text "http://127.0.0.1:4100/_bulkhead/control");
+  Alcotest.(check bool)
+    "status api url is derived from config"
+    true
+    (string_contains enabled_text "/_bulkhead/control/api/status");
+  Alcotest.(check bool)
+    "reload api url is derived from config"
+    true
+    (string_contains enabled_text "/_bulkhead/control/api/reload");
+  Alcotest.(check bool)
+    "admin token env is reported without leaking its value"
+    true
+    (string_contains enabled_text "Admin token env: BULKHEAD_ADMIN_TOKEN (set)");
+  Alcotest.(check bool)
+    "start command is explicit"
+    true
+    (string_contains
+       enabled_text
+       "./scripts/with_local_toolchain.sh dune exec bulkhead-lm -- --config '/tmp/control gateway.json'");
+  let disabled_text =
+    Bulkhead_lm.Starter_wizard.control_plane_lines
+      ~config_path:"config/starter.gateway.json"
+      (Bulkhead_lm.Config_test_support.sample_config ())
+    |> String.concat "\n"
+  in
+  Alcotest.(check bool)
+    "disabled control plane is reported"
+    true
+    (string_contains disabled_text "HTTP control plane: disabled in this config.");
+  Alcotest.(check bool)
+    "disabled control plane suggests an admin request"
+    true
+    (string_contains
+       disabled_text
+       "/admin enable the HTTP control plane at /_bulkhead/control");
+  Lwt.return_unit
+;;
+
+let starter_assistant_capabilities_prompt_forbids_invented_admin_commands_test _switch ()
+  =
+  let prompt = Bulkhead_lm.Starter_constants.Text.assistant_capabilities_system_prompt in
+  Alcotest.(check bool)
+    "prompt mentions control command"
+    true
+    (string_contains prompt "/control");
+  Alcotest.(check bool)
+    "prompt forbids invented starter commands"
+    true
+    (string_contains prompt "Never invent starter commands");
+  Alcotest.(check bool)
+    "prompt explicitly blocks admin open hallucination"
+    true
+    (string_contains prompt "/admin open");
+  Alcotest.(check bool)
+    "prompt explicitly blocks admin status hallucination"
+    true
+    (string_contains prompt "/admin status");
   Lwt.return_unit
 ;;
 
@@ -6008,6 +6106,14 @@ let tests =
       "starter terminal completes commands and models"
       `Quick
       starter_terminal_completes_commands_and_models_test
+  ; Alcotest_lwt.test_case
+      "starter control plane lines reflect current config"
+      `Quick
+      starter_control_plane_lines_reflect_current_config_test
+  ; Alcotest_lwt.test_case
+      "starter assistant capabilities prompt forbids invented admin commands"
+      `Quick
+      starter_assistant_capabilities_prompt_forbids_invented_admin_commands_test
   ; Alcotest_lwt.test_case
       "starter terminal history file prefers override"
       `Quick

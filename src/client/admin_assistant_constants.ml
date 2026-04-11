@@ -45,7 +45,7 @@ end
 
 module Text = struct
   let usage =
-    "/admin expects a request, for example: /admin enable local file operations only for this repository"
+    "/admin expects a request, for example: /admin enable local file operations only for this repository. Use /control to inspect the HTTP control plane for the current config."
   ;;
 
   let no_plan =

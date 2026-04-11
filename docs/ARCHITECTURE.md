@@ -67,6 +67,7 @@ BulkheadLM is not just a locked-down gateway. Architecturally, it is a secure AI
 - `Starter_runtime` isolates mutable starter session data, such as conversation memory and pending admin plans, from the finite-state command parser
 - `Starter_session` models the starter REPL as a finite-state machine with explicit `Ready`, `Streaming`, and `Closed` states plus explicit admin-plan effects
 - `Starter_terminal` owns human-facing line editing, persistent history, and slash-command/model completion
+- `/control` is a factual starter command that renders the current HTTP control-plane status and exact URLs from the active config instead of delegating that answer to model guesswork
 - `/package` is a guided starter flow that builds a distributable OS-native package from either a source checkout or an installed BulkheadLM tree
 - `ask` and `call` are isolated per-process invocations, while `worker` is the mode intended to coordinate many concurrent local jobs through one runtime instance
 - worker outputs are serialized under a dedicated stdout lock so parallel jobs do not interleave their JSON lines
