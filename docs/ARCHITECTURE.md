@@ -81,8 +81,9 @@ BulkheadLM is not just a locked-down gateway. Architecturally, it is a secure AI
 - `Meta_connector_common` centralizes the shared Meta webhook challenge flow, optional HMAC verification, inbound `entry[].messaging[]` parsing, and Graph send API text delivery for Messenger and Instagram
 - `Line_connector` adds LINE-specific reply-token handling and source-scoped session identity without leaking LINE protocol details into the generic router
 - `Viber_connector` adds Viber-specific HMAC verification and `send_message` delivery while still reusing the same BulkheadLM auth, memory, and audit path
-- `Wechat_connector_xml` isolates the minimal XML parsing and rendering needed for plaintext WeChat Service Account messages
-- `Wechat_connector` adds WeChat signature validation, passive XML replies, and per-account OpenID session scoping on the same policy path as the other chat connectors
+- `Wechat_connector_crypto` isolates WeChat AES-CBC payload encryption, decryption, `msg_signature` generation, PKCS#7 handling, and secure reply envelopes instead of scattering crypto literals through the connector
+- `Wechat_connector_xml` isolates the XML parsing and rendering needed for plaintext and encrypted WeChat Service Account payloads
+- `Wechat_connector` adds WeChat plaintext signature validation, encrypted `msg_signature` validation, passive XML replies, and per-account OpenID session scoping on the same policy path as the other chat connectors
 - `Discord_connector` adds Discord Ed25519 request verification, slash-command parsing, and deferred interaction response editing without polluting the simpler synchronous connectors
 - `Google_chat_id_token` isolates Google Chat bearer-token verification from the higher-level Google Chat event bridge
 - user chat connectors reuse the same virtual-key auth path, route allowlists, budgets, and output guards instead of bypassing gateway policy

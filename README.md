@@ -351,6 +351,8 @@ Reference checked for this connector work: 2026-04-11.
 
 ```bash
 export WECHAT_SIGNATURE_TOKEN="wechat-signature-token"
+export WECHAT_ENCODING_AES_KEY="43-char-wechat-encoding-aes-key"
+export WECHAT_APP_ID="wx1234567890abcdef"
 export BULKHEAD_WECHAT_AUTH="sk-bulkhead-lm-dev"
 ```
 
@@ -361,6 +363,8 @@ export BULKHEAD_WECHAT_AUTH="sk-bulkhead-lm-dev"
       "enabled": true,
       "webhook_path": "/connectors/wechat/webhook",
       "signature_token_env": "WECHAT_SIGNATURE_TOKEN",
+      "encoding_aes_key_env": "WECHAT_ENCODING_AES_KEY",
+      "app_id_env": "WECHAT_APP_ID",
       "authorization_env": "BULKHEAD_WECHAT_AUTH",
       "route_model": "gpt-5-mini",
       "system_prompt": "Reply in a concise, practical tone for chat users.",
@@ -373,9 +377,10 @@ export BULKHEAD_WECHAT_AUTH="sk-bulkhead-lm-dev"
 
 Implementation notes:
 
-- this connector currently supports WeChat Service Account plaintext mode, not encrypted webhook mode
-- `signature_token_env` is used for both initial URL verification and POST signature validation through `signature + timestamp + nonce`
+- `signature_token_env` is used for plaintext URL verification and plaintext POST signature validation through `signature + timestamp + nonce`
+- `encoding_aes_key_env` plus `app_id_env` enable WeChat compatibility mode and security mode through the official `msg_signature + Encrypt` flow
 - inbound user messages arrive as XML and are answered through passive XML replies on the same request
+- encrypted WeChat requests are decrypted and encrypted replies are rewrapped into the standard `<Encrypt/> + <MsgSignature/> + <TimeStamp/> + <Nonce/>` XML envelope
 - conversation memory is scoped per `account_id + open_id`
 - because this is a passive reply flow, the model call still needs to finish within WeChat's response window
 

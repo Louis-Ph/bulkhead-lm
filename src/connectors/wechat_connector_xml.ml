@@ -13,9 +13,12 @@ let index_substring haystack needle ~from_index =
   let haystack_length = String.length haystack in
   let needle_length = String.length needle in
   let rec loop index =
-    if needle_length = 0 then Some from_index
-    else if index + needle_length > haystack_length then None
-    else if String.sub haystack index needle_length = needle then Some index
+    if needle_length = 0
+    then Some from_index
+    else if index + needle_length > haystack_length
+    then None
+    else if String.sub haystack index needle_length = needle
+    then Some index
     else loop (index + 1)
   in
   if from_index < 0 then None else loop from_index
@@ -55,8 +58,19 @@ let find_int_tag xml tag_name =
   | None -> None
 ;;
 
+let parse_encrypted_envelope xml =
+  match find_tag xml "Encrypt" with
+  | Some encrypted -> Ok encrypted
+  | None ->
+    Error
+      (Domain_error.invalid_request
+         "WeChat encrypted XML payload is missing the Encrypt field.")
+;;
+
 let parse xml =
-  match find_tag xml "ToUserName", find_tag xml "FromUserName", find_tag xml "MsgType" with
+  match
+    find_tag xml "ToUserName", find_tag xml "FromUserName", find_tag xml "MsgType"
+  with
   | Some account_id, Some open_id, Some msg_type ->
     Ok
       { account_id
@@ -75,9 +89,7 @@ let parse xml =
 ;;
 
 let cdata value =
-  let escaped =
-    Str.global_replace (Str.regexp_string "]]>") "]]]]><![CDATA[>" value
-  in
+  let escaped = Str.global_replace (Str.regexp_string "]]>") "]]]]><![CDATA[>" value in
   "<![CDATA[" ^ escaped ^ "]]>"
 ;;
 
@@ -85,11 +97,41 @@ let render_text_reply ~to_user ~from_user ~create_time ~text =
   String.concat
     ""
     [ "<xml>"
-    ; "<ToUserName>"; cdata to_user; "</ToUserName>"
-    ; "<FromUserName>"; cdata from_user; "</FromUserName>"
-    ; "<CreateTime>"; string_of_int create_time; "</CreateTime>"
-    ; "<MsgType>"; cdata "text"; "</MsgType>"
-    ; "<Content>"; cdata text; "</Content>"
+    ; "<ToUserName>"
+    ; cdata to_user
+    ; "</ToUserName>"
+    ; "<FromUserName>"
+    ; cdata from_user
+    ; "</FromUserName>"
+    ; "<CreateTime>"
+    ; string_of_int create_time
+    ; "</CreateTime>"
+    ; "<MsgType>"
+    ; cdata "text"
+    ; "</MsgType>"
+    ; "<Content>"
+    ; cdata text
+    ; "</Content>"
+    ; "</xml>"
+    ]
+;;
+
+let render_encrypted_reply ~encrypted ~msg_signature ~timestamp ~nonce =
+  String.concat
+    ""
+    [ "<xml>"
+    ; "<Encrypt>"
+    ; cdata encrypted
+    ; "</Encrypt>"
+    ; "<MsgSignature>"
+    ; cdata msg_signature
+    ; "</MsgSignature>"
+    ; "<TimeStamp>"
+    ; timestamp
+    ; "</TimeStamp>"
+    ; "<Nonce>"
+    ; cdata nonce
+    ; "</Nonce>"
     ; "</xml>"
     ]
 ;;

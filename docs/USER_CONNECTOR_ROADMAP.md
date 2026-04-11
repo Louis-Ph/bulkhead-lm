@@ -37,9 +37,9 @@ Implementation notes:
 - deferred: TikTok Direct Messages
 - `LINE` fits the current webhook and reply-token model directly, so it extends the existing architecture without adding a new runtime class
 - `Viber` also fits the webhook plus send-message pattern, with one auth token reused for webhook verification and outbound delivery
-- `WeChat Service Account` also fits the direct webhook model in plaintext mode through signature validation plus passive XML replies
-- `TikTok Direct Messages` remains strategically relevant, but the business messaging surface is still operationally heavier and less open than the connectors already shipped here
-- `WeChat` still carries more protocol complexity than the other Wave 2 connectors, especially once encrypted mode and broader event coverage are needed
+- `WeChat Service Account` now covers plaintext mode plus the official compatibility and security modes through passive XML replies wrapped in the encrypted `Encrypt / MsgSignature / TimeStamp / Nonce` envelope
+- `TikTok Direct Messages` remains strategically relevant and explicitly prioritized, but the public business messaging surface still does not expose a clean enough webhook-plus-reply contract here to ship without guesswork
+- Asia-first expansion now favors deeper `WeChat` operability before adding another region-specific connector with weaker public protocol evidence
 
 ## Wave 3
 
@@ -60,7 +60,8 @@ Implementation notes:
 - `Discord` still is not treated as a general gateway-bot message connector here; arbitrary message-content listeners would require a separate gateway runtime class
 - `Snapchat` is globally large, but the business messaging surface is less aligned with the current direct webhook connector model
 - `KakaoTalk` is regionally important, but the current official surface is stronger for channel add, chat launch, and relationship status than for a general inbound assistant conversation webhook
-- `Zalo` and `QQ` remain strategically relevant, but they currently impose higher regional or partner-distribution friction than the channels already implemented
+- `QQ` is regionally important and now looks more likely through the QQ bot ecosystem than through a classic messenger webhook surface, which makes it a distinct connector class rather than a drop-in copy of WhatsApp or Telegram
+- `Zalo` remains strategically relevant, but its public developer portal is still less directly extractable here than the connectors already implemented
 
 ## Architecture guardrails
 

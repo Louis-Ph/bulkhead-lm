@@ -84,6 +84,8 @@
       "enabled": false,
       "webhook_path": "/connectors/wechat/webhook",
       "signature_token_env": "WECHAT_SIGNATURE_TOKEN",
+      "encoding_aes_key_env": "WECHAT_ENCODING_AES_KEY",
+      "app_id_env": "WECHAT_APP_ID",
       "authorization_env": "BULKHEAD_WECHAT_AUTH",
       "route_model": "gpt-5-mini",
       "system_prompt": "Reply in a concise, practical tone for chat users.",

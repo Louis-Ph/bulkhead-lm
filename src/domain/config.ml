@@ -107,6 +107,8 @@ type viber_connector =
 type wechat_connector =
   { webhook_path : string
   ; signature_token_env : string
+  ; encoding_aes_key_env : string option
+  ; app_id_env : string option
   ; authorization_env : string
   ; route_model : string
   ; system_prompt : string option
@@ -361,9 +363,7 @@ let parse_ssh_host destination json =
         | Some index -> String.sub after_user 0 index
         | None -> after_user)
     in
-    if String.trim host = ""
-    then Error "ssh_transport.host"
-    else Ok (String.trim host)
+    if String.trim host = "" then Error "ssh_transport.host" else Ok (String.trim host)
 ;;
 
 let parse_ssh_transport json =
@@ -404,7 +404,8 @@ let parse_backend json =
     | Bulkhead_ssh_peer ->
       (match object_member "ssh_transport" json with
        | `Assoc _ as ssh_json ->
-         parse_ssh_transport ssh_json |> Result.map (fun transport -> Ssh_target transport)
+         parse_ssh_transport ssh_json
+         |> Result.map (fun transport -> Ssh_target transport)
        | _ -> Error "ssh_transport")
     | _ ->
       string_member "api_base" json |> Result.map (fun api_base -> Http_target api_base)
@@ -520,7 +521,8 @@ let parse_whatsapp_connector json =
          ; authorization_env = String.trim authorization_env
          ; route_model = String.trim route_model
          ; system_prompt = optional_non_empty_string_member "system_prompt" json
-         ; allowed_sender_numbers = string_or_int_list_member "allowed_sender_numbers" json
+         ; allowed_sender_numbers =
+             string_or_int_list_member "allowed_sender_numbers" json
          ; api_base =
              normalize_http_api_base
                (string_member_with_default
@@ -704,6 +706,9 @@ let parse_wechat_connector json =
                   json
                   ~default:"/connectors/wechat/webhook")
          ; signature_token_env = String.trim signature_token_env
+         ; encoding_aes_key_env =
+             optional_non_empty_string_member "encoding_aes_key_env" json
+         ; app_id_env = optional_non_empty_string_member "app_id_env" json
          ; authorization_env = String.trim authorization_env
          ; route_model = String.trim route_model
          ; system_prompt = optional_non_empty_string_member "system_prompt" json
@@ -850,8 +855,7 @@ let validate_user_connector_webhook_paths user_connectors =
   let add_binding seen (connector_id, webhook_path) =
     let existing_ids = Option.value (List.assoc_opt webhook_path seen) ~default:[] in
     let updated_ids = List.sort_uniq String.compare (connector_id :: existing_ids) in
-    (webhook_path, updated_ids)
-    :: List.remove_assoc webhook_path seen
+    (webhook_path, updated_ids) :: List.remove_assoc webhook_path seen
   in
   let grouped_paths =
     List.fold_left
@@ -864,11 +868,7 @@ let validate_user_connector_webhook_paths user_connectors =
     |> List.filter_map (fun (webhook_path, connector_ids) ->
       match connector_ids with
       | _ :: _ :: _ ->
-        Some
-          (Fmt.str
-             "%s used by %s"
-             webhook_path
-             (String.concat ", " connector_ids))
+        Some (Fmt.str "%s used by %s" webhook_path (String.concat ", " connector_ids))
       | _ -> None)
   in
   match duplicates with
@@ -940,25 +940,25 @@ let load path =
       | _ -> Ok None
     in
     match
-      telegram_result,
-      whatsapp_result,
-      messenger_result,
-      instagram_result,
-      line_result,
-      viber_result,
-      wechat_result,
-      discord_result,
-      google_chat_result
+      ( telegram_result
+      , whatsapp_result
+      , messenger_result
+      , instagram_result
+      , line_result
+      , viber_result
+      , wechat_result
+      , discord_result
+      , google_chat_result )
     with
-    | Ok telegram,
-      Ok whatsapp,
-      Ok messenger,
-      Ok instagram,
-      Ok line,
-      Ok viber,
-      Ok wechat,
-      Ok discord,
-      Ok google_chat ->
+    | ( Ok telegram
+      , Ok whatsapp
+      , Ok messenger
+      , Ok instagram
+      , Ok line
+      , Ok viber
+      , Ok wechat
+      , Ok discord
+      , Ok google_chat ) ->
       validate_user_connector_webhook_paths
         { telegram
         ; whatsapp

@@ -206,6 +206,8 @@ let wechat_connector
   ?system_prompt
   ?(allowed_open_ids = [])
   ?(allowed_account_ids = [])
+  ?encoding_aes_key_env
+  ?app_id_env
   ~signature_token_env
   ~authorization_env
   ~route_model
@@ -213,6 +215,8 @@ let wechat_connector
   =
   { Config.webhook_path
   ; signature_token_env
+  ; encoding_aes_key_env
+  ; app_id_env
   ; authorization_env
   ; route_model
   ; system_prompt
@@ -278,21 +282,22 @@ let google_chat_connector
 let sample_config
   ?security_policy
   ?(user_connectors =
-      { Config.telegram = None
-      ; whatsapp = None
-      ; messenger = None
-      ; instagram = None
-      ; line = None
-      ; viber = None
-      ; wechat = None
-      ; discord = None
-      ; google_chat = None
-      })
+    { Config.telegram = None
+    ; whatsapp = None
+    ; messenger = None
+    ; instagram = None
+    ; line = None
+    ; viber = None
+    ; wechat = None
+    ; discord = None
+    ; google_chat = None
+    })
   ?(virtual_keys = [ virtual_key ~token_plaintext:"sk-test" ~name:"test" () ])
   ?(routes = [ route ~public_model:"gpt-4o-mini" ~backends:[] () ])
   ()
   =
-  { Config.security_policy = Option.value security_policy ~default:(Security_policy.default ())
+  { Config.security_policy =
+      Option.value security_policy ~default:(Security_policy.default ())
   ; persistence = { sqlite_path = None; busy_timeout_ms = 5000 }
   ; error_catalog = `Assoc []
   ; providers_schema = `Assoc []
