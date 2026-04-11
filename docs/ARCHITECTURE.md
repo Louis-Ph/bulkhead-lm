@@ -78,6 +78,8 @@
 - `Meta_connector_common` centralizes the shared Meta webhook challenge flow, optional HMAC verification, inbound `entry[].messaging[]` parsing, and Graph send API text delivery for Messenger and Instagram
 - `Line_connector` adds LINE-specific reply-token handling and source-scoped session identity without leaking LINE protocol details into the generic router
 - `Viber_connector` adds Viber-specific HMAC verification and `send_message` delivery while still reusing the same BulkheadLM auth, memory, and audit path
+- `Wechat_connector_xml` isolates the minimal XML parsing and rendering needed for plaintext WeChat Service Account messages
+- `Wechat_connector` adds WeChat signature validation, passive XML replies, and per-account OpenID session scoping on the same policy path as the other chat connectors
 - `Google_chat_id_token` isolates Google Chat bearer-token verification from the higher-level Google Chat event bridge
 - user chat connectors reuse the same virtual-key auth path, route allowlists, budgets, and output guards instead of bypassing gateway policy
 - `docs/USER_CONNECTOR_ROADMAP.md` keeps the wave-based rollout order explicit, including implemented versus deferred platforms, instead of letting connector growth become opportunistic

@@ -104,6 +104,16 @@ type viber_connector =
   ; api_base : string
   }
 
+type wechat_connector =
+  { webhook_path : string
+  ; signature_token_env : string
+  ; authorization_env : string
+  ; route_model : string
+  ; system_prompt : string option
+  ; allowed_open_ids : string list
+  ; allowed_account_ids : string list
+  }
+
 type google_chat_id_token_auth =
   { audience : string
   ; certs_url : string
@@ -126,6 +136,7 @@ type user_connectors =
   ; instagram : instagram_connector option
   ; line : line_connector option
   ; viber : viber_connector option
+  ; wechat : wechat_connector option
   ; google_chat : google_chat_connector option
   }
 
@@ -660,6 +671,33 @@ let parse_viber_connector json =
          })
 ;;
 
+let parse_wechat_connector json =
+  if not (bool_member_with_default "enabled" json ~default:true)
+  then Ok None
+  else
+    string_member "signature_token_env" json
+    >>= fun signature_token_env ->
+    string_member "authorization_env" json
+    >>= fun authorization_env ->
+    string_member "route_model" json
+    >>= fun route_model ->
+    Ok
+      (Some
+         { webhook_path =
+             normalize_http_path
+               (string_member_with_default
+                  "webhook_path"
+                  json
+                  ~default:"/connectors/wechat/webhook")
+         ; signature_token_env = String.trim signature_token_env
+         ; authorization_env = String.trim authorization_env
+         ; route_model = String.trim route_model
+         ; system_prompt = optional_non_empty_string_member "system_prompt" json
+         ; allowed_open_ids = string_or_int_list_member "allowed_open_ids" json
+         ; allowed_account_ids = string_or_int_list_member "allowed_account_ids" json
+         })
+;;
+
 let parse_google_chat_id_token_auth json =
   string_member "audience" json
   >>= fun audience ->
@@ -774,6 +812,11 @@ let load path =
       | `Assoc _ as viber_json -> parse_viber_connector viber_json
       | _ -> Ok None
     in
+    let wechat_result =
+      match object_member "wechat" connector_json with
+      | `Assoc _ as wechat_json -> parse_wechat_connector wechat_json
+      | _ -> Ok None
+    in
     let google_chat_result =
       match object_member "google_chat" connector_json with
       | `Assoc _ as google_chat_json -> parse_google_chat_connector google_chat_json
@@ -786,17 +829,19 @@ let load path =
       instagram_result,
       line_result,
       viber_result,
+      wechat_result,
       google_chat_result
     with
-    | Ok telegram, Ok whatsapp, Ok messenger, Ok instagram, Ok line, Ok viber, Ok google_chat ->
-      Ok { telegram; whatsapp; messenger; instagram; line; viber; google_chat }
-    | Error err, _, _, _, _, _, _
-    | _, Error err, _, _, _, _, _
-    | _, _, Error err, _, _, _, _
-    | _, _, _, Error err, _, _, _
-    | _, _, _, _, Error err, _, _
-    | _, _, _, _, _, Error err, _
-    | _, _, _, _, _, _, Error err -> Error err
+    | Ok telegram, Ok whatsapp, Ok messenger, Ok instagram, Ok line, Ok viber, Ok wechat, Ok google_chat ->
+      Ok { telegram; whatsapp; messenger; instagram; line; viber; wechat; google_chat }
+    | Error err, _, _, _, _, _, _, _
+    | _, Error err, _, _, _, _, _, _
+    | _, _, Error err, _, _, _, _, _
+    | _, _, _, Error err, _, _, _, _
+    | _, _, _, _, Error err, _, _, _
+    | _, _, _, _, _, Error err, _, _
+    | _, _, _, _, _, _, Error err, _
+    | _, _, _, _, _, _, _, Error err -> Error err
   in
   let route_values = list_member "routes" json in
   let virtual_key_values = list_member "virtual_keys" json in

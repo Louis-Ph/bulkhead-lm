@@ -31,12 +31,13 @@ request-response webhook architecture.
 
 Implementation notes:
 
-- implemented: LINE, Viber
-- deferred: TikTok Direct Messages, WeChat
+- implemented: LINE, Viber, WeChat Service Account
+- deferred: TikTok Direct Messages
 - `LINE` fits the current webhook and reply-token model directly, so it extends the existing architecture without adding a new runtime class
 - `Viber` also fits the webhook plus send-message pattern, with one auth token reused for webhook verification and outbound delivery
+- `WeChat Service Account` also fits the direct webhook model in plaintext mode through signature validation plus passive XML replies
 - `TikTok Direct Messages` remains strategically relevant, but the business messaging surface is still operationally heavier and less open than the connectors already shipped here
-- `WeChat` matters for reach, but it usually adds more regional, operational, and protocol complexity than the rest of this wave
+- `WeChat` still carries more protocol complexity than the other Wave 2 connectors, especially once encrypted mode and broader event coverage are needed
 
 ## Wave 3
 

@@ -80,6 +80,16 @@
       "sender_avatar": "",
       "api_base": "https://chatapi.viber.com/pa"
     },
+    "wechat": {
+      "enabled": false,
+      "webhook_path": "/connectors/wechat/webhook",
+      "signature_token_env": "WECHAT_SIGNATURE_TOKEN",
+      "authorization_env": "BULKHEAD_WECHAT_AUTH",
+      "route_model": "gpt-5-mini",
+      "system_prompt": "Reply in a concise, practical tone for chat users.",
+      "allowed_open_ids": [],
+      "allowed_account_ids": []
+    },
     "google_chat": {
       "enabled": false,
       "webhook_path": "/connectors/google-chat/webhook",

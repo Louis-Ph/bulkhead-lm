@@ -31,7 +31,7 @@ It targets multi-provider LLM gateway routing with a stricter design bias: expli
 - request body limits and upstream request timeouts
 - retry-aware fallback that avoids failing over on permanent upstream errors
 - multicore-safe budget and rate-limit state with a `Domain.spawn` test
-- Telegram, WhatsApp Cloud API, Facebook Messenger, Instagram Direct, LINE, Viber, and Google Chat user connectors over webhook, with per-conversation memory routed through normal BulkheadLM virtual-key auth
+- Telegram, WhatsApp Cloud API, Facebook Messenger, Instagram Direct, LINE, Viber, WeChat Service Account, and Google Chat user connectors over webhook, with per-conversation memory routed through normal BulkheadLM virtual-key auth
 
 ## Connector rollout roadmap
 
@@ -39,8 +39,8 @@ The chat-connector backlog is staged by global reach, API availability, and the
 amount of adaptation a mainstream user needs before the assistant feels native.
 
 - Wave 1: WhatsApp Cloud API, Telegram Bot API, Facebook Messenger, Instagram Direct
-- Wave 2: LINE, Viber
-- Wave 2 deferred: TikTok Direct Messages, WeChat
+- Wave 2: LINE, Viber, WeChat Service Account
+- Wave 2 deferred: TikTok Direct Messages
 - Wave 3 deferred: Discord, Snapchat, KakaoTalk, Zalo, QQ
 
 The longer rationale lives in [docs/USER_CONNECTOR_ROADMAP.md](docs/USER_CONNECTOR_ROADMAP.md).
@@ -100,7 +100,7 @@ dune exec bulkhead-lm -- --config config/example.gateway.json --port 4200
 
 ## User chat connectors
 
-BulkheadLM can now expose seven user-facing chat connectors through the same
+BulkheadLM can now expose eight user-facing chat connectors through the same
 HTTP server architecture:
 
 - Telegram Bot API
@@ -109,6 +109,7 @@ HTTP server architecture:
 - Instagram Direct
 - LINE Messaging API
 - Viber REST Bot API
+- WeChat Service Account
 - Google Chat HTTP app webhooks
 
 Each connector keeps the same gateway guarantees:
@@ -336,6 +337,40 @@ Implementation notes:
 - `auth_token_env` is reused for both webhook signature validation (`X-Viber-Content-Signature`) and outbound `X-Viber-Auth-Token`
 - outbound text replies are sent through `send_message`
 - `conversation_started` receives an onboarding reply, while normal text messages reuse the standard BulkheadLM route and session memory path
+
+### WeChat Service Account
+
+Reference checked for this connector work: 2026-04-11.
+
+```bash
+export WECHAT_SIGNATURE_TOKEN="wechat-signature-token"
+export BULKHEAD_WECHAT_AUTH="sk-bulkhead-lm-dev"
+```
+
+```json
+{
+  "user_connectors": {
+    "wechat": {
+      "enabled": true,
+      "webhook_path": "/connectors/wechat/webhook",
+      "signature_token_env": "WECHAT_SIGNATURE_TOKEN",
+      "authorization_env": "BULKHEAD_WECHAT_AUTH",
+      "route_model": "gpt-5-mini",
+      "system_prompt": "Reply in a concise, practical tone for chat users.",
+      "allowed_open_ids": [],
+      "allowed_account_ids": []
+    }
+  }
+}
+```
+
+Implementation notes:
+
+- this connector currently supports WeChat Service Account plaintext mode, not encrypted webhook mode
+- `signature_token_env` is used for both initial URL verification and POST signature validation through `signature + timestamp + nonce`
+- inbound user messages arrive as XML and are answered through passive XML replies on the same request
+- conversation memory is scoped per `account_id + open_id`
+- because this is a passive reply flow, the model call still needs to finish within WeChat's response window
 
 ### Google Chat
 

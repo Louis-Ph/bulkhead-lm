@@ -33,6 +33,20 @@ let base64url_encode value =
   Base64.encode_exn ~pad:false ~alphabet:Base64.uri_safe_alphabet value
 ;;
 
+let string_contains haystack needle =
+  match Str.search_forward (Str.regexp_string needle) haystack 0 with
+  | _ -> true
+  | exception Not_found -> false
+;;
+
+let wechat_signature ~token ~timestamp ~nonce =
+  [ token; timestamp; nonce ]
+  |> List.sort String.compare
+  |> String.concat ""
+  |> Digestif.SHA1.digest_string
+  |> Digestif.SHA1.to_hex
+;;
+
 let test_google_chat_private_key_pem =
   String.concat
     "\n"
@@ -1261,6 +1275,7 @@ let telegram_connector_handles_text_webhook_test _switch () =
            ; instagram = None
            ; line = None
            ; viber = None
+           ; wechat = None
            ; google_chat = None
            }
          ~routes:
@@ -1652,6 +1667,54 @@ let config_load_parses_viber_connector_test _switch () =
   Lwt.return_unit
 ;;
 
+let config_load_parses_wechat_connector_test _switch () =
+  let config_path = Filename.temp_file "bulkhead-lm-wechat-connector" ".json" in
+  let config_json =
+    `Assoc
+      [ ( "user_connectors"
+        , `Assoc
+            [ ( "wechat"
+              , `Assoc
+                  [ "enabled", `Bool true
+                  ; "webhook_path", `String "wechat/webhook"
+                  ; "signature_token_env", `String "WECHAT_SIGNATURE_TOKEN"
+                  ; "authorization_env", `String "BULKHEAD_WECHAT_AUTH"
+                  ; "route_model", `String "gpt-5-mini"
+                  ; "system_prompt", `String "Reply plainly."
+                  ; "allowed_open_ids", `List [ `String "openid-123" ]
+                  ; "allowed_account_ids", `List [ `String "gh_abc123" ]
+                  ] )
+            ] )
+      ; "routes", `List []
+      ; "virtual_keys", `List []
+      ]
+  in
+  Yojson.Safe.to_file config_path config_json;
+  (match Bulkhead_lm.Config.load config_path with
+   | Error err -> Alcotest.failf "expected wechat connector config load success: %s" err
+   | Ok config ->
+     (match config.Bulkhead_lm.Config.user_connectors.wechat with
+      | None -> Alcotest.fail "expected wechat connector config"
+      | Some connector ->
+        Alcotest.(check string)
+          "wechat webhook path normalized"
+          "/wechat/webhook"
+          connector.webhook_path;
+        Alcotest.(check string)
+          "wechat signature token env parsed"
+          "WECHAT_SIGNATURE_TOKEN"
+          connector.signature_token_env;
+        Alcotest.(check (list string))
+          "wechat allowed open ids parsed"
+          [ "openid-123" ]
+          connector.allowed_open_ids;
+        Alcotest.(check (list string))
+          "wechat allowed account ids parsed"
+          [ "gh_abc123" ]
+          connector.allowed_account_ids));
+  Lwt.return_unit
+;;
+
 let config_load_parses_google_chat_connector_test _switch () =
   let config_path = Filename.temp_file "bulkhead-lm-google-chat-connector" ".json" in
   let config_json =
@@ -1721,6 +1784,7 @@ let whatsapp_connector_handles_verification_test _switch () =
            ; instagram = None
            ; line = None
            ; viber = None
+           ; wechat = None
            ; google_chat = None
            }
          ())
@@ -1793,6 +1857,7 @@ let whatsapp_connector_handles_text_webhook_test _switch () =
            ; instagram = None
            ; line = None
            ; viber = None
+           ; wechat = None
            ; google_chat = None
            }
          ~routes:
@@ -1946,6 +2011,7 @@ let messenger_connector_handles_verification_test _switch () =
            ; instagram = None
            ; line = None
            ; viber = None
+           ; wechat = None
            ; google_chat = None
            }
          ())
@@ -2019,6 +2085,7 @@ let messenger_connector_handles_text_webhook_test _switch () =
            ; instagram = None
            ; line = None
            ; viber = None
+           ; wechat = None
            ; google_chat = None
            }
          ~routes:
@@ -2197,6 +2264,7 @@ let instagram_connector_handles_text_webhook_test _switch () =
            ; instagram = Some connector
            ; line = None
            ; viber = None
+           ; wechat = None
            ; google_chat = None
            }
          ~routes:
@@ -2371,6 +2439,7 @@ let line_connector_handles_text_webhook_test _switch () =
            ; instagram = None
            ; line = Some connector
            ; viber = None
+           ; wechat = None
            ; google_chat = None
            }
          ~routes:
@@ -2541,6 +2610,7 @@ let viber_connector_handles_text_webhook_test _switch () =
            ; instagram = None
            ; line = None
            ; viber = Some connector
+           ; wechat = None
            ; google_chat = None
            }
          ~routes:
@@ -2669,6 +2739,201 @@ let viber_connector_handles_text_webhook_test _switch () =
       Lwt.return_unit)
 ;;
 
+let wechat_connector_handles_verification_test _switch () =
+  let connector =
+    Bulkhead_lm.Config_test_support.wechat_connector
+      ~signature_token_env:"WECHAT_SIGNATURE_TOKEN"
+      ~authorization_env:"BULKHEAD_WECHAT_AUTH"
+      ~route_model:"gpt-4o-mini"
+      ()
+  in
+  let store =
+    Bulkhead_lm.Runtime_state.create
+      (Bulkhead_lm.Config_test_support.sample_config
+         ~user_connectors:
+           { Bulkhead_lm.Config.telegram = None
+           ; whatsapp = None
+           ; messenger = None
+           ; instagram = None
+           ; line = None
+           ; viber = None
+           ; wechat = Some connector
+           ; google_chat = None
+           }
+         ())
+  in
+  let timestamp = "1712832000" in
+  let nonce = "nonce-123" in
+  let signature =
+    wechat_signature ~token:"wechat-token-123" ~timestamp ~nonce
+  in
+  let request =
+    Cohttp.Request.make
+      ~meth:`GET
+      (Uri.of_string
+         (Fmt.str
+            "http://localhost/connectors/wechat/webhook?signature=%s&timestamp=%s&nonce=%s&echostr=%s"
+            signature
+            timestamp
+            nonce
+            "echo-123"))
+  in
+  with_env_overrides
+    [ "WECHAT_SIGNATURE_TOKEN", "wechat-token-123" ]
+    (fun () ->
+      Bulkhead_lm.Wechat_connector.handle_webhook
+        store
+        request
+        Cohttp_lwt.Body.empty
+        connector
+      >>= fun (response, response_body) ->
+      Alcotest.(check int) "wechat verification accepted" 200 (response_status_code response);
+      response_body_text response_body
+      >|= fun body_text ->
+      Alcotest.(check string) "wechat echostr echoed" "echo-123" body_text)
+;;
+
+let wechat_connector_handles_text_webhook_test _switch () =
+  let captured_request = ref None in
+  let invoke_chat _headers _backend (request : Bulkhead_lm.Openai_types.chat_request) =
+    captured_request := Some request;
+    Lwt.return
+      (Ok
+         (Bulkhead_lm.Provider_mock.sample_chat_response
+            ~model:request.model
+            ~content:"WeChat reply"
+            ()))
+  in
+  let provider =
+    { Bulkhead_lm.Provider_client.invoke_chat = invoke_chat
+    ; invoke_chat_stream =
+        (fun headers backend request ->
+          invoke_chat headers backend request
+          >|= Result.map Bulkhead_lm.Provider_stream.of_chat_response)
+    ; invoke_embeddings =
+        (fun _headers _backend _request ->
+          Lwt.return
+            (Error
+               (Bulkhead_lm.Domain_error.unsupported_feature
+                  "embeddings not used in wechat connector test")))
+    }
+  in
+  let connector =
+    Bulkhead_lm.Config_test_support.wechat_connector
+      ~signature_token_env:"WECHAT_SIGNATURE_TOKEN"
+      ~authorization_env:"BULKHEAD_WECHAT_AUTH"
+      ~route_model:"gpt-4o-mini"
+      ~allowed_open_ids:[ "openid-123" ]
+      ~allowed_account_ids:[ "gh_abc123" ]
+      ()
+  in
+  let store =
+    Bulkhead_lm.Runtime_state.create
+      ~provider_factory:(fun _ -> provider)
+      (Bulkhead_lm.Config_test_support.sample_config
+         ~user_connectors:
+           { Bulkhead_lm.Config.telegram = None
+           ; whatsapp = None
+           ; messenger = None
+           ; instagram = None
+           ; line = None
+           ; viber = None
+           ; wechat = Some connector
+           ; google_chat = None
+           }
+         ~routes:
+           [ Bulkhead_lm.Config_test_support.route
+               ~public_model:"gpt-4o-mini"
+               ~backends:
+                 [ Bulkhead_lm.Config_test_support.backend
+                     ~provider_id:"primary"
+                     ~provider_kind:Bulkhead_lm.Config.Openai_compat
+                     ~api_base:"https://api.example.test/v1"
+                     ~upstream_model:"gpt-4o-mini"
+                     ~api_key_env:"OPENAI_API_KEY"
+                     ()
+                 ]
+               ()
+           ]
+         ())
+  in
+  let timestamp = "1712832000" in
+  let nonce = "nonce-123" in
+  let payload_text =
+    String.concat
+      ""
+      [ "<xml>"
+      ; "<ToUserName><![CDATA[gh_abc123]]></ToUserName>"
+      ; "<FromUserName><![CDATA[openid-123]]></FromUserName>"
+      ; "<CreateTime>1712832000</CreateTime>"
+      ; "<MsgType><![CDATA[text]]></MsgType>"
+      ; "<Content><![CDATA[Summarize the repo]]></Content>"
+      ; "<MsgId>1234567890123456</MsgId>"
+      ; "</xml>"
+      ]
+  in
+  let signature =
+    wechat_signature ~token:"wechat-token-123" ~timestamp ~nonce
+  in
+  let request =
+    Cohttp.Request.make
+      ~meth:`POST
+      (Uri.of_string
+         (Fmt.str
+            "http://localhost/connectors/wechat/webhook?signature=%s&timestamp=%s&nonce=%s"
+            signature
+            timestamp
+            nonce))
+  in
+  let body = Cohttp_lwt.Body.of_string payload_text in
+  with_env_overrides
+    [ "WECHAT_SIGNATURE_TOKEN", "wechat-token-123"
+    ; "BULKHEAD_WECHAT_AUTH", "sk-test"
+    ]
+    (fun () ->
+      Bulkhead_lm.Wechat_connector.handle_webhook
+        store
+        request
+        body
+        connector
+      >>= fun (response, response_body) ->
+      Alcotest.(check int) "wechat webhook accepted" 200 (response_status_code response);
+      response_body_text response_body
+      >>= fun body_text ->
+      Alcotest.(check bool)
+        "wechat returns xml reply"
+        true
+        (string_contains body_text "<xml>");
+      Alcotest.(check bool)
+        "wechat reply contains assistant text"
+        true
+        (string_contains body_text "<Content><![CDATA[WeChat reply]]></Content>");
+      (match !captured_request with
+       | None -> Alcotest.fail "expected routed wechat chat request"
+       | Some routed_request ->
+         Alcotest.(check string)
+           "wechat connector routes configured model"
+           "gpt-4o-mini"
+           routed_request.model;
+         (match List.rev routed_request.messages with
+          | last :: _ ->
+            Alcotest.(check string)
+              "wechat user text becomes pending user prompt"
+              "Summarize the repo"
+              last.content
+          | [] -> Alcotest.fail "expected wechat routed request messages"));
+      let session =
+        Bulkhead_lm.Runtime_state.get_user_connector_session
+          store
+          ~session_key:"wechat:gh_abc123:openid-123"
+      in
+      Alcotest.(check int)
+        "wechat connector remembers one exchange"
+        2
+        (Bulkhead_lm.Session_memory.stats session).recent_turn_count;
+      Lwt.return_unit)
+;;
+
 let google_chat_id_token_verifies_signed_token_test _switch () =
   let auth_config =
     Bulkhead_lm.Config_test_support.google_chat_id_token_auth
@@ -2749,6 +3014,7 @@ let google_chat_connector_handles_text_event_test _switch () =
            ; instagram = None
            ; line = None
            ; viber = None
+           ; wechat = None
            ; google_chat = Some connector
            }
          ~routes:
@@ -4472,6 +4738,10 @@ let tests =
       `Quick
       config_load_parses_viber_connector_test
   ; Alcotest_lwt.test_case
+      "config parses wechat user connector"
+      `Quick
+      config_load_parses_wechat_connector_test
+  ; Alcotest_lwt.test_case
       "config parses google chat user connector"
       `Quick
       config_load_parses_google_chat_connector_test
@@ -4507,6 +4777,14 @@ let tests =
       "viber connector handles text webhook"
       `Quick
       viber_connector_handles_text_webhook_test
+  ; Alcotest_lwt.test_case
+      "wechat connector handles verification"
+      `Quick
+      wechat_connector_handles_verification_test
+  ; Alcotest_lwt.test_case
+      "wechat connector handles text webhook"
+      `Quick
+      wechat_connector_handles_text_webhook_test
   ; Alcotest_lwt.test_case
       "google chat token verification accepts signed token"
       `Quick
