@@ -650,9 +650,11 @@ let prompt_input model =
       Starter_terminal.read_line
         ~record_history:true
         ~prompt:
-          (Fmt.str
-             "%s"
-             (Starter_constants.Ansi.bold (Starter_constants.Ansi.green model ^ "> ")))
+          (Starter_terminal.mask_prompt_ansi_sequences
+             (Fmt.str
+                "%s"
+                (Starter_constants.Ansi.bold
+                   (Starter_constants.Ansi.green model ^ "> "))))
         ()
     with
     | Some line -> line
@@ -690,14 +692,18 @@ let request_messages state runtime prompt : Openai_types.message list =
     ]
 ;;
 
+let render_stream_signal_event = function
+  | Starter_response_signal.Text text -> print_string text
+  | Starter_response_signal.Set_level level ->
+    print_string (Starter_constants.Assistant_signal.ansi_open level)
+;;
+
 let run_stream_messages store ~authorization ~model messages =
   match Terminal_client.build_chat_request store ~model ~stream:true messages with
   | Error err -> Stream_failed err
   | Ok request ->
     (try
-       print_string "\027[32m";
-       (* Start green response *)
-       flush stdout;
+       let signal_state = ref Starter_response_signal.initial_state in
        let result =
          Lwt_main.run
            (Terminal_client.run_ask_stream
@@ -705,12 +711,15 @@ let run_stream_messages store ~authorization ~model messages =
               ~authorization
               request
               ~on_delta:(fun chunk ->
-                print_string chunk;
+                let next_state, events = Starter_response_signal.feed !signal_state chunk in
+                signal_state := next_state;
+                List.iter render_stream_signal_event events;
                 flush stdout;
                 Lwt.return_unit))
        in
-       print_string "\027[0m";
-       (* Reset term formatting *)
+       let _, tail_events = Starter_response_signal.finish !signal_state in
+       List.iter render_stream_signal_event tail_events;
+       print_string Starter_constants.Ansi.reset;
        flush stdout;
        match result with
        | Ok (Terminal_client.Chat_response response) ->
@@ -723,8 +732,7 @@ let run_stream_messages store ~authorization ~model messages =
        | Error err -> Stream_failed err
      with
      | Sys.Break ->
-       print_string "\027[0m";
-       (* Early fail reset *)
+       print_string Starter_constants.Ansi.reset;
        print_newline ();
        flush stdout;
        Stream_interrupted)
@@ -734,7 +742,11 @@ let remember_exchange state runtime ~user response =
   if not (Starter_session.conversation_enabled state)
   then runtime
   else (
-    let assistant = Terminal_client.text_of_chat_response response in
+    let assistant =
+      response
+      |> Terminal_client.text_of_chat_response
+      |> Starter_response_signal.strip_markup
+    in
     let conversation, event =
       Starter_conversation.commit_exchange
         runtime.Starter_runtime.conversation

@@ -1,12 +1,88 @@
 module Ansi = struct
-  let cyan text = "\027[36m" ^ text ^ "\027[0m"
-  let green text = "\027[32m" ^ text ^ "\027[0m"
-  let yellow text = "\027[33m" ^ text ^ "\027[0m"
-  let magenta text = "\027[35m" ^ text ^ "\027[0m"
-  let red text = "\027[31m" ^ text ^ "\027[0m"
+  let reset = "\027[0m"
+
+  let sgr code = "\027[" ^ code ^ "m"
+  let wrap code text = sgr code ^ text ^ reset
+
+  let contains_substring text needle =
+    let text_length = String.length text in
+    let needle_length = String.length needle in
+    let rec loop index =
+      if needle_length = 0
+      then true
+      else if index + needle_length > text_length
+      then false
+      else if String.sub text index needle_length = needle
+      then true
+      else loop (index + 1)
+    in
+    loop 0
+  ;;
+
+  let supports_extended_palette () =
+    match Sys.getenv_opt "TERM", Sys.getenv_opt "COLORTERM" with
+    | Some term, _
+    | _, Some term ->
+      let lowered = String.lowercase_ascii term in
+      contains_substring lowered "256color"
+      || contains_substring lowered "truecolor"
+      || contains_substring lowered "24bit"
+      || contains_substring lowered "direct"
+    | None, None -> false
+  ;;
+
+  let open_cyan = sgr "36"
+  let open_green = sgr "32"
+  let open_yellow = sgr "33"
+  let open_magenta = sgr "35"
+  let open_red = sgr "31"
+
+  let open_orange () =
+    if supports_extended_palette () then sgr "38;5;208" else open_yellow
+  ;;
+
+  let cyan text = wrap "36" text
+  let green text = wrap "32" text
+  let yellow text = wrap "33" text
+  let magenta text = wrap "35" text
+  let red text = wrap "31" text
+  let orange text = open_orange () ^ text ^ reset
   let dim text = "\027[2m" ^ text ^ "\027[22m" (* 22m resets dim, not everything *)
   let bold text = "\027[1m" ^ text ^ "\027[22m" (* 22m resets bold *)
-  let reset = "\027[0m"
+end
+
+module Assistant_signal = struct
+  type level =
+    | Normal
+    | Green
+    | Orange
+    | Red
+
+  let directives =
+    [ "[[normal]]", Normal
+    ; "[[green]]", Green
+    ; "[[orange]]", Orange
+    ; "[[red]]", Red
+    ]
+  ;;
+
+  let ansi_open = function
+    | Normal -> Ansi.reset
+    | Green -> Ansi.open_green
+    | Orange -> Ansi.open_orange ()
+    | Red -> Ansi.open_red
+  ;;
+
+  let usage_lines =
+    [ "You may optionally color your reply for terminal context with one control token:"
+    ; "[[normal]] for neutral/default terminal color."
+    ; "[[green]] for safe, confirmed, successful, or ready states."
+    ; "[[orange]] for caution, partial confidence, operator attention, or pending action."
+    ; "[[red]] for danger, blockers, destructive risk, or urgent failure."
+    ; "Only place these control tokens at the very start of the reply or immediately after a newline."
+    ; "Do not mention or explain the control tokens unless the user asks about them."
+    ]
+  ;;
 end
 
 module Command = struct
@@ -134,16 +210,21 @@ module Text = struct
   let tools_intro = "Use /file PATH to send one local text file with your next question."
 
   let assistant_capabilities_system_prompt =
-    "You are the assistant inside the BulkheadLM starter terminal. You must be proactive \
-     and guide the user based on the BulkheadLM documentation, its codebase, and the \
-     user's needs. The user can use local starter commands such as /help, /tools, \
-     /file PATH, /files, /clearfiles, /explore PATH, /open PATH, /run CMD, /admin TEXT, \
-     /package, /model, /models, /swap NAME, /providers, /env, /memory, /thread on, \
-     /thread off, and /quit. If the user asks how to send a file, explain /file PATH \
-     and /files instead of saying file upload is impossible. If the user asks to inspect \
-     local files or run a local command, mention /explore, /open, or /run. Treat \
-     OpenRouter as a supported provider family using provider_kind openrouter_openai, \
-     api_base https://openrouter.ai/api/v1, and OPEN_ROUTER_KEY by default."
+    String.concat
+      "\n"
+      ([ "You are the assistant inside the BulkheadLM starter terminal. You must be \
+          proactive and guide the user based on the BulkheadLM documentation, its \
+          codebase, and the user's needs. The user can use local starter commands such \
+          as /help, /tools, /file PATH, /files, /clearfiles, /explore PATH, /open PATH, \
+          /run CMD, /admin TEXT, /package, /model, /models, /swap NAME, /providers, \
+          /env, /memory, /thread on, /thread off, and /quit. If the user asks how to \
+          send a file, explain /file PATH and /files instead of saying file upload is \
+          impossible. If the user asks to inspect local files or run a local command, \
+          mention /explore, /open, or /run. Treat OpenRouter as a supported provider \
+          family using provider_kind openrouter_openai, api_base \
+          https://openrouter.ai/api/v1, and OPEN_ROUTER_KEY by default."
+       ]
+       @ Assistant_signal.usage_lines)
   ;;
 
   let swap_usage =
