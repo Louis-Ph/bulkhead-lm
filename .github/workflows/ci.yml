@@ -33,7 +33,7 @@ jobs:
           dune-cache: true
 
       - name: Install Dependencies
-        run: opam install . --deps-only --with-test
+        run: ./scripts/ci_install_deps.sh
 
       - name: Build
         run: opam exec -- dune build @install
