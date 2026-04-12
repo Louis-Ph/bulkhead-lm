@@ -472,31 +472,7 @@ let print_control_plane_status store state =
 ;;
 
 let starter_commands () =
-  [ Starter_constants.Command.tools
-  ; Starter_constants.Command.admin
-  ; Starter_constants.Command.control
-  ; Starter_constants.Command.package
-  ; Starter_constants.Command.plan
-  ; Starter_constants.Command.apply
-  ; Starter_constants.Command.discard
-  ; Starter_constants.Command.help
-  ; Starter_constants.Command.config
-  ; Starter_constants.Command.model
-  ; Starter_constants.Command.models
-  ; Starter_constants.Command.memory
-  ; Starter_constants.Command.forget
-  ; Starter_constants.Command.providers
-  ; Starter_constants.Command.env
-  ; Starter_constants.Command.file
-  ; Starter_constants.Command.files
-  ; Starter_constants.Command.clearfiles
-  ; Starter_constants.Command.explore
-  ; Starter_constants.Command.open_file
-  ; Starter_constants.Command.run
-  ; Starter_constants.Command.thread
-  ; Starter_constants.Command.swap
-  ; Starter_constants.Command.quit
-  ]
+  Starter_constants.Command.all
 ;;
 
 let update_terminal_context store =

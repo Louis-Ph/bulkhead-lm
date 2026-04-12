@@ -110,6 +110,35 @@ module Command = struct
   let explore = "/explore"
   let open_file = "/open"
   let run = "/run"
+
+  let all =
+    [ help
+    ; tools
+    ; admin
+    ; control
+    ; package
+    ; plan
+    ; apply
+    ; discard
+    ; config
+    ; model
+    ; models
+    ; memory
+    ; forget
+    ; providers
+    ; env
+    ; thread
+    ; quit
+    ; swap
+    ; file
+    ; files
+    ; clearfiles
+    ; explore
+    ; open_file
+    ; run
+    ]
+    |> List.sort_uniq String.compare
+  ;;
 end
 
 module Defaults = struct
@@ -153,34 +182,104 @@ module Text = struct
     ]
   ;;
 
-  let command_help_lines =
-    [ "Commands:"
-    ; "  /tools      show the most useful starter actions, including file insertion"
-    ; "  /admin TEXT ask the assistant to prepare a safe admin plan"
-    ; "  /control    show the real HTTP admin control-plane status for this config"
-    ; "  /package    build a distributable package for this operating system"
-    ; "  /plan       show the pending admin plan"
-    ; "  /apply      apply the pending admin plan"
-    ; "  /discard    drop the pending admin plan"
-    ; "  /model      choose another configured model"
-    ; "  /models     list configured models"
-    ; "  /swap NAME  switch directly to a configured model"
-    ; "  /memory     show conversation memory status"
-    ; "  /forget     clear remembered conversation state"
-    ; "  /thread on  enable conversation memory"
-    ; "  /thread off disable conversation memory"
-    ; "  /providers  show ready and missing providers from the current config"
-    ; "  /env        show relevant environment variables in masked form"
-    ; "  /file PATH  attach one local text file to the next prompt"
-    ; "  /files      list files attached to the next prompt"
-    ; "  /clearfiles remove attached files before the next prompt"
-    ; "  /explore    list a directory inside the allowed local roots"
-    ; "  /open PATH  show one local text file inside the allowed local roots"
-    ; "  /run CMD    execute one local command inside the allowed working roots"
-    ; "  /config     show the current config path"
-    ; "  /help       show this help"
-    ; "  /quit       exit the starter"
+  type command_help_entry =
+    { usage : string
+    ; description : string
+    }
+
+  let command_help_entries =
+    [ { usage = Command.tools
+      ; description = "show the most useful starter actions, including file insertion"
+      }
+    ; { usage = Command.admin ^ " TEXT"
+      ; description = "ask the assistant to prepare a safe admin plan"
+      }
+    ; { usage = Command.control
+      ; description = "show the real HTTP admin control-plane status for this config"
+      }
+    ; { usage = Command.package
+      ; description = "build a distributable package for this operating system"
+      }
+    ; { usage = Command.plan
+      ; description = "show the pending admin plan"
+      }
+    ; { usage = Command.apply
+      ; description = "apply the pending admin plan"
+      }
+    ; { usage = Command.discard
+      ; description = "drop the pending admin plan"
+      }
+    ; { usage = Command.model
+      ; description = "choose another configured model"
+      }
+    ; { usage = Command.models
+      ; description = "list configured models"
+      }
+    ; { usage = Command.swap ^ " NAME"
+      ; description = "switch directly to a configured model"
+      }
+    ; { usage = Command.memory
+      ; description = "show conversation memory status"
+      }
+    ; { usage = Command.forget
+      ; description = "clear remembered conversation state"
+      }
+    ; { usage = Command.thread ^ " on"
+      ; description = "enable conversation memory"
+      }
+    ; { usage = Command.thread ^ " off"
+      ; description = "disable conversation memory"
+      }
+    ; { usage = Command.providers
+      ; description = "show ready and missing providers from the current config"
+      }
+    ; { usage = Command.env
+      ; description = "show relevant environment variables in masked form"
+      }
+    ; { usage = Command.file ^ " PATH"
+      ; description = "attach one local text file to the next prompt"
+      }
+    ; { usage = Command.files
+      ; description = "list files attached to the next prompt"
+      }
+    ; { usage = Command.clearfiles
+      ; description = "remove attached files before the next prompt"
+      }
+    ; { usage = Command.explore
+      ; description = "list a directory inside the allowed local roots"
+      }
+    ; { usage = Command.open_file ^ " PATH"
+      ; description = "show one local text file inside the allowed local roots"
+      }
+    ; { usage = Command.run ^ " CMD"
+      ; description = "execute one local command inside the allowed working roots"
+      }
+    ; { usage = Command.config
+      ; description = "show the current config path"
+      }
+    ; { usage = Command.help
+      ; description = "show this help"
+      }
+    ; { usage = Command.quit
+      ; description = "exit the starter"
+      }
     ]
+    |> List.sort (fun left right -> String.compare left.usage right.usage)
+  ;;
+
+  let max_command_usage_width =
+    List.fold_left
+      (fun widest entry -> max widest (String.length entry.usage))
+      0
+      command_help_entries
+  ;;
+
+  let format_command_help_line entry =
+    Fmt.str "  %-*s %s" max_command_usage_width entry.usage entry.description
+  ;;
+
+  let command_help_lines =
+    "Commands:" :: List.map format_command_help_line command_help_entries
   ;;
 
   let tool_help_lines =
