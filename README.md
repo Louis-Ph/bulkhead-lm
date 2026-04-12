@@ -28,6 +28,7 @@ It targets multi-provider LLM gateway routing with a stricter design bias: expli
 
 - ordered backend fallback per public model route
 - persistent virtual keys, budget usage, and audit events in SQLite
+- persistent connector conversation snapshots in SQLite, so scoped chat memory survives restarts
 - recursive secret redaction before log-oriented handling
 - prompt privacy filtering for common secrets, IDs, and contact data
 - threat detection for prompt-injection, credential-exfiltration, and tool-abuse signals
@@ -569,6 +570,18 @@ HTTP control plane for the running gateway:
 ```
 
 Set `BULKHEAD_ADMIN_TOKEN`, start the server normally, then open `http://127.0.0.1:4100/_bulkhead/control`. Inside the starter, `/control` prints the same derived URL set from the active config and makes the distinction explicit between the interactive starter client and the separate running gateway server. The UI shows the active config path, route readiness, enabled chat connectors, virtual-key inventory, and exposes a guarded `reload` action that swaps the runtime in place. Changes to `listen_host` and `listen_port` still require a restart because the listening socket is already bound.
+
+The same guarded control plane now exposes session-memory replacement for
+external orchestrators such as `ocaml-agent-graph`:
+
+- `GET /_bulkhead/control/api/memory/session?session_key=...`
+- `PUT /_bulkhead/control/api/memory/session`
+- `DELETE /_bulkhead/control/api/memory/session?session_key=...`
+
+`PUT` replaces the stored memory snapshot for the given `session_key` with a
+caller-supplied `summary`, `recent_turns`, and `compressed_turn_count`. This
+lets an external swarm runtime clear memory, inspect it, or substitute it with
+its own adapted summary instead of relying only on `/reset`.
 
 ## Terminal client
 

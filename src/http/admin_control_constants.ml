@@ -1,6 +1,7 @@
 module Path = struct
   let status_suffix = "/api/status"
   let reload_suffix = "/api/reload"
+  let memory_session_suffix = "/api/memory/session"
 end
 
 module Text = struct

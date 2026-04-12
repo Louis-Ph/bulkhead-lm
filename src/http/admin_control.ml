@@ -1,3 +1,5 @@
+open Lwt.Infix
+
 let respond_html html =
   let headers = Cohttp.Header.of_list [ "content-type", "text/html; charset=utf-8" ] in
   Cohttp_lwt_unix.Server.respond_string ~status:`OK ~headers ~body:html ()
@@ -15,6 +17,11 @@ let status_path control_plane =
 
 let reload_path control_plane =
   control_plane.Security_policy.path_prefix ^ Admin_control_constants.Path.reload_suffix
+;;
+
+let memory_session_path control_plane =
+  control_plane.Security_policy.path_prefix
+  ^ Admin_control_constants.Path.memory_session_suffix
 ;;
 
 let current_store control = Runtime_control.current_store control
@@ -95,6 +102,7 @@ let status_json control =
           [ "path_prefix", `String control_plane.path_prefix
           ; "ui_enabled", `Bool control_plane.ui_enabled
           ; "allow_reload", `Bool control_plane.allow_reload
+          ; "memory_session_path", `String (memory_session_path control_plane)
           ; "admin_token_env",
             (match control_plane.admin_token_env with
              | Some env_name -> `String env_name
@@ -293,13 +301,224 @@ let handle_api_reload control req =
        | Error err -> Json_response.respond_error (Domain_error.invalid_request err))
 ;;
 
-let handle control req _body =
+let member name = function
+  | `Assoc fields -> List.assoc_opt name fields
+  | _ -> None
+;;
+
+let string_member_opt name json =
+  match member name json with
+  | Some (`String value) ->
+    let trimmed = String.trim value in
+    if trimmed = "" then None else Some trimmed
+  | _ -> None
+;;
+
+let int_member_opt name json =
+  match member name json with
+  | Some (`Int value) -> Some value
+  | Some (`Intlit value) -> Some (int_of_string value)
+  | _ -> None
+;;
+
+let turn_role_to_string = function
+  | Session_memory.User -> "user"
+  | Session_memory.Assistant -> "assistant"
+;;
+
+let turn_role_of_string = function
+  | "user" -> Ok Session_memory.User
+  | "assistant" -> Ok Session_memory.Assistant
+  | value ->
+    Error
+      (Domain_error.invalid_request
+         (Fmt.str
+            "Invalid memory turn role %s. Expected user or assistant."
+            value))
+;;
+
+let parse_recent_turns json =
+  match member "recent_turns" json with
+  | None -> Ok []
+  | Some (`List values) ->
+    let rec loop acc = function
+      | [] -> Ok (List.rev acc)
+      | (`Assoc _ as value) :: rest ->
+        let role =
+          match string_member_opt "role" value with
+          | Some role -> turn_role_of_string role
+          | None -> Error (Domain_error.invalid_request "Memory turns require role.")
+        in
+        let content =
+          match string_member_opt "content" value with
+          | Some content -> Ok content
+          | None -> Error (Domain_error.invalid_request "Memory turns require content.")
+        in
+        (match role, content with
+         | Ok role, Ok content ->
+           loop ({ Session_memory.role; content } :: acc) rest
+         | Error err, _ | _, Error err -> Error err)
+      | _ :: _ -> Error (Domain_error.invalid_request "recent_turns must be a list of objects.")
+    in
+    loop [] values
+  | Some _ -> Error (Domain_error.invalid_request "recent_turns must be a list.")
+;;
+
+let conversation_json ~session_key (conversation : Session_memory.t) =
+  let stats = Session_memory.stats conversation in
+  `Assoc
+    [ "session_key", `String session_key
+    ; ( "summary"
+      , match conversation.summary with
+        | Some summary -> `String summary
+        | None -> `Null )
+    ; "compressed_turn_count", `Int conversation.compressed_turn_count
+    ; ( "recent_turns"
+      , `List
+          (List.map
+             (fun (turn : Session_memory.turn) ->
+               `Assoc
+                 [ "role", `String (turn_role_to_string turn.role)
+                 ; "content", `String turn.content
+                 ])
+             conversation.recent_turns) )
+    ; ( "stats"
+      , `Assoc
+          [ "recent_turn_count", `Int stats.recent_turn_count
+          ; "compressed_turn_count", `Int stats.compressed_turn_count
+          ; "summary_char_count", `Int stats.summary_char_count
+          ; "estimated_context_chars", `Int stats.estimated_context_chars
+          ] )
+    ]
+;;
+
+let session_key_of_request req =
+  Uri.get_query_param (Cohttp.Request.uri req) "session_key"
+  |> Option.map String.trim
+  |> function
+  | Some value when value <> "" -> Ok value
+  | _ ->
+    Error
+      (Domain_error.invalid_request
+         "session_key query parameter is required for memory session requests.")
+;;
+
+let record_memory_admin_event store ~event_type ~session_key ~details =
+  Runtime_state.append_audit_event
+    store
+    { Persistent_store.event_type = event_type
+    ; principal_name = None
+    ; route_model = None
+    ; provider_id = None
+    ; status_code = 200
+    ; details =
+        `Assoc
+          [ "session_key", `String session_key
+          ; "operation", `String event_type
+          ; "details", details
+          ]
+    }
+;;
+
+let handle_api_memory_get control req =
+  match require_authorization control req with
+  | Error err -> Json_response.respond_error err
+  | Ok store ->
+    (match session_key_of_request req with
+     | Error err -> Json_response.respond_error err
+     | Ok session_key ->
+       let conversation =
+         Runtime_state.get_user_connector_session store ~session_key
+       in
+       Json_response.respond_json (conversation_json ~session_key conversation))
+;;
+
+let handle_api_memory_put control req body =
+  match require_authorization control req with
+  | Error err -> Json_response.respond_error err
+  | Ok store ->
+    Request_body.read_request_json store body
+    >>= function
+    | Error err -> Json_response.respond_error err
+    | Ok json ->
+      let session_key =
+        match string_member_opt "session_key" json with
+        | Some session_key -> Ok session_key
+        | None -> Error (Domain_error.invalid_request "Memory replacement requires session_key.")
+      in
+      let summary =
+        match member "summary" json with
+        | Some `Null | None -> Ok None
+        | Some (`String value) -> Ok (Some value)
+        | Some _ -> Error (Domain_error.invalid_request "summary must be a string or null.")
+      in
+      let compressed_turn_count =
+        match int_member_opt "compressed_turn_count" json with
+        | Some value when value >= 0 -> Ok value
+        | Some _ ->
+          Error (Domain_error.invalid_request "compressed_turn_count must be >= 0.")
+        | None -> Ok 0
+      in
+      let recent_turns = parse_recent_turns json in
+      (match session_key, summary, compressed_turn_count, recent_turns with
+       | Ok session_key, Ok summary, Ok compressed_turn_count, Ok recent_turns ->
+         let conversation : Session_memory.t =
+           { summary; recent_turns; compressed_turn_count }
+         in
+         Runtime_state.set_user_connector_session
+           store
+           ~session_key
+           conversation;
+         record_memory_admin_event
+           store
+           ~event_type:"admin.memory.replace"
+           ~session_key
+           ~details:
+             (`Assoc
+               [ "summary_present", `Bool (Option.is_some summary)
+               ; "recent_turn_count", `Int (List.length recent_turns)
+               ; "compressed_turn_count", `Int compressed_turn_count
+               ]);
+         Json_response.respond_json (conversation_json ~session_key conversation)
+       | Error err, _, _, _
+       | _, Error err, _, _
+       | _, _, Error err, _
+       | _, _, _, Error err -> Json_response.respond_error err)
+;;
+
+let handle_api_memory_delete control req =
+  match require_authorization control req with
+  | Error err -> Json_response.respond_error err
+  | Ok store ->
+    (match session_key_of_request req with
+     | Error err -> Json_response.respond_error err
+     | Ok session_key ->
+       Runtime_state.clear_user_connector_session store ~session_key;
+       record_memory_admin_event
+         store
+         ~event_type:"admin.memory.clear"
+         ~session_key
+         ~details:(`Assoc [ "result", `String "cleared" ]);
+       Json_response.respond_json
+         (`Assoc
+           [ "result", `String "cleared"
+           ; "session_key", `String session_key
+           ]))
+;;
+
+let handle control req body =
   let path = Uri.path (Cohttp.Request.uri req) in
   let control_plane = current_control_plane control in
   match Cohttp.Request.meth req, path with
   | `GET, path when path = control_plane.path_prefix && control_plane.ui_enabled ->
     respond_html (page_html control)
   | `GET, path when path = status_path control_plane -> handle_api_status control req
+  | `GET, path when path = memory_session_path control_plane ->
+    handle_api_memory_get control req
   | `POST, path when path = reload_path control_plane -> handle_api_reload control req
+  | `PUT, path when path = memory_session_path control_plane ->
+    handle_api_memory_put control req body
+  | `DELETE, path when path = memory_session_path control_plane ->
+    handle_api_memory_delete control req
   | _ -> Json_response.respond_error (Domain_error.route_not_found path)
 ;;

@@ -8,6 +8,12 @@ type stored_principal =
   ; allowed_routes : string list
   }
 
+type stored_connector_session =
+  { summary : string option
+  ; recent_turns : Session_memory.turn list
+  ; compressed_turn_count : int
+  }
+
 type audit_event =
   { event_type : string
   ; principal_name : string option
@@ -117,6 +123,17 @@ let setup_schema db =
          provider_id TEXT,
          status_code INTEGER NOT NULL,
          details_json TEXT NOT NULL
+       )|}
+;
+  exec
+    db
+    "connector_sessions schema"
+    {|CREATE TABLE IF NOT EXISTS connector_sessions (
+         session_key TEXT PRIMARY KEY,
+         summary TEXT,
+         recent_turns_json TEXT NOT NULL,
+         compressed_turn_count INTEGER NOT NULL,
+         updated_at TEXT NOT NULL
        )|}
 ;;
 
@@ -344,4 +361,148 @@ let audit_count store =
       | Sqlite3.Rc.ROW -> Sqlite3.column_int stmt 0
       | rc ->
         failwith (Fmt.str "SQLite error during audit_count: %s" (Sqlite3.Rc.to_string rc))))
+;;
+
+let session_role_to_string = function
+  | Session_memory.User -> "user"
+  | Session_memory.Assistant -> "assistant"
+;;
+
+let session_role_of_string = function
+  | "user" -> Some Session_memory.User
+  | "assistant" -> Some Session_memory.Assistant
+  | _ -> None
+;;
+
+let connector_turns_to_json turns =
+  `List
+    (List.map
+       (fun (turn : Session_memory.turn) ->
+         `Assoc
+           [ "role", `String (session_role_to_string turn.role)
+           ; "content", `String turn.content
+           ])
+       turns)
+;;
+
+let connector_turns_of_json = function
+  | `List values ->
+    values
+    |> List.filter_map (function
+      | `Assoc fields ->
+        (match List.assoc_opt "role" fields, List.assoc_opt "content" fields with
+         | Some (`String role), Some (`String content) ->
+           Option.map
+             (fun parsed_role -> ({ Session_memory.role = parsed_role; content } : Session_memory.turn))
+             (session_role_of_string role)
+         | _ -> None)
+      | _ -> None)
+  | _ -> []
+;;
+
+let load_connector_session store ~session_key =
+  with_lock store (fun () ->
+    with_stmt
+      store.db
+      {|SELECT summary, recent_turns_json, compressed_turn_count
+        FROM connector_sessions
+        WHERE session_key = ?|}
+      (fun stmt ->
+         expect_rc
+           store.db
+           "bind connector session key"
+           (Sqlite3.bind_text stmt 1 session_key);
+         match Sqlite3.step stmt with
+         | Sqlite3.Rc.ROW ->
+           let summary =
+             match Sqlite3.column stmt 0 with
+             | Sqlite3.Data.TEXT value -> Some value
+             | _ -> None
+           in
+           let recent_turns =
+             try
+               Sqlite3.column_text stmt 1
+               |> Yojson.Safe.from_string
+               |> connector_turns_of_json
+             with _ -> []
+           in
+           Some
+             { summary
+             ; recent_turns
+             ; compressed_turn_count = Sqlite3.column_int stmt 2
+             }
+         | Sqlite3.Rc.DONE -> None
+         | rc ->
+           failwith
+             (Fmt.str
+                "SQLite error during load_connector_session: %s"
+                (Sqlite3.Rc.to_string rc))))
+;;
+
+let upsert_connector_session
+    store
+    ~session_key
+    (session : Session_memory.t)
+  =
+  with_lock store (fun () ->
+    with_stmt
+      store.db
+      {|INSERT INTO connector_sessions (
+           session_key,
+           summary,
+           recent_turns_json,
+           compressed_turn_count,
+           updated_at
+         ) VALUES (?, ?, ?, ?, ?)
+         ON CONFLICT(session_key) DO UPDATE SET
+           summary = excluded.summary,
+           recent_turns_json = excluded.recent_turns_json,
+           compressed_turn_count = excluded.compressed_turn_count,
+           updated_at = excluded.updated_at|}
+      (fun stmt ->
+         expect_rc
+           store.db
+           "bind connector session key upsert"
+           (Sqlite3.bind_text stmt 1 session_key);
+         (match session.summary with
+          | Some summary ->
+            expect_rc
+              store.db
+              "bind connector session summary"
+              (Sqlite3.bind_text stmt 2 summary)
+          | None ->
+            expect_rc
+              store.db
+              "bind connector session summary null"
+              (Sqlite3.bind stmt 2 Sqlite3.Data.NULL));
+         expect_rc
+           store.db
+           "bind connector session turns"
+           (Sqlite3.bind_text
+              stmt
+              3
+              (Yojson.Safe.to_string
+                 (connector_turns_to_json session.recent_turns)));
+         expect_rc
+           store.db
+           "bind connector session compressed count"
+           (Sqlite3.bind_int stmt 4 session.compressed_turn_count);
+         expect_rc
+           store.db
+           "bind connector session updated_at"
+           (Sqlite3.bind_text stmt 5 (timestamp_now ()));
+         expect_rc store.db "upsert connector session" (Sqlite3.step stmt)))
+;;
+
+let delete_connector_session store ~session_key =
+  with_lock store (fun () ->
+    with_stmt
+      store.db
+      "DELETE FROM connector_sessions WHERE session_key = ?"
+      (fun stmt ->
+         expect_rc
+           store.db
+           "bind connector session key delete"
+           (Sqlite3.bind_text stmt 1 session_key);
+         expect_rc store.db "delete connector session" (Sqlite3.step stmt)))
 ;;

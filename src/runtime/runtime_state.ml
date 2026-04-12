@@ -67,18 +67,48 @@ let find_principal store token_hash = String_map.find_opt token_hash store.princ
 
 let get_user_connector_session store ~session_key =
   with_lock store.user_connector_sessions_lock (fun () ->
-    Hashtbl.find_opt store.user_connector_sessions session_key
-    |> Option.value ~default:Session_memory.empty)
+    match Hashtbl.find_opt store.user_connector_sessions session_key with
+    | Some conversation -> conversation
+    | None ->
+      let conversation =
+        match store.persistent_store with
+        | None -> Session_memory.empty
+        | Some persistent_store ->
+          (match
+             Persistent_store.load_connector_session
+               persistent_store
+               ~session_key
+           with
+           | None -> Session_memory.empty
+           | Some session ->
+             { Session_memory.summary = session.summary
+             ; recent_turns = session.recent_turns
+             ; compressed_turn_count = session.compressed_turn_count
+             })
+      in
+      Hashtbl.replace store.user_connector_sessions session_key conversation;
+      conversation)
 ;;
 
 let set_user_connector_session store ~session_key conversation =
   with_lock store.user_connector_sessions_lock (fun () ->
-    Hashtbl.replace store.user_connector_sessions session_key conversation)
+    Hashtbl.replace store.user_connector_sessions session_key conversation;
+    match store.persistent_store with
+    | None -> ()
+    | Some persistent_store ->
+      Persistent_store.upsert_connector_session
+        persistent_store
+        ~session_key
+        conversation)
 ;;
 
 let clear_user_connector_session store ~session_key =
   with_lock store.user_connector_sessions_lock (fun () ->
-    Hashtbl.remove store.user_connector_sessions session_key)
+    Hashtbl.remove store.user_connector_sessions session_key;
+    match store.persistent_store with
+    | None -> ()
+    | Some persistent_store ->
+      Persistent_store.delete_connector_session persistent_store ~session_key)
 ;;
 
 let append_audit_event store event =
