@@ -15,6 +15,10 @@ let clear_conversation runtime =
   { runtime with conversation = Starter_conversation.clear () }
 ;;
 
+let replace_conversation runtime conversation =
+  { runtime with conversation }
+;;
+
 let update_conversation runtime conversation = { runtime with conversation }
 let set_pending_admin_plan runtime pending_admin_plan = { runtime with pending_admin_plan }
 let clear_pending_admin_plan runtime = { runtime with pending_admin_plan = None }

@@ -37,6 +37,26 @@ let limits =
 
 let empty = Session_memory.empty
 let clear = Session_memory.clear
+
+let normalize_summary text =
+  text
+  |> String.split_on_char '\n'
+  |> List.map String.trim
+  |> List.filter (fun line -> line <> "")
+  |> String.concat " "
+;;
+
+let trim_summary text =
+  if String.length text <= limits.summary_max_chars
+  then text
+  else "..." ^ String.sub text (String.length text - (limits.summary_max_chars - 3)) (limits.summary_max_chars - 3)
+;;
+
+let replace_with_summary ~summary =
+  let summary = normalize_summary summary |> trim_summary in
+  { summary = Some summary; recent_turns = []; compressed_turn_count = 0 }
+;;
+
 let commit_exchange conversation ~user ~assistant = Session_memory.commit_exchange limits conversation ~user ~assistant
 let request_messages conversation ~pending_user = Session_memory.request_messages limits conversation ~pending_user
 let stats = Session_memory.stats

@@ -82,11 +82,18 @@ let thread_variants input =
   |> List.filter (prefix_matches ~prefix:input)
 ;;
 
+let memory_variants input =
+  [ Starter_constants.Command.memory_replace ^ " " ]
+  |> List.filter (prefix_matches ~prefix:input)
+;;
+
 let completion_candidates ~context input =
   if input = ""
   then []
   else if prefix_matches ~prefix:(Starter_constants.Command.swap ^ " ") input
   then swap_variants input context.models
+  else if prefix_matches ~prefix:(Starter_constants.Command.memory ^ " ") input
+  then memory_variants input
   else if prefix_matches ~prefix:(Starter_constants.Command.thread ^ " ") input
   then thread_variants input
   else if prefix_matches ~prefix:"/" input
@@ -113,6 +120,8 @@ let hint_for_input input =
   then Some (" build a local distributable package", LNoise.Yellow, false)
   else if prefix_matches ~prefix:Starter_constants.Command.swap input
   then Some (" <model>", LNoise.Yellow, false)
+  else if prefix_matches ~prefix:Starter_constants.Command.memory_replace input
+  then Some (" <replacement summary>", LNoise.Yellow, false)
   else if prefix_matches ~prefix:Starter_constants.Command.thread input
   then Some (" <on|off>", LNoise.Yellow, false)
   else None

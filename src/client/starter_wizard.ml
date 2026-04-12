@@ -951,6 +951,19 @@ let rec repl store ~authorization state runtime =
   | Starter_session.Show_memory_status ->
     print_memory_status next_state runtime;
     repl store ~authorization next_state runtime
+  | Starter_session.Substitute_memory summary ->
+    let conversation =
+      Starter_conversation.replace_with_summary ~summary
+    in
+    let summary_char_count =
+      (Starter_conversation.stats conversation).summary_char_count
+    in
+    print_wrapped (Starter_constants.Text.memory_replaced summary_char_count);
+    repl
+      store
+      ~authorization
+      next_state
+      (Starter_runtime.replace_conversation runtime conversation)
   | Starter_session.Reset_memory ->
     print_wrapped Starter_constants.Text.memory_cleared;
     repl store ~authorization next_state (Starter_runtime.clear_conversation runtime)

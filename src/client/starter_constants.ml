@@ -98,6 +98,7 @@ module Command = struct
   let model = "/model"
   let models = "/models"
   let memory = "/memory"
+  let memory_replace = memory ^ " replace"
   let forget = "/forget"
   let providers = "/providers"
   let env = "/env"
@@ -221,6 +222,9 @@ module Text = struct
     ; { usage = Command.memory
       ; description = "show conversation memory status"
       }
+    ; { usage = Command.memory_replace ^ " TEXT"
+      ; description = "replace remembered conversation history with one supplied summary"
+      }
     ; { usage = Command.forget
       ; description = "clear remembered conversation state"
       }
@@ -320,7 +324,7 @@ module Text = struct
           codebase, and the user's needs. The user can use local starter commands such \
           as /help, /tools, /file PATH, /files, /clearfiles, /explore PATH, /open PATH, \
           /run CMD, /admin TEXT, /control, /package, /model, /models, /swap NAME, \
-          /providers, /env, /memory, /thread on, /thread off, and /quit. If the user \
+          /providers, /env, /memory, /memory replace TEXT, /thread on, /thread off, and /quit. If the user \
           asks how to send a file, explain /file PATH and /files instead of saying file \
           upload is impossible. If the user asks to inspect local files or run a local \
           command, mention /explore, /open, or /run. If the user asks how to \
@@ -339,6 +343,10 @@ module Text = struct
 
   let swap_usage =
     "/swap expects a configured public model name, for example: /swap claude-sonnet"
+  ;;
+
+  let memory_replace_usage =
+    "/memory replace expects one replacement summary, for example: /memory replace Project alpha now focuses on deployment."
   ;;
 
   let thread_usage = "/thread expects on or off, for example: /thread off"
@@ -378,6 +386,12 @@ module Text = struct
   ;;
 
   let memory_cleared = "Conversation memory was cleared."
+
+  let memory_replaced summary_char_count =
+    Fmt.str
+      "Conversation memory was replaced with one supplied summary (%d chars)."
+      summary_char_count
+  ;;
 
   let control_plane_intro =
     "This starter is the interactive client. The HTTP control plane belongs to the \

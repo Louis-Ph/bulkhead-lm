@@ -5507,6 +5507,19 @@ let starter_session_parses_beginner_commands_test _switch () =
   (match Bulkhead_lm.Starter_session.parse_command "/memory" with
    | Bulkhead_lm.Starter_session.Show_memory -> ()
    | _ -> Alcotest.fail "expected /memory command");
+  (match
+     Bulkhead_lm.Starter_session.parse_command
+       "/memory replace Planner memory now starts from the deployment summary."
+   with
+   | Bulkhead_lm.Starter_session.Replace_memory summary ->
+     Alcotest.(check string)
+       "memory replacement summary"
+       "Planner memory now starts from the deployment summary."
+       summary
+   | _ -> Alcotest.fail "expected /memory replace command");
+  (match Bulkhead_lm.Starter_session.parse_command "/memory replace" with
+   | Bulkhead_lm.Starter_session.Invalid _ -> ()
+   | _ -> Alcotest.fail "expected invalid /memory replace without summary");
   (match Bulkhead_lm.Starter_session.parse_command "/forget" with
    | Bulkhead_lm.Starter_session.Forget_memory -> ()
    | _ -> Alcotest.fail "expected /forget command");
@@ -5640,6 +5653,30 @@ let starter_session_toggles_conversation_mode_test _switch () =
   Lwt.return_unit
 ;;
 
+let starter_session_replaces_memory_snapshot_test _switch () =
+  let state =
+      Bulkhead_lm.Starter_session.create
+      ~model:"claude-sonnet"
+      ~config_path:"config/local_only/starter.gateway.json"
+  in
+  let state, effect =
+    Bulkhead_lm.Starter_session.step
+      state
+      "/memory replace Deployment is now the top priority."
+  in
+  (match effect with
+   | Bulkhead_lm.Starter_session.Substitute_memory summary ->
+     Alcotest.(check string)
+       "replacement summary"
+       "Deployment is now the top priority."
+       summary
+   | _ -> Alcotest.fail "expected substitute memory effect");
+  (match state with
+   | Bulkhead_lm.Starter_session.Ready _ -> ()
+   | _ -> Alcotest.fail "expected ready state after memory replacement");
+  Lwt.return_unit
+;;
+
 let starter_conversation_compresses_old_turns_test _switch () =
   let user_text = String.make 1700 'u' in
   let assistant_text = String.make 1700 'a' in
@@ -5707,8 +5744,37 @@ let starter_conversation_request_messages_include_summary_test _switch () =
        "user"
        last.Bulkhead_lm.Openai_types.role;
      Alcotest.(check string) "pending user content" "next question" last.content
-   | [] -> Alcotest.fail "expected last message");
+  | [] -> Alcotest.fail "expected last message");
   Lwt.return_unit
+;;
+
+let starter_conversation_replace_with_summary_test _switch () =
+  let conversation =
+    Bulkhead_lm.Starter_conversation.replace_with_summary
+      ~summary:
+        "Deployment phase only. Preserve customer deadline. Ignore earlier exploration."
+  in
+  let stats = Bulkhead_lm.Starter_conversation.stats conversation in
+  Alcotest.(check int) "recent turns cleared" 0 stats.recent_turn_count;
+  Alcotest.(check int) "compressed turn count reset" 0 stats.compressed_turn_count;
+  Alcotest.(check bool) "summary retained" true (stats.summary_char_count > 0);
+  let messages =
+    Bulkhead_lm.Starter_conversation.request_messages
+      conversation
+      ~pending_user:"What is next?"
+  in
+  match messages with
+  | first :: _ ->
+    Alcotest.(check string)
+      "replacement summary becomes system message"
+      "system"
+      first.Bulkhead_lm.Openai_types.role;
+    Alcotest.(check bool)
+      "replacement summary content kept"
+      true
+      (string_contains first.content "Deployment phase only.");
+    Lwt.return_unit
+  | [] -> Alcotest.fail "expected replacement summary message"
 ;;
 
 let starter_terminal_completes_commands_and_models_test _switch () =
@@ -5751,6 +5817,13 @@ let starter_terminal_completes_commands_and_models_test _switch () =
     "thread completion"
     [ "/thread on"; "/thread off" ]
     thread_candidates;
+  let memory_candidates =
+    Bulkhead_lm.Starter_terminal.completion_candidates ~context "/memory r"
+  in
+  Alcotest.(check (list string))
+    "memory replacement completion"
+    [ "/memory replace " ]
+    memory_candidates;
   let tool_candidates =
     Bulkhead_lm.Starter_terminal.completion_candidates ~context "/to"
   in
@@ -6452,6 +6525,10 @@ let tests =
       `Quick
       starter_session_toggles_conversation_mode_test
   ; Alcotest_lwt.test_case
+      "starter session replaces memory snapshot"
+      `Quick
+      starter_session_replaces_memory_snapshot_test
+  ; Alcotest_lwt.test_case
       "starter conversation compresses old turns"
       `Quick
       starter_conversation_compresses_old_turns_test
@@ -6459,6 +6536,10 @@ let tests =
       "starter conversation request messages include summary"
       `Quick
       starter_conversation_request_messages_include_summary_test
+  ; Alcotest_lwt.test_case
+      "starter conversation replace with summary"
+      `Quick
+      starter_conversation_replace_with_summary_test
   ; Alcotest_lwt.test_case
       "starter terminal completes commands and models"
       `Quick

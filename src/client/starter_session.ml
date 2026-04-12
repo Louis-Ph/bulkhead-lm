@@ -12,6 +12,7 @@ type command =
   | Choose_model
   | Show_models
   | Show_memory
+  | Replace_memory of string
   | Forget_memory
   | Show_providers
   | Show_env
@@ -52,6 +53,7 @@ type effect =
   | Select_model
   | List_models
   | Show_memory_status
+  | Substitute_memory of string
   | Reset_memory
   | List_providers
   | List_env
@@ -82,6 +84,7 @@ let parse_command input =
   let trimmed = String.trim input in
   let admin_prefix = Starter_constants.Command.admin ^ " " in
   let swap_prefix = Starter_constants.Command.swap ^ " " in
+  let memory_replace_prefix = Starter_constants.Command.memory_replace ^ " " in
   let thread_prefix = Starter_constants.Command.thread ^ " " in
   let file_prefix = Starter_constants.Command.file ^ " " in
   let explore_prefix = Starter_constants.Command.explore ^ " " in
@@ -111,6 +114,8 @@ let parse_command input =
   then Show_models
   else if String.equal trimmed Starter_constants.Command.memory
   then Show_memory
+  else if String.equal trimmed Starter_constants.Command.memory_replace
+  then Invalid Starter_constants.Text.memory_replace_usage
   else if String.equal trimmed Starter_constants.Command.forget
   then Forget_memory
   else if String.equal trimmed Starter_constants.Command.providers
@@ -154,6 +159,13 @@ let parse_command input =
     let offset = String.length swap_prefix in
     let model = String.sub trimmed offset (String.length trimmed - offset) |> String.trim in
     if model = "" then Invalid Starter_constants.Text.swap_usage else Swap_model model
+  else if String.starts_with ~prefix:memory_replace_prefix trimmed
+  then
+    let offset = String.length memory_replace_prefix in
+    let summary = String.sub trimmed offset (String.length trimmed - offset) |> String.trim in
+    if summary = ""
+    then Invalid Starter_constants.Text.memory_replace_usage
+    else Replace_memory summary
   else if String.starts_with ~prefix:file_prefix trimmed
   then
     let offset = String.length file_prefix in
@@ -195,6 +207,7 @@ let step state input =
   | Ready context, Choose_model -> Ready context, Select_model
   | Ready context, Show_models -> Ready context, List_models
   | Ready context, Show_memory -> Ready context, Show_memory_status
+  | Ready context, Replace_memory summary -> Ready context, Substitute_memory summary
   | Ready context, Forget_memory -> Ready context, Reset_memory
   | Ready context, Show_providers -> Ready context, List_providers
   | Ready context, Show_env -> Ready context, List_env

@@ -513,7 +513,7 @@ The starter:
 - can expose a browser-based admin control plane with live route status and hot config reload under `security_policy.control_plane`
 - includes a guided packaging flow that can build a distributable package for macOS, Ubuntu, or FreeBSD from the same assistant terminal
 - shows masked environment and provider readiness state from inside the REPL
-- drops you into a simple terminal session with `/tools`, `/file PATH`, `/files`, `/clearfiles`, `/explore PATH`, `/open PATH`, `/run CMD`, `/admin TEXT`, `/control`, `/package`, `/plan`, `/apply`, `/discard`, `/model`, `/models`, `/swap`, `/memory`, `/forget`, `/thread on|off`, `/providers`, `/env`, `/config`, `/help`, and `/quit`
+- drops you into a simple terminal session with `/tools`, `/file PATH`, `/files`, `/clearfiles`, `/explore PATH`, `/open PATH`, `/run CMD`, `/admin TEXT`, `/control`, `/package`, `/plan`, `/apply`, `/discard`, `/model`, `/models`, `/swap`, `/memory`, `/memory replace TEXT`, `/forget`, `/thread on|off`, `/providers`, `/env`, `/config`, `/help`, and `/quit`
 
 Admin assistant flow inside the starter:
 
@@ -530,6 +530,16 @@ Control-plane check inside the starter:
 ```
 
 `/control` tells you whether the current config actually enables the HTTP control plane, shows the exact UI and API URLs derived from that config, and reminds you that the starter itself is not the HTTP gateway server.
+
+If you want to substitute the current starter thread memory with one explicit
+summary, use:
+
+```text
+/memory replace Project alpha now focuses on deployment, with customer deadline preserved.
+```
+
+That clears the recent verbatim turns and replaces the remembered history with
+the supplied summary snapshot.
 
 The assistant uses the selected model together with the active BulkheadLM config, the referenced security policy, local repository documentation, and bounded local system context. It proposes structured config changes first and only falls back to `ops`-style filesystem or command actions when configuration alone is not enough.
 
