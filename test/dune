@@ -1,6 +1,5 @@
 (test
  (name bulkhead_lm_test)
- (modules bulkhead_lm_test)
  (libraries
   bulkhead_lm
   alcotest
