@@ -103,7 +103,10 @@
   },
   "routing": {
     "max_fallbacks": 2,
-    "strategy": "priority"
+    "strategy": "priority",
+    "max_inflight": 128,
+    "circuit_open_threshold": 5,
+    "circuit_cooldown_s": 30
   },
   "rate_limit": {
     "default_requests_per_minute": 60

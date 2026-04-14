@@ -164,7 +164,18 @@ let callback control _connection req body =
      | Some connector -> User_connector_router.handle store req body connector
      | None ->
        match Cohttp.Request.meth req, path with
-  | `GET, "/health" -> Json_response.respond_json (`Assoc [ "status", `String "ok" ])
+  | `GET, "/health" ->
+    let h = Router.ha_health store in
+    let serviceable = h.Router.backends_closed > 0 || h.Router.backends_open = 0 in
+    let status = if serviceable then `OK else `Service_unavailable in
+    Json_response.respond_json ~status
+      (`Assoc
+        [ "status", `String (if serviceable then "ok" else "unavailable")
+        ; "routes_total", `Int h.Router.routes_total
+        ; "backends_open", `Int h.Router.backends_open
+        ; "backends_closed", `Int h.Router.backends_closed
+        ; "inflight", `Int h.Router.inflight
+        ])
   | `GET, "/v1/models" ->
     Json_response.respond_json (models_json store.Runtime_state.config)
   | `POST, "/v1/chat/completions" ->

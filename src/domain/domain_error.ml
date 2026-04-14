@@ -211,6 +211,25 @@ let upstream_status ?provider_id ~status message =
     message
 ;;
 
+let service_unavailable () =
+  make
+    ~retry_disposition:Retryable
+    ~code:"service_unavailable"
+    ~status:503
+    ~error_type:"api_error"
+    "Service is temporarily unavailable. Too many in-flight requests."
+;;
+
+let circuit_open ~provider_id () =
+  make
+    ~provider_id
+    ~retry_disposition:Retryable
+    ~code:"circuit_open"
+    ~status:503
+    ~error_type:"api_error"
+    (Fmt.str "Backend %s is temporarily unavailable (circuit open)." provider_id)
+;;
+
 let loop_detected ~max_hops ~request_id ~hop_count () =
   make
     ~retry_disposition:Non_retryable

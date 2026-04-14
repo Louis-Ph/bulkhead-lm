@@ -84,8 +84,11 @@ type client_ops =
   }
 
 type routing =
-  { max_fallbacks : int
-  ; strategy : string
+  { max_fallbacks          : int
+  ; strategy               : string
+  ; max_inflight           : int
+  ; circuit_open_threshold : int
+  ; circuit_cooldown_s     : float
   }
 
 type rate_limit = { default_requests_per_minute : int }
@@ -226,7 +229,13 @@ let default () =
           ; max_output_bytes = 65_536
           }
       }
-  ; routing = { max_fallbacks = 2; strategy = "priority" }
+  ; routing =
+      { max_fallbacks          = 2
+      ; strategy               = "priority"
+      ; max_inflight           = 128
+      ; circuit_open_threshold = 5
+      ; circuit_cooldown_s     = 30.0
+      }
   ; rate_limit = { default_requests_per_minute = 60 }
   ; budget = { default_daily_tokens = 200_000 }
   }
@@ -271,6 +280,17 @@ let list_member name json =
          | _ -> None)
      | _ -> [])
   | _ -> []
+;;
+
+let float_member name json ~default =
+  match json with
+  | `Assoc fields ->
+    (match List.assoc_opt name fields with
+     | Some (`Float value) -> value
+     | Some (`Int value) -> float_of_int value
+     | Some (`Intlit value) -> float_of_string value
+     | _ -> default)
+  | _ -> default
 ;;
 
 let object_member name json =
@@ -519,6 +539,18 @@ let of_yojson json =
           int_member "max_fallbacks" routing_json ~default:defaults.routing.max_fallbacks
       ; strategy =
           string_member "strategy" routing_json ~default:defaults.routing.strategy
+      ; max_inflight =
+          int_member "max_inflight" routing_json ~default:defaults.routing.max_inflight
+      ; circuit_open_threshold =
+          int_member
+            "circuit_open_threshold"
+            routing_json
+            ~default:defaults.routing.circuit_open_threshold
+      ; circuit_cooldown_s =
+          float_member
+            "circuit_cooldown_s"
+            routing_json
+            ~default:defaults.routing.circuit_cooldown_s
       }
   ; rate_limit =
       { default_requests_per_minute =

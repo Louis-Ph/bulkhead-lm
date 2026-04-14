@@ -21,6 +21,9 @@ type t =
   ; user_connector_sessions : (string, Session_memory.t) Hashtbl.t
   ; user_connector_sessions_lock : Mutex.t
   ; provider_factory : provider_factory
+  ; backend_circuit : Backend_circuit.t
+  ; inflight : int ref
+  ; inflight_lock : Mutex.t
   }
 
 let hash_token token = Digestif.SHA256.digest_string token |> Digestif.SHA256.to_hex
@@ -64,6 +67,26 @@ let with_lock lock f =
 ;;
 
 let find_principal store token_hash = String_map.find_opt token_hash store.principals
+
+let try_inflight store =
+  with_lock store.inflight_lock (fun () ->
+    let max = store.config.security_policy.routing.max_inflight in
+    if !(store.inflight) < max
+    then begin
+      store.inflight := !(store.inflight) + 1;
+      true
+    end else
+      false)
+;;
+
+let release_inflight store =
+  with_lock store.inflight_lock (fun () ->
+    if !(store.inflight) > 0 then store.inflight := !(store.inflight) - 1)
+;;
+
+let current_inflight store =
+  with_lock store.inflight_lock (fun () -> !(store.inflight))
+;;
 
 let get_user_connector_session store ~session_key =
   with_lock store.user_connector_sessions_lock (fun () ->
@@ -153,6 +176,13 @@ let create_result ?provider_factory config =
       ; user_connector_sessions = Hashtbl.create 32
       ; user_connector_sessions_lock = Mutex.create ()
       ; provider_factory
+      ; backend_circuit =
+          Backend_circuit.create
+            ~open_threshold:
+              config.Config.security_policy.routing.circuit_open_threshold
+            ~cooldown_s:config.Config.security_policy.routing.circuit_cooldown_s
+      ; inflight = ref 0
+      ; inflight_lock = Mutex.create ()
       }
 ;;
 
