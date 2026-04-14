@@ -16,14 +16,104 @@ let peer_context_of_request store req =
     (Cohttp.Request.headers req)
 ;;
 
+let assoc_fields fields = `Assoc (List.filter_map Fun.id fields)
+
+let string_field name value = Some (name, `String value)
+let string_field_opt name = Option.map (fun value -> name, `String value)
+
+let catalog_entry_of_route (route : Config.route) =
+  match Model_catalog.find_by_public_model route.public_model with
+  | Some entry -> Some entry
+  | None ->
+    (match route.backends with
+     | backend :: _ -> Model_catalog.find_by_upstream_model backend.upstream_model
+     | [] -> None)
+;;
+
+let backend_json (backend : Config.backend) =
+  assoc_fields
+    [ string_field "provider_id" backend.provider_id
+    ; string_field "provider_kind" (Config.provider_kind_to_string backend.provider_kind)
+    ; string_field "upstream_model" backend.upstream_model
+    ; string_field "credential_env" backend.api_key_env
+    ; (match backend.target with
+       | Config.Http_target api_base ->
+         Some
+           ( "transport"
+           , assoc_fields
+               [ string_field "kind" "http"; string_field "target" api_base ] )
+       | Config.Ssh_target transport ->
+         Some
+           ( "transport"
+           , assoc_fields
+               [ string_field "kind" "ssh"
+               ; string_field "target" ("ssh://" ^ transport.host)
+               ; string_field "destination" transport.destination
+               ; string_field_opt "remote_config_path" transport.remote_config_path
+               ] ))
+    ]
+;;
+
+let catalog_json (family, model) =
+  assoc_fields
+    [ Some
+        ( "provider"
+        , assoc_fields
+            [ string_field "key" family.Model_catalog.key
+            ; string_field "label" family.label
+            ; string_field "provider_kind"
+                (Config.provider_kind_to_string family.provider_kind)
+            ; string_field "credential_env" family.api_key_env
+            ; string_field "api_base" family.api_base
+            ; string_field "last_verified" Model_catalog.last_verified
+            ; string_field_opt "docs_url" family.docs_url
+            ] )
+    ; Some
+        ( "model"
+        , assoc_fields
+            [ string_field "label" (Model_catalog.model_label model)
+            ; string_field "family" model.family_label
+            ; string_field "upstream_model" model.upstream_model
+            ; string_field "lifecycle"
+                (Model_catalog.lifecycle_to_string model.lifecycle)
+            ; string_field_opt "version" model.version_label
+            ; string_field_opt "mode" model.mode_label
+            ; string_field_opt "docs_url" model.docs_url
+            ; Some
+                ( "capabilities"
+                , `List (List.map (fun capability -> `String capability) model.capabilities) )
+            ] )
+    ]
+;;
+
 let models_json config =
   `Assoc
     [ ( "data"
       , `List
           (List.map
-             (fun route ->
-               `Assoc
-                 [ "id", `String route.Config.public_model; "object", `String "model" ])
+             (fun (route : Config.route) ->
+               let fields =
+                 [ Some ("id", `String route.public_model)
+                 ; Some ("object", `String "model")
+                 ; Some ("public_model", `String route.public_model)
+                 ; Some
+                     ( "configured_backends"
+                     , `List (List.map backend_json route.backends) )
+                 ; Some
+                     ( "backend_count"
+                     , `Int (List.length route.backends) )
+                 ]
+               in
+               let fields =
+                 match catalog_entry_of_route route with
+                 | Some (family, model) ->
+                   fields
+                   @ [ Some ("display_name", `String (Model_catalog.model_label model))
+                     ; Some ("catalog", catalog_json (family, model))
+                     ]
+                 | None -> fields
+               in
+               assoc_fields fields)
              config.Config.routes) )
     ; "object", `String "list"
     ]

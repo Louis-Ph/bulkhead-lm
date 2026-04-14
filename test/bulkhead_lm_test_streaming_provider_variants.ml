@@ -285,6 +285,30 @@ let config_load_accepts_openai_compatible_provider_variants_test _switch () =
                           ; "api_key_env", `String "OPEN_ROUTER_KEY"
                           ]
                       ; `Assoc
+                          [ "provider_id", `String "vertex-primary"
+                          ; "provider_kind", `String "vertex_openai"
+                          ; "upstream_model", `String "gpt-oss-120b-maas"
+                          ; ( "api_base"
+                            , `String
+                                "https://aiplatform.googleapis.com/v1/projects/test/locations/global/endpoints/openapi"
+                            )
+                          ; "api_key_env", `String "VERTEX_AI_ACCESS_TOKEN"
+                          ]
+                      ; `Assoc
+                          [ "provider_id", `String "xai-primary"
+                          ; "provider_kind", `String "xai_openai"
+                          ; "upstream_model", `String "grok-4.20-reasoning"
+                          ; "api_base", `String "https://api.x.ai/v1"
+                          ; "api_key_env", `String "XAI_API_KEY"
+                          ]
+                      ; `Assoc
+                          [ "provider_id", `String "meta-primary"
+                          ; "provider_kind", `String "meta_openai"
+                          ; "upstream_model", `String "llama-4-maverick"
+                          ; "api_base", `String "https://api.llama.com/compat/v1"
+                          ; "api_key_env", `String "META_API_KEY"
+                          ]
+                      ; `Assoc
                           [ "provider_id", `String "peer-primary"
                           ; "provider_kind", `String "bulkhead_peer"
                           ; "upstream_model", `String "claude-sonnet"
@@ -324,7 +348,17 @@ let config_load_accepts_openai_compatible_provider_variants_test _switch () =
      (match config.Bulkhead_lm.Config.routes with
       | [ route ] ->
         (match route.Bulkhead_lm.Config.backends with
-         | [ mistral; ollama; alibaba; moonshot; openrouter; peer; ssh_peer ] ->
+         | [ mistral
+           ; ollama
+           ; alibaba
+           ; moonshot
+           ; openrouter
+           ; vertex
+           ; xai
+           ; meta
+           ; peer
+           ; ssh_peer
+           ] ->
            Alcotest.(check bool)
              "mistral kind parsed"
              true
@@ -381,6 +415,39 @@ let config_load_accepts_openai_compatible_provider_variants_test _switch () =
              (Bulkhead_lm.Config.is_openai_compatible_kind
                 openrouter.Bulkhead_lm.Config.provider_kind);
            Alcotest.(check bool)
+             "vertex kind parsed"
+             true
+             (match vertex.Bulkhead_lm.Config.provider_kind with
+              | Bulkhead_lm.Config.Vertex_openai -> true
+              | _ -> false);
+           Alcotest.(check bool)
+             "vertex kind is openai-compatible"
+             true
+             (Bulkhead_lm.Config.is_openai_compatible_kind
+                vertex.Bulkhead_lm.Config.provider_kind);
+           Alcotest.(check bool)
+             "xai kind parsed"
+             true
+             (match xai.Bulkhead_lm.Config.provider_kind with
+              | Bulkhead_lm.Config.Xai_openai -> true
+              | _ -> false);
+           Alcotest.(check bool)
+             "xai kind is openai-compatible"
+             true
+             (Bulkhead_lm.Config.is_openai_compatible_kind
+                xai.Bulkhead_lm.Config.provider_kind);
+           Alcotest.(check bool)
+             "meta kind parsed"
+             true
+             (match meta.Bulkhead_lm.Config.provider_kind with
+              | Bulkhead_lm.Config.Meta_openai -> true
+              | _ -> false);
+           Alcotest.(check bool)
+             "meta kind is openai-compatible"
+             true
+             (Bulkhead_lm.Config.is_openai_compatible_kind
+                meta.Bulkhead_lm.Config.provider_kind);
+           Alcotest.(check bool)
              "peer kind parsed"
              true
              (match peer.Bulkhead_lm.Config.provider_kind with
@@ -414,7 +481,7 @@ let config_load_accepts_openai_compatible_provider_variants_test _switch () =
                 "machine-a.example.net"
                 transport.host;
               Alcotest.(check int) "ssh remote jobs parsed" 2 transport.remote_jobs)
-         | _ -> Alcotest.fail "expected six backends")
+         | _ -> Alcotest.fail "expected ten backends")
       | _ -> Alcotest.fail "expected one route"));
   Lwt.return_unit
 ;;

@@ -360,7 +360,17 @@ let starter_profile_exposes_multiple_models_per_provider_test _switch () =
   in
   List.iter
     expect
-    [ "anthropic"; "openrouter"; "openai"; "google"; "mistral"; "alibaba"; "moonshot" ];
+    [ "anthropic"
+    ; "openrouter"
+    ; "openai"
+    ; "google"
+    ; "vertex"
+    ; "xai"
+    ; "meta"
+    ; "mistral"
+    ; "alibaba"
+    ; "moonshot"
+    ];
   Lwt.return_unit
 ;;
 
@@ -386,9 +396,12 @@ let example_gateway_exposes_multiple_models_per_provider_test _switch () =
                  | Bulkhead_lm.Config.Openrouter_openai -> "openrouter"
                  | Bulkhead_lm.Config.Openai_compat -> "openai"
                  | Bulkhead_lm.Config.Google_openai -> "google"
+                 | Bulkhead_lm.Config.Vertex_openai -> "vertex"
                  | Bulkhead_lm.Config.Mistral_openai -> "mistral"
                  | Bulkhead_lm.Config.Alibaba_openai -> "alibaba"
                  | Bulkhead_lm.Config.Moonshot_openai -> "moonshot"
+                 | Bulkhead_lm.Config.Xai_openai -> "xai"
+                 | Bulkhead_lm.Config.Meta_openai -> "meta"
                  | _ -> "other"
                in
                let current =
@@ -407,7 +420,17 @@ let example_gateway_exposes_multiple_models_per_provider_test _switch () =
     in
     List.iter
       expect
-      [ "anthropic"; "openrouter"; "openai"; "google"; "mistral"; "alibaba"; "moonshot" ];
+      [ "anthropic"
+      ; "openrouter"
+      ; "openai"
+      ; "google"
+      ; "vertex"
+      ; "xai"
+      ; "meta"
+      ; "mistral"
+      ; "alibaba"
+      ; "moonshot"
+      ];
     Lwt.return_unit
 ;;
 

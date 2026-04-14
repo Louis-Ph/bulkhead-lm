@@ -65,20 +65,38 @@ let control_plane_reload_swaps_active_runtime_test _switch () =
         Alcotest.(check int) "models endpoint stays live" 200 (response_status_code models_response);
         response_body_json models_body >|= fun models_json ->
         let fields = json_assoc models_json in
-        let model_ids =
+        let model_items =
           match List.assoc_opt "data" fields with
-          | Some (`List values) ->
-            values
-            |> List.filter_map (fun item ->
-              match List.assoc_opt "id" (json_assoc item) with
-              | Some (`String value) -> Some value
-              | _ -> None)
+          | Some (`List values) -> values
           | _ -> []
+        in
+        let model_ids =
+          model_items
+          |> List.filter_map (fun item ->
+            match List.assoc_opt "id" (json_assoc item) with
+            | Some (`String value) -> Some value
+            | _ -> None)
         in
         Alcotest.(check (list string))
           "models endpoint reflects reloaded config"
           [ "gpt-5-mini" ]
-          model_ids)
+          model_ids;
+        match model_items with
+        | [ item ] ->
+          let item_fields = json_assoc item in
+          Alcotest.(check (option string))
+            "models endpoint exposes display name"
+            (Some "GPT 5 mini standard")
+            (match List.assoc_opt "display_name" item_fields with
+             | Some (`String value) -> Some value
+             | _ -> None);
+          Alcotest.(check bool)
+            "models endpoint exposes configured backends"
+            true
+            (match List.assoc_opt "configured_backends" item_fields with
+             | Some (`List [ _ ]) -> true
+             | _ -> false)
+        | _ -> Alcotest.fail "expected one model item")
   )
 ;;
 

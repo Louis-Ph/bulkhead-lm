@@ -4,10 +4,13 @@ let make backend =
   | Config.Openai_compat
   | Config.Openrouter_openai
   | Config.Google_openai
+  | Config.Vertex_openai
   | Config.Mistral_openai
   | Config.Ollama_openai
   | Config.Alibaba_openai
   | Config.Moonshot_openai
+  | Config.Xai_openai
+  | Config.Meta_openai
   | Config.Bulkhead_peer -> Openai_compat_provider.make ()
   | Config.Bulkhead_ssh_peer -> Ssh_peer_provider.make ()
 ;;

@@ -744,6 +744,11 @@ curl -s http://127.0.0.1:4100/v1/models \
   -H "Authorization: Bearer sk-bulkhead-lm-dev"
 ```
 
+Each `/v1/models` item now keeps the route alias explicit and also includes
+`display_name`, a `catalog` block for provider/version/mode hierarchy, and
+`configured_backends` so you can see the actual upstream mapping without
+guessing from short aliases alone.
+
 Then call a routed model once at least one upstream provider key is exported in your shell:
 
 ```bash
@@ -768,10 +773,13 @@ Example route families currently implemented:
 - `anthropic`
 - `openrouter_openai`
 - `google_openai`
+- `vertex_openai`
 - `mistral_openai`
 - `ollama_openai`
 - `alibaba_openai`
 - `moonshot_openai`
+- `xai_openai`
+- `meta_openai`
 - `bulkhead_peer`
 - `bulkhead_ssh_peer`
 
@@ -780,14 +788,19 @@ The bundled example config now exposes several curated public routes per cloud p
 - OpenAI: `gpt-5`, `gpt-5-mini`, `gpt-5-nano`
 - OpenRouter: `openrouter-auto`, `openrouter-free`, `openrouter-gpt-5.2`
 - Anthropic: `claude-opus`, `claude-sonnet`, `claude-haiku`
-- Google Gemini: `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`
+- Google AI Studio: `gemini-2.5-pro`, `gemini-2.5-flash`, `gemini-2.5-flash-lite`
+- Google Vertex AI: `vertex-gemini-2.5-pro`, `vertex-gemini-2.5-flash`, `gpt-oss-120b`
+- xAI: `grok-4`, `grok-4.20-reasoning`, `grok-4-1-fast-reasoning`
+- Meta Llama API Preview: `meta-llama-4-scout`, `meta-llama-4-maverick`, `meta-llama-3.3-8b`
 - Mistral: `mistral-medium`, `mistral-small`, `codestral`
 - Alibaba Qwen: `qwen-max`, `qwen-plus`, `qwen-turbo`
 - Moonshot Kimi: `kimi-latest`, `kimi-k2`, `kimi-k2.5`
 
 OpenRouter is configured against `https://openrouter.ai/api/v1` with `api_key_env` set to `OPEN_ROUTER_KEY` by default. OpenRouter's optional attribution headers are not required for BulkheadLM routing.
+Vertex example routes keep `YOUR_PROJECT` as an explicit placeholder in the OpenAI-compatible endpoint path and expect a bearer access token in `VERTEX_AI_ACCESS_TOKEN`.
+Meta's Llama API entries reflect the public preview announced on `2025-04-29`, so tenant access and exact upstream IDs can still evolve.
 
-These curated route families were last aligned with official provider docs on `2026-04-09`. They are not a claim that BulkheadLM enumerates every upstream model a provider may ever expose.
+These curated route families were last aligned with official provider docs on `2026-04-14`. They are not a claim that BulkheadLM enumerates every upstream model a provider may ever expose.
 
 Ollama is also supported through its OpenAI-compatible interface, for example on `http://127.0.0.1:11434/v1` with a local model such as `llama3.2`.
 

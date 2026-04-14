@@ -661,6 +661,8 @@ It can:
 
 1. Reuse your existing keys from secret files.
 2. Show which models are ready.
+   `/models` now also shows the provider family, the upstream model id, and the
+   version or mode when BulkheadLM knows them, so short aliases are less opaque.
 3. Let you choose a model.
 4. Open a simple chat.
 5. Let you attach a local text file with `/file PATH`.

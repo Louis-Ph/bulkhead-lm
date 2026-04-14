@@ -213,11 +213,13 @@ let build_starter_config ~output_path =
   let selected_presets =
     Starter_profile.provider_families
     |> List.concat_map (fun (family : Starter_model_catalog.provider_family) ->
-      let family_presets = Starter_profile.presets_for_provider_key family.key in
+      let family_presets : Starter_profile.provider_preset list =
+        Starter_profile.presets_for_provider_key family.key
+      in
       let sample_models =
         family_presets
         |> List.map (fun (preset : Starter_profile.provider_preset) ->
-          preset.public_model)
+          Fmt.str "%s (%s)" preset.public_model preset.model_label)
         |> String.concat ", "
       in
       let ready = Starter_profile.non_empty_env Sys.getenv_opt family.api_key_env in
@@ -291,14 +293,71 @@ let build_starter_config ~output_path =
     Ok output_path)
 ;;
 
+let route_identity_label (status : Starter_profile.route_status) =
+  match status.catalog_entry with
+  | Some (family, model) ->
+    Fmt.str "%s %s" family.label (Model_catalog.model_label model)
+  | None -> status.public_model
+;;
+
+let backend_summary (backend : Starter_profile.route_backend_status) =
+  let target =
+    match backend.api_base with
+    | Some api_base -> api_base
+    | None -> "(ssh transport)"
+  in
+  Fmt.str
+    "%s -> %s via %s [%s]"
+    (Config.provider_kind_to_string backend.provider_kind)
+    backend.upstream_model
+    target
+    backend.api_key_env
+;;
+
 let route_status_summary status =
+  let identity = route_identity_label status in
+  let backend_hint =
+    match status.Starter_profile.backends with
+    | backend :: _ -> Fmt.str " -> %s" backend.upstream_model
+    | [] -> ""
+  in
   if status.Starter_profile.ready
-  then Fmt.str "%s [ready]" status.public_model
+  then Fmt.str "%s [ready] :: %s%s" status.public_model identity backend_hint
   else
-    Fmt.str "%s [missing %s]" status.public_model (String.concat ", " status.backend_envs)
+    Fmt.str
+      "%s [missing %s] :: %s%s"
+      status.public_model
+      (String.concat ", " status.backend_envs)
+      identity
+      backend_hint
 ;;
 
 let configured_statuses store = Starter_profile.route_statuses store.Runtime_state.config
+
+let route_status_detail_lines (status : Starter_profile.route_status) =
+  let catalog_lines =
+    match status.catalog_entry with
+    | Some (family, model) ->
+      [ Fmt.str
+          "    hierarchy: %s / %s"
+          family.label
+          (String.concat " / " (Model_catalog.model_hierarchy_parts model))
+      ; Fmt.str
+          "    lifecycle: %s"
+          (Model_catalog.lifecycle_to_string model.lifecycle)
+      ; (if model.capabilities = []
+         then "    capabilities: (none declared)"
+         else
+           Fmt.str "    capabilities: %s" (String.concat ", " model.capabilities))
+      ]
+    | None -> [ "    hierarchy: (custom route not found in built-in catalog)" ]
+  in
+  let backend_lines =
+    status.backends
+    |> List.map (fun backend -> "    backend: " ^ backend_summary backend)
+  in
+  [ "  " ^ route_status_summary status ] @ catalog_lines @ backend_lines
+;;
 
 let ensure_ready_model store requested_model =
   let resolve statuses =
@@ -392,7 +451,7 @@ let print_models store =
   print_line "";
   print_line "Configured models:";
   configured_statuses store
-  |> List.iter (fun status -> print_line ("  " ^ route_status_summary status))
+  |> List.iter (fun status -> List.iter print_line (route_status_detail_lines status))
 ;;
 
 let control_plane_url ~host ~port ~path =

@@ -123,7 +123,7 @@
     {
       "name": "local-dev",
       "token_plaintext": "sk-bulkhead-lm-dev",
-      "daily_token_budget": 50000,
+      "daily_token_budget": 100000,
       "requests_per_minute": 30,
       "allowed_routes": [
         "gpt-5",
@@ -138,6 +138,15 @@
         "gemini-2.5-pro",
         "gemini-2.5-flash",
         "gemini-2.5-flash-lite",
+        "vertex-gemini-2.5-pro",
+        "vertex-gemini-2.5-flash",
+        "gpt-oss-120b",
+        "grok-4",
+        "grok-4.20-reasoning",
+        "grok-4-1-fast-reasoning",
+        "meta-llama-4-scout",
+        "meta-llama-4-maverick",
+        "meta-llama-3.3-8b",
         "mistral-medium",
         "mistral-small",
         "codestral",
@@ -292,6 +301,114 @@
           "upstream_model": "gemini-2.5-flash-lite",
           "api_base": "https://generativelanguage.googleapis.com/v1beta/openai/",
           "api_key_env": "GOOGLE_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "vertex-gemini-2.5-pro",
+      "backends": [
+        {
+          "provider_id": "vertex-gemini-2-5-pro",
+          "provider_kind": "vertex_openai",
+          "upstream_model": "google/gemini-2.5-pro",
+          "api_base": "https://aiplatform.googleapis.com/v1/projects/YOUR_PROJECT/locations/global/endpoints/openapi",
+          "api_key_env": "VERTEX_AI_ACCESS_TOKEN"
+        }
+      ]
+    },
+    {
+      "public_model": "vertex-gemini-2.5-flash",
+      "backends": [
+        {
+          "provider_id": "vertex-gemini-2-5-flash",
+          "provider_kind": "vertex_openai",
+          "upstream_model": "google/gemini-2.5-flash",
+          "api_base": "https://aiplatform.googleapis.com/v1/projects/YOUR_PROJECT/locations/global/endpoints/openapi",
+          "api_key_env": "VERTEX_AI_ACCESS_TOKEN"
+        }
+      ]
+    },
+    {
+      "public_model": "gpt-oss-120b",
+      "backends": [
+        {
+          "provider_id": "vertex-gpt-oss-120b",
+          "provider_kind": "vertex_openai",
+          "upstream_model": "gpt-oss-120b-maas",
+          "api_base": "https://aiplatform.googleapis.com/v1/projects/YOUR_PROJECT/locations/global/endpoints/openapi",
+          "api_key_env": "VERTEX_AI_ACCESS_TOKEN"
+        }
+      ]
+    },
+    {
+      "public_model": "grok-4",
+      "backends": [
+        {
+          "provider_id": "xai-grok-4",
+          "provider_kind": "xai_openai",
+          "upstream_model": "grok-4",
+          "api_base": "https://api.x.ai/v1",
+          "api_key_env": "XAI_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "grok-4.20-reasoning",
+      "backends": [
+        {
+          "provider_id": "xai-grok-4-20-reasoning",
+          "provider_kind": "xai_openai",
+          "upstream_model": "grok-4.20-reasoning",
+          "api_base": "https://api.x.ai/v1",
+          "api_key_env": "XAI_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "grok-4-1-fast-reasoning",
+      "backends": [
+        {
+          "provider_id": "xai-grok-4-1-fast-reasoning",
+          "provider_kind": "xai_openai",
+          "upstream_model": "grok-4-1-fast-reasoning",
+          "api_base": "https://api.x.ai/v1",
+          "api_key_env": "XAI_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "meta-llama-4-scout",
+      "backends": [
+        {
+          "provider_id": "meta-llama-4-scout",
+          "provider_kind": "meta_openai",
+          "upstream_model": "llama-4-scout",
+          "api_base": "https://api.llama.com/compat/v1",
+          "api_key_env": "META_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "meta-llama-4-maverick",
+      "backends": [
+        {
+          "provider_id": "meta-llama-4-maverick",
+          "provider_kind": "meta_openai",
+          "upstream_model": "llama-4-maverick",
+          "api_base": "https://api.llama.com/compat/v1",
+          "api_key_env": "META_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "meta-llama-3.3-8b",
+      "backends": [
+        {
+          "provider_id": "meta-llama-3-3-8b",
+          "provider_kind": "meta_openai",
+          "upstream_model": "llama-3.3-8b",
+          "api_base": "https://api.llama.com/compat/v1",
+          "api_key_env": "META_API_KEY"
         }
       ]
     },

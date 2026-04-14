@@ -5,10 +5,13 @@ type provider_kind =
   | Anthropic
   | Openrouter_openai
   | Google_openai
+  | Vertex_openai
   | Mistral_openai
   | Ollama_openai
   | Alibaba_openai
   | Moonshot_openai
+  | Xai_openai
+  | Meta_openai
   | Bulkhead_peer
   | Bulkhead_ssh_peer
 
@@ -200,23 +203,45 @@ let provider_kind_of_string = function
   | "anthropic" -> Ok Anthropic
   | "openrouter_openai" -> Ok Openrouter_openai
   | "google_openai" -> Ok Google_openai
+  | "vertex_openai" -> Ok Vertex_openai
   | "mistral_openai" -> Ok Mistral_openai
   | "ollama_openai" -> Ok Ollama_openai
   | "alibaba_openai" -> Ok Alibaba_openai
   | "moonshot_openai" -> Ok Moonshot_openai
+  | "xai_openai" -> Ok Xai_openai
+  | "meta_openai" -> Ok Meta_openai
   | "bulkhead_peer" -> Ok Bulkhead_peer
   | "bulkhead_ssh_peer" -> Ok Bulkhead_ssh_peer
   | value -> Error (Fmt.str "Unsupported provider kind: %s" value)
+;;
+
+let provider_kind_to_string = function
+  | Openai_compat -> "openai_compat"
+  | Anthropic -> "anthropic"
+  | Openrouter_openai -> "openrouter_openai"
+  | Google_openai -> "google_openai"
+  | Vertex_openai -> "vertex_openai"
+  | Mistral_openai -> "mistral_openai"
+  | Ollama_openai -> "ollama_openai"
+  | Alibaba_openai -> "alibaba_openai"
+  | Moonshot_openai -> "moonshot_openai"
+  | Xai_openai -> "xai_openai"
+  | Meta_openai -> "meta_openai"
+  | Bulkhead_peer -> "bulkhead_peer"
+  | Bulkhead_ssh_peer -> "bulkhead_ssh_peer"
 ;;
 
 let is_openai_compatible_kind = function
   | Openai_compat
   | Openrouter_openai
   | Google_openai
+  | Vertex_openai
   | Mistral_openai
   | Ollama_openai
   | Alibaba_openai
   | Moonshot_openai
+  | Xai_openai
+  | Meta_openai
   | Bulkhead_peer
   | Bulkhead_ssh_peer -> true
   | Anthropic -> false

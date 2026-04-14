@@ -3,6 +3,8 @@ type provider_preset =
   ; key : string
   ; provider_label : string
   ; label : string
+  ; model_label : string
+  ; model_hierarchy : string list
   ; public_model : string
   ; provider_id : string
   ; provider_kind : Config.provider_kind
@@ -11,10 +13,22 @@ type provider_preset =
   ; api_key_env : string
   }
 
+type route_backend_status =
+  { provider_id : string
+  ; provider_kind : Config.provider_kind
+  ; upstream_model : string
+  ; api_base : string option
+  ; api_key_env : string
+  ; ready : bool
+  }
+
 type route_status =
   { public_model : string
   ; backend_envs : string list
   ; ready : bool
+  ; backends : route_backend_status list
+  ; catalog_entry :
+      (Starter_model_catalog.provider_family * Starter_model_catalog.provider_model) option
   }
 
 type env_status =
@@ -23,18 +37,7 @@ type env_status =
   ; masked_value : string option
   }
 
-let provider_kind_to_string = function
-  | Config.Openai_compat -> "openai_compat"
-  | Config.Anthropic -> "anthropic"
-  | Config.Openrouter_openai -> "openrouter_openai"
-  | Config.Google_openai -> "google_openai"
-  | Config.Mistral_openai -> "mistral_openai"
-  | Config.Ollama_openai -> "ollama_openai"
-  | Config.Alibaba_openai -> "alibaba_openai"
-  | Config.Moonshot_openai -> "moonshot_openai"
-  | Config.Bulkhead_peer -> "bulkhead_peer"
-  | Config.Bulkhead_ssh_peer -> "bulkhead_ssh_peer"
-;;
+let provider_kind_to_string = Config.provider_kind_to_string
 
 let normalize_id_part value =
   let buffer = Buffer.create (String.length value) in
@@ -86,10 +89,13 @@ let trimmed_env_value lookup name =
 
 let preset_of_family_model (family : Starter_model_catalog.provider_family) model =
   let normalized_model = normalize_id_part model.Starter_model_catalog.public_model in
+  let model_label = Starter_model_catalog.model_label model in
   { provider_key = family.key
   ; key = family.key ^ ":" ^ model.key
   ; provider_label = family.label
-  ; label = Fmt.str "%s %s" family.label model.label
+  ; label = Fmt.str "%s %s" family.label model_label
+  ; model_label
+  ; model_hierarchy = Starter_model_catalog.model_hierarchy_parts model
   ; public_model = model.public_model
   ; provider_id = Fmt.str "%s-%s" family.provider_id_prefix normalized_model
   ; provider_kind = family.provider_kind
@@ -118,11 +124,22 @@ let preset_is_ready ?(lookup = Sys.getenv_opt) (preset : provider_preset) =
 
 let preset_summary (preset : provider_preset) = Fmt.str "%s [%s]" preset.label preset.public_model
 
-let preset_with_api_key_env preset api_key_env =
+let preset_with_api_key_env (preset : provider_preset) api_key_env =
   { preset with api_key_env = String.trim api_key_env }
 ;;
 
 let route_status ?(lookup = Sys.getenv_opt) (route : Config.route) =
+  let backends =
+    route.backends
+    |> List.map (fun (backend : Config.backend) ->
+      { provider_id = backend.provider_id
+      ; provider_kind = backend.provider_kind
+      ; upstream_model = backend.upstream_model
+      ; api_base = Config.backend_http_api_base backend
+      ; api_key_env = backend.api_key_env
+      ; ready = non_empty_env lookup backend.api_key_env
+      })
+  in
   let backend_envs =
     route.backends
     |> List.map (fun (backend : Config.backend) -> backend.api_key_env)
@@ -132,7 +149,15 @@ let route_status ?(lookup = Sys.getenv_opt) (route : Config.route) =
     route.backends
     |> List.exists (fun (backend : Config.backend) -> non_empty_env lookup backend.api_key_env)
   in
-  { public_model = route.public_model; backend_envs; ready }
+  let catalog_entry =
+    match Starter_model_catalog.find_by_public_model route.public_model with
+    | Some entry -> Some entry
+    | None ->
+      (match route.backends with
+       | backend :: _ -> Starter_model_catalog.find_by_upstream_model backend.upstream_model
+       | [] -> None)
+  in
+  { public_model = route.public_model; backend_envs; ready; backends; catalog_entry }
 ;;
 
 let route_statuses ?(lookup = Sys.getenv_opt) (config : Config.t) =
