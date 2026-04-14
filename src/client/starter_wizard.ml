@@ -437,21 +437,28 @@ let print_help state =
      then Starter_constants.Text.memory_enabled
      else Starter_constants.Text.memory_disabled);
   print_line "";
-  print_wrapped_styled
-    ~style:Starter_constants.Ansi.bold
-    Starter_constants.Text.tools_intro;
-  print_styled_lines
-    ~style:Starter_constants.Ansi.dim
-    Starter_constants.Text.command_help_lines
+  (match Starter_constants.Text.command_help_lines with
+   | [] -> ()
+   | header :: entries ->
+     print_line (Starter_constants.Ansi.bold header);
+     List.iter print_line entries)
 ;;
 
 let print_lines lines = List.iter print_wrapped lines
 
 let print_models store =
+  let ready, missing =
+    configured_statuses store |> Starter_profile.split_route_statuses
+  in
   print_line "";
-  print_line "Configured models:";
-  configured_statuses store
-  |> List.iter (fun status -> List.iter print_line (route_status_detail_lines status))
+  print_line "Ready:";
+  if ready = []
+  then print_line "  (none)"
+  else List.iter (fun s -> print_line ("  " ^ route_status_summary s)) ready;
+  if missing <> [] then (
+    print_line "";
+    print_line "Not ready:";
+    List.iter (fun s -> print_line ("  " ^ route_status_summary s)) missing)
 ;;
 
 let control_plane_url ~host ~port ~path =
@@ -1103,10 +1110,10 @@ let rec repl store ~authorization state runtime =
 
 let run ~base_config_path ~starter_output_path () =
   Sys.catch_break true;
+  let banner_text = "BulkheadLM Starter" in
   print_line "";
-  print_line
-    (Starter_constants.Ansi.bold (Starter_constants.Ansi.cyan " 🚢 BulkheadLM Starter "));
-  print_line (Starter_constants.Ansi.cyan "=========================");
+  print_line (Starter_constants.Ansi.bold (Starter_constants.Ansi.cyan banner_text));
+  print_line (Starter_constants.Ansi.cyan (String.make (String.length banner_text) '-'));
   print_line "";
   print_styled_lines ~style:Starter_constants.Ansi.dim Starter_constants.Text.intro_lines;
   print_line "";
