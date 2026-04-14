@@ -111,10 +111,18 @@ let starter_control_plane_lines_reflect_current_config_test _switch () =
     (string_contains
        enabled_text
        "./scripts/with_local_toolchain.sh dune exec bulkhead-lm -- --config '/tmp/control gateway.json'");
+  let disabled_policy =
+    let defaults = Bulkhead_lm.Security_policy.default () in
+    { defaults with
+      control_plane = { defaults.control_plane with enabled = false }
+    }
+  in
   let disabled_text =
     Bulkhead_lm.Starter_wizard.control_plane_lines
       ~config_path:"config/local_only/starter.gateway.json"
-      (Bulkhead_lm.Config_test_support.sample_config ())
+      (Bulkhead_lm.Config_test_support.sample_config
+         ~security_policy:disabled_policy
+         ())
     |> String.concat "\n"
   in
   Alcotest.(check bool)

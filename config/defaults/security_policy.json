@@ -2,8 +2,8 @@
   "server": {
     "listen_host": "127.0.0.1",
     "listen_port": 4100,
-    "max_request_body_bytes": 1048576,
-    "request_timeout_ms": 30000
+    "max_request_body_bytes": 5242880,
+    "request_timeout_ms": 120000
   },
   "auth": {
     "header": "authorization",
@@ -80,7 +80,7 @@
     "hop_count_header": "x-bulkhead-lm-hop-count"
   },
   "control_plane": {
-    "enabled": false,
+    "enabled": true,
     "path_prefix": "/_bulkhead/control",
     "ui_enabled": true,
     "allow_reload": true,
@@ -102,16 +102,16 @@
     }
   },
   "routing": {
-    "max_fallbacks": 2,
+    "max_fallbacks": 5,
     "strategy": "priority",
-    "max_inflight": 128,
+    "max_inflight": 512,
     "circuit_open_threshold": 5,
     "circuit_cooldown_s": 30
   },
   "rate_limit": {
-    "default_requests_per_minute": 60
+    "default_requests_per_minute": 300
   },
   "budget": {
-    "default_daily_tokens": 200000
+    "default_daily_tokens": 1000000
   }
 }

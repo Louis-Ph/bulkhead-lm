@@ -123,8 +123,8 @@ let default () =
   { server =
       { listen_host = "127.0.0.1"
       ; listen_port = 4100
-      ; max_request_body_bytes = 1_048_576
-      ; request_timeout_ms = 30_000
+      ; max_request_body_bytes = 5_242_880
+      ; request_timeout_ms = 120_000
       }
   ; auth =
       { header = "authorization"
@@ -208,7 +208,7 @@ let default () =
       ; hop_count_header = "x-bulkhead-lm-hop-count"
       }
   ; control_plane =
-      { enabled = false
+      { enabled = true
       ; path_prefix = "/_bulkhead/control"
       ; ui_enabled = true
       ; allow_reload = true
@@ -230,14 +230,14 @@ let default () =
           }
       }
   ; routing =
-      { max_fallbacks          = 2
+      { max_fallbacks          = 5
       ; strategy               = "priority"
-      ; max_inflight           = 128
+      ; max_inflight           = 512
       ; circuit_open_threshold = 5
       ; circuit_cooldown_s     = 30.0
       }
-  ; rate_limit = { default_requests_per_minute = 60 }
-  ; budget = { default_daily_tokens = 200_000 }
+  ; rate_limit = { default_requests_per_minute = 300 }
+  ; budget = { default_daily_tokens = 1_000_000 }
   }
 ;;
 

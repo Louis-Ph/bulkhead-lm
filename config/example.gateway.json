@@ -4,7 +4,7 @@
   "providers_schema_file": "defaults/providers.schema.json",
   "persistence": {
     "sqlite_path": "../var/bulkhead-lm.sqlite",
-    "busy_timeout_ms": 5000
+    "busy_timeout_ms": 10000
   },
   "user_connectors": {
     "telegram": {
@@ -123,8 +123,8 @@
     {
       "name": "local-dev",
       "token_plaintext": "sk-bulkhead-lm-dev",
-      "daily_token_budget": 400000,
-      "requests_per_minute": 30,
+      "daily_token_budget": 1000000,
+      "requests_per_minute": 120,
       "allowed_routes": [
         "gpt-5",
         "gpt-5-mini",
