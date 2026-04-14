@@ -11,6 +11,12 @@ let make backend =
   | Config.Moonshot_openai
   | Config.Xai_openai
   | Config.Meta_openai
+  | Config.Deepseek_openai
+  | Config.Groq_openai
+  | Config.Perplexity_openai
+  | Config.Together_openai
+  | Config.Cerebras_openai
+  | Config.Cohere_openai
   | Config.Bulkhead_peer -> Openai_compat_provider.make ()
   | Config.Bulkhead_ssh_peer -> Ssh_peer_provider.make ()
 ;;

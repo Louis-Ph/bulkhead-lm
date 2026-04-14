@@ -767,23 +767,31 @@ The example gateway file is [config/example.gateway.json](config/example.gateway
 
 ## Providers and routes
 
-Example route families currently implemented:
+Example route families currently implemented (19 provider kinds):
 
-- `openai_compat`
-- `anthropic`
-- `openrouter_openai`
-- `google_openai`
-- `vertex_openai`
-- `mistral_openai`
-- `ollama_openai`
-- `alibaba_openai`
-- `moonshot_openai`
-- `xai_openai`
-- `meta_openai`
-- `bulkhead_peer`
-- `bulkhead_ssh_peer`
+| Kind | Provider | Key env |
+|------|----------|---------|
+| `openai_compat` | Generic OpenAI-compatible | _(set per backend)_ |
+| `anthropic` | Anthropic | `ANTHROPIC_API_KEY` |
+| `openrouter_openai` | OpenRouter | `OPEN_ROUTER_KEY` |
+| `google_openai` | Google AI Studio | `GOOGLE_API_KEY` |
+| `vertex_openai` | Google Vertex AI | `VERTEX_AI_ACCESS_TOKEN` |
+| `mistral_openai` | Mistral | `MISTRAL_API_KEY` |
+| `ollama_openai` | Ollama (local) | `OLLAMA_API_KEY` |
+| `alibaba_openai` | Alibaba DashScope / Qwen | `DASHSCOPE_API_KEY` |
+| `moonshot_openai` | Moonshot Kimi | `MOONSHOT_API_KEY` |
+| `xai_openai` | xAI Grok | `XAI_API_KEY` |
+| `meta_openai` | Meta Llama API | `META_API_KEY` |
+| `deepseek_openai` | DeepSeek | `DEEPSEEK_API_KEY` |
+| `groq_openai` | Groq | `GROQ_API_KEY` |
+| `perplexity_openai` | Perplexity | `PERPLEXITY_API_KEY` |
+| `together_openai` | Together AI | `TOGETHER_API_KEY` |
+| `cerebras_openai` | Cerebras | `CEREBRAS_API_KEY` |
+| `cohere_openai` | Cohere | `COHERE_API_KEY` |
+| `bulkhead_peer` | BulkheadLM peer (HTTP) | _(bearer key per route)_ |
+| `bulkhead_ssh_peer` | BulkheadLM peer (SSH) | _(ssh key per transport)_ |
 
-The bundled example config now exposes several curated public routes per cloud provider, so one upstream provider key can unlock several routed models. The current example includes:
+The bundled example config exposes 46 curated public routes across ten cloud providers, so one upstream provider key can unlock several routed models. The current example includes:
 
 - OpenAI: `gpt-5`, `gpt-5-mini`, `gpt-5-nano`
 - OpenRouter: `openrouter-auto`, `openrouter-free`, `openrouter-gpt-5.2`
@@ -795,6 +803,20 @@ The bundled example config now exposes several curated public routes per cloud p
 - Mistral: `mistral-medium`, `mistral-small`, `codestral`
 - Alibaba Qwen: `qwen-max`, `qwen-plus`, `qwen-turbo`
 - Moonshot Kimi: `kimi-latest`, `kimi-k2`, `kimi-k2.5`
+- DeepSeek: `deepseek-v3`, `deepseek-r1`, `deepseek-r1-lite`
+- Groq: `groq-llama-3.3-70b`, `groq-llama-3.1-8b`, `groq-qwen-qwq-32b`
+- Perplexity: `perplexity-sonar-pro`, `perplexity-sonar`, `perplexity-sonar-reasoning`
+- Together AI: `together-llama-3.3-70b`, `together-deepseek-v3`, `together-qwen-2.5-72b`
+- Cerebras: `cerebras-llama-3.3-70b`, `cerebras-llama-3.1-8b`
+- Cohere: `command-r-plus`, `command-r`, `command-a`
+
+**New provider notes:**
+- DeepSeek routes use `https://api.deepseek.com/v1`; `deepseek-chat` maps to DeepSeek-V3 and `deepseek-reasoner` maps to DeepSeek-R1.
+- Groq routes use `https://api.groq.com/openai/v1` for ultra-low-latency inference on open models; `groq-qwen-qwq-32b` exposes Qwen's QwQ reasoning model on Groq hardware.
+- Perplexity Sonar routes use `https://api.perplexity.ai`; Sonar models attach live web search to the response.
+- Together AI routes use `https://api.together.xyz/v1` and expose the same open-weight models via Together's batch inference cluster.
+- Cerebras routes use `https://api.cerebras.ai/v1` for wafer-scale chip inference; latency on 8b models is typically sub-100 ms.
+- Cohere routes use the OpenAI-compatible shim at `https://api.cohere.ai/compatibility/v1`; `command-a-03-2025` is Cohere's 111B frontier model.
 
 OpenRouter is configured against `https://openrouter.ai/api/v1` with `api_key_env` set to `OPEN_ROUTER_KEY` by default. OpenRouter's optional attribution headers are not required for BulkheadLM routing.
 Vertex example routes keep `YOUR_PROJECT` as an explicit placeholder in the OpenAI-compatible endpoint path and expect a bearer access token in `VERTEX_AI_ACCESS_TOKEN`.

@@ -12,6 +12,12 @@ type provider_kind =
   | Moonshot_openai
   | Xai_openai
   | Meta_openai
+  | Deepseek_openai
+  | Groq_openai
+  | Perplexity_openai
+  | Together_openai
+  | Cerebras_openai
+  | Cohere_openai
   | Bulkhead_peer
   | Bulkhead_ssh_peer
 
@@ -210,6 +216,12 @@ let provider_kind_of_string = function
   | "moonshot_openai" -> Ok Moonshot_openai
   | "xai_openai" -> Ok Xai_openai
   | "meta_openai" -> Ok Meta_openai
+  | "deepseek_openai" -> Ok Deepseek_openai
+  | "groq_openai" -> Ok Groq_openai
+  | "perplexity_openai" -> Ok Perplexity_openai
+  | "together_openai" -> Ok Together_openai
+  | "cerebras_openai" -> Ok Cerebras_openai
+  | "cohere_openai" -> Ok Cohere_openai
   | "bulkhead_peer" -> Ok Bulkhead_peer
   | "bulkhead_ssh_peer" -> Ok Bulkhead_ssh_peer
   | value -> Error (Fmt.str "Unsupported provider kind: %s" value)
@@ -227,6 +239,12 @@ let provider_kind_to_string = function
   | Moonshot_openai -> "moonshot_openai"
   | Xai_openai -> "xai_openai"
   | Meta_openai -> "meta_openai"
+  | Deepseek_openai -> "deepseek_openai"
+  | Groq_openai -> "groq_openai"
+  | Perplexity_openai -> "perplexity_openai"
+  | Together_openai -> "together_openai"
+  | Cerebras_openai -> "cerebras_openai"
+  | Cohere_openai -> "cohere_openai"
   | Bulkhead_peer -> "bulkhead_peer"
   | Bulkhead_ssh_peer -> "bulkhead_ssh_peer"
 ;;
@@ -242,6 +260,12 @@ let is_openai_compatible_kind = function
   | Moonshot_openai
   | Xai_openai
   | Meta_openai
+  | Deepseek_openai
+  | Groq_openai
+  | Perplexity_openai
+  | Together_openai
+  | Cerebras_openai
+  | Cohere_openai
   | Bulkhead_peer
   | Bulkhead_ssh_peer -> true
   | Anthropic -> false

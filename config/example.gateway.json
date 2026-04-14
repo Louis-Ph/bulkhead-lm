@@ -155,7 +155,24 @@
         "qwen-turbo",
         "kimi-latest",
         "kimi-k2",
-        "kimi-k2.5"
+        "kimi-k2.5",
+        "deepseek-v3",
+        "deepseek-r1",
+        "deepseek-r1-lite",
+        "groq-llama-3.3-70b",
+        "groq-llama-3.1-8b",
+        "groq-qwen-qwq-32b",
+        "perplexity-sonar-pro",
+        "perplexity-sonar",
+        "perplexity-sonar-reasoning",
+        "together-llama-3.3-70b",
+        "together-deepseek-v3",
+        "together-qwen-2.5-72b",
+        "cerebras-llama-3.3-70b",
+        "cerebras-llama-3.1-8b",
+        "command-r-plus",
+        "command-r",
+        "command-a"
       ]
     }
   ],
@@ -517,6 +534,210 @@
           "upstream_model": "kimi-k2.5",
           "api_base": "https://api.moonshot.ai/v1",
           "api_key_env": "MOONSHOT_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "deepseek-v3",
+      "backends": [
+        {
+          "provider_id": "deepseek-v3",
+          "provider_kind": "deepseek_openai",
+          "upstream_model": "deepseek-chat",
+          "api_base": "https://api.deepseek.com/v1",
+          "api_key_env": "DEEPSEEK_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "deepseek-r1",
+      "backends": [
+        {
+          "provider_id": "deepseek-r1",
+          "provider_kind": "deepseek_openai",
+          "upstream_model": "deepseek-reasoner",
+          "api_base": "https://api.deepseek.com/v1",
+          "api_key_env": "DEEPSEEK_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "deepseek-r1-lite",
+      "backends": [
+        {
+          "provider_id": "deepseek-r1-lite",
+          "provider_kind": "deepseek_openai",
+          "upstream_model": "deepseek-reasoner",
+          "api_base": "https://api.deepseek.com/v1",
+          "api_key_env": "DEEPSEEK_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "groq-llama-3.3-70b",
+      "backends": [
+        {
+          "provider_id": "groq-llama-3-3-70b",
+          "provider_kind": "groq_openai",
+          "upstream_model": "llama-3.3-70b-versatile",
+          "api_base": "https://api.groq.com/openai/v1",
+          "api_key_env": "GROQ_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "groq-llama-3.1-8b",
+      "backends": [
+        {
+          "provider_id": "groq-llama-3-1-8b",
+          "provider_kind": "groq_openai",
+          "upstream_model": "llama-3.1-8b-instant",
+          "api_base": "https://api.groq.com/openai/v1",
+          "api_key_env": "GROQ_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "groq-qwen-qwq-32b",
+      "backends": [
+        {
+          "provider_id": "groq-qwen-qwq-32b",
+          "provider_kind": "groq_openai",
+          "upstream_model": "qwen-qwq-32b",
+          "api_base": "https://api.groq.com/openai/v1",
+          "api_key_env": "GROQ_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "perplexity-sonar-pro",
+      "backends": [
+        {
+          "provider_id": "perplexity-sonar-pro",
+          "provider_kind": "perplexity_openai",
+          "upstream_model": "sonar-pro",
+          "api_base": "https://api.perplexity.ai",
+          "api_key_env": "PERPLEXITY_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "perplexity-sonar",
+      "backends": [
+        {
+          "provider_id": "perplexity-sonar",
+          "provider_kind": "perplexity_openai",
+          "upstream_model": "sonar",
+          "api_base": "https://api.perplexity.ai",
+          "api_key_env": "PERPLEXITY_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "perplexity-sonar-reasoning",
+      "backends": [
+        {
+          "provider_id": "perplexity-sonar-reasoning",
+          "provider_kind": "perplexity_openai",
+          "upstream_model": "sonar-reasoning-pro",
+          "api_base": "https://api.perplexity.ai",
+          "api_key_env": "PERPLEXITY_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "together-llama-3.3-70b",
+      "backends": [
+        {
+          "provider_id": "together-llama-3-3-70b",
+          "provider_kind": "together_openai",
+          "upstream_model": "meta-llama/Llama-3.3-70B-Instruct-Turbo",
+          "api_base": "https://api.together.xyz/v1",
+          "api_key_env": "TOGETHER_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "together-deepseek-v3",
+      "backends": [
+        {
+          "provider_id": "together-deepseek-v3",
+          "provider_kind": "together_openai",
+          "upstream_model": "deepseek-ai/DeepSeek-V3",
+          "api_base": "https://api.together.xyz/v1",
+          "api_key_env": "TOGETHER_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "together-qwen-2.5-72b",
+      "backends": [
+        {
+          "provider_id": "together-qwen-2-5-72b",
+          "provider_kind": "together_openai",
+          "upstream_model": "Qwen/Qwen2.5-72B-Instruct-Turbo",
+          "api_base": "https://api.together.xyz/v1",
+          "api_key_env": "TOGETHER_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "cerebras-llama-3.3-70b",
+      "backends": [
+        {
+          "provider_id": "cerebras-llama-3-3-70b",
+          "provider_kind": "cerebras_openai",
+          "upstream_model": "llama-3.3-70b",
+          "api_base": "https://api.cerebras.ai/v1",
+          "api_key_env": "CEREBRAS_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "cerebras-llama-3.1-8b",
+      "backends": [
+        {
+          "provider_id": "cerebras-llama-3-1-8b",
+          "provider_kind": "cerebras_openai",
+          "upstream_model": "llama3.1-8b",
+          "api_base": "https://api.cerebras.ai/v1",
+          "api_key_env": "CEREBRAS_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "command-r-plus",
+      "backends": [
+        {
+          "provider_id": "cohere-command-r-plus",
+          "provider_kind": "cohere_openai",
+          "upstream_model": "command-r-plus-08-2024",
+          "api_base": "https://api.cohere.ai/compatibility/v1",
+          "api_key_env": "COHERE_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "command-r",
+      "backends": [
+        {
+          "provider_id": "cohere-command-r",
+          "provider_kind": "cohere_openai",
+          "upstream_model": "command-r-08-2024",
+          "api_base": "https://api.cohere.ai/compatibility/v1",
+          "api_key_env": "COHERE_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "command-a",
+      "backends": [
+        {
+          "provider_id": "cohere-command-a",
+          "provider_kind": "cohere_openai",
+          "upstream_model": "command-a-03-2025",
+          "api_base": "https://api.cohere.ai/compatibility/v1",
+          "api_key_env": "COHERE_API_KEY"
         }
       ]
     }

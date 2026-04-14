@@ -11,6 +11,12 @@
     "moonshot_openai",
     "xai_openai",
     "meta_openai",
+    "deepseek_openai",
+    "groq_openai",
+    "perplexity_openai",
+    "together_openai",
+    "cerebras_openai",
+    "cohere_openai",
     "bulkhead_peer",
     "bulkhead_ssh_peer"
   ],
@@ -30,6 +36,12 @@
     "moonshot_openai": ["chat_completions"],
     "xai_openai": ["chat_completions"],
     "meta_openai": ["chat_completions"],
+    "deepseek_openai": ["chat_completions"],
+    "groq_openai": ["chat_completions"],
+    "perplexity_openai": ["chat_completions"],
+    "together_openai": ["chat_completions", "embeddings"],
+    "cerebras_openai": ["chat_completions"],
+    "cohere_openai": ["chat_completions", "embeddings"],
     "bulkhead_peer": ["chat_completions", "embeddings"],
     "bulkhead_ssh_peer": ["chat_completions", "embeddings"]
   }

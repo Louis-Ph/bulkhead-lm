@@ -133,6 +133,19 @@ The safest easy choices are:
    [Ollama download](https://ollama.com/download)
    [Ollama OpenAI compatibility](https://docs.ollama.com/api/openai-compatibility)
 
+7. Cheap direct API providers: DeepSeek, Groq, Cerebras, Perplexity, Together AI, and Cohere.
+   BulkheadLM now supports all six as direct provider kinds.
+   Several of these providers offer free tiers, generous trial credits, or very low per-token prices.
+   As always, check the official pricing page on the day you sign up.
+   Key variables: `DEEPSEEK_API_KEY`, `GROQ_API_KEY`, `PERPLEXITY_API_KEY`, `TOGETHER_API_KEY`, `CEREBRAS_API_KEY`, `COHERE_API_KEY`.
+   Official links:
+   [DeepSeek Platform](https://platform.deepseek.com/)
+   [Groq Cloud](https://console.groq.com/)
+   [Perplexity AI API](https://www.perplexity.ai/settings/api)
+   [Together AI](https://api.together.ai/)
+   [Cerebras Cloud](https://cloud.cerebras.ai/)
+   [Cohere Platform](https://cohere.com/)
+
 ## Very important safety rules
 
 1. Never use an API key from a stranger.
@@ -454,7 +467,7 @@ cd bulkhead-lm
 printf '%s\n' 'export GOOGLE_API_KEY="paste-your-key-here"' >> ~/.zshrc.secret
 ```
 
-You can replace `GOOGLE_API_KEY` with `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `MISTRAL_API_KEY`, or `OPEN_ROUTER_KEY`.
+You can replace `GOOGLE_API_KEY` with `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `MISTRAL_API_KEY`, `OPEN_ROUTER_KEY`, `DEEPSEEK_API_KEY`, `GROQ_API_KEY`, `PERPLEXITY_API_KEY`, `TOGETHER_API_KEY`, `CEREBRAS_API_KEY`, or `COHERE_API_KEY`.
 
 5. Start:
 
@@ -724,10 +737,15 @@ If you do not see your key variable, close the starter, add the line to your sec
 Try these in order:
 
 1. OpenRouter free plan and `openrouter/free`.
-2. Gemini API free tier if available where you live.
-3. Mistral free experiment tier if it is available for your account.
-4. Official provider promotional credits if they exist on the day you sign up.
-5. Local Ollama on your own machine.
+2. Groq free API tier for fast inference on open models.
+3. Cerebras free API tier.
+4. Gemini API free tier if available where you live.
+5. Mistral free experiment tier if it is available for your account.
+6. DeepSeek API for very low-cost inference on DeepSeek models.
+7. Official provider promotional credits if they exist on the day you sign up.
+8. Local Ollama on your own machine.
+
+As always, free tiers and pricing can change. Check the official provider page on the day you sign up.
 
 ## Legal safety in one minute
 
