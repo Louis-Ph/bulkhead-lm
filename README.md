@@ -21,7 +21,7 @@ It targets multi-provider LLM gateway routing with a stricter design bias: expli
 - stable gateway-level SSE contract even when providers differ
 - programmable terminal client with a human-facing `ask` mode and a JSONL worker mode
 - programmable terminal client ops for bounded file browsing, file writes, and command execution
-- clone-and-run local starter for macOS, Ubuntu, and FreeBSD with guided first-run setup
+- one-line install on any Linux (Debian, Fedora, Arch, Alpine, openSUSE ...), macOS, and FreeBSD
 - OCaml codebase with clear separation between domain, runtime, security, providers, HTTP, and persistence layers
 
 ## Current capabilities
@@ -53,19 +53,33 @@ The longer rationale lives in [docs/USER_CONNECTOR_ROADMAP.md](docs/USER_CONNECT
 
 ## Quick start
 
+The fastest path on any machine (Linux, macOS, FreeBSD):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Louis-Ph/bulkhead-lm/main/install.sh | sh
+```
+
+or with wget:
+
+```bash
+wget -qO- https://raw.githubusercontent.com/Louis-Ph/bulkhead-lm/main/install.sh | sh
+```
+
+That single command installs git if needed, clones BulkheadLM, installs the
+OCaml toolchain, and launches the interactive starter. Press ENTER through every
+prompt to accept the defaults.
+
 If you want the fastest first success with one key and a free route, start with
 OpenRouter.
 
 Research snapshot for this OpenRouter quick start: 2026-04-09.
 
 ```bash
-git clone https://github.com/Louis-Ph/bulkhead-lm.git
-cd bulkhead-lm
 printf '%s\n' 'export OPEN_ROUTER_KEY="paste-your-key-here"' >> ~/.zshrc.secrets
-./run.sh
+curl -fsSL https://raw.githubusercontent.com/Louis-Ph/bulkhead-lm/main/install.sh | sh
 ```
 
-On Ubuntu, `~/.bashrc.secrets` works just as well.
+On Linux, `~/.bashrc.secrets` works just as well.
 
 Then choose `openrouter-free` in the starter for a free first run, or keep the
 generated starter config to expose `openrouter-auto`, `openrouter-free`, and

@@ -10,9 +10,25 @@ If a word looks scary, ignore it and follow the steps one by one.
 
 You need 3 things:
 
-1. A machine where BulkheadLM can run.
+1. A machine where BulkheadLM can run (any Linux, macOS, or FreeBSD).
 2. One API key, or a local model.
-3. One command: `./run.sh`
+3. One command.
+
+Copy-paste this into a terminal and press ENTER:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Louis-Ph/bulkhead-lm/main/install.sh | sh
+```
+
+If your machine only has wget:
+
+```bash
+wget -qO- https://raw.githubusercontent.com/Louis-Ph/bulkhead-lm/main/install.sh | sh
+```
+
+That single command does everything: installs git, clones BulkheadLM, installs
+the build tools, and opens the starter. Press ENTER at every question to accept
+the defaults.
 
 Then BulkheadLM asks you simple questions and opens a chat.
 
@@ -20,13 +36,13 @@ Then BulkheadLM asks you simple questions and opens a chat.
 
 | What you have | Easiest path |
 | --- | --- |
-| macOS MacBook | Local install on the Mac |
-| Ubuntu computer | Local install on Ubuntu |
-| Windows computer | Use WSL Ubuntu, then follow the Ubuntu steps inside WSL |
-| Chromebook / ChromeOS | Best path: use the Linux Terminal if available, or use SSH to a small cloud machine already running BulkheadLM |
-| FreeBSD machine | Local install on FreeBSD |
-| Android phone | Best path: connect by SSH to another machine, often a small cloud Ubuntu VM already running BulkheadLM |
-| Tablet or iPad | Best path: connect by SSH to another machine, often a small cloud Ubuntu VM already running BulkheadLM |
+| macOS MacBook | `curl -fsSL .../install.sh \| sh` in Terminal |
+| Any Linux (Ubuntu, Debian, Fedora, Arch, Alpine ...) | `curl -fsSL .../install.sh \| sh` |
+| Windows computer | Use WSL Ubuntu, then run the one-liner inside WSL |
+| Chromebook / ChromeOS | Use the Linux Terminal if available, or SSH to a cloud machine |
+| FreeBSD machine | `curl -fsSL .../install.sh \| sh` |
+| Android phone | SSH to a cloud machine already running BulkheadLM |
+| Tablet or iPad | SSH to a cloud machine already running BulkheadLM |
 
 ## Fastest free first success: OpenRouter
 
@@ -45,13 +61,11 @@ Why this is a great first try:
 Do this:
 
 ```bash
-git clone https://github.com/Louis-Ph/bulkhead-lm.git
-cd bulkhead-lm
 printf '%s\n' 'export OPEN_ROUTER_KEY="paste-your-key-here"' >> ~/.zshrc.secrets
-./run.sh
+curl -fsSL https://raw.githubusercontent.com/Louis-Ph/bulkhead-lm/main/install.sh | sh
 ```
 
-If you are on Ubuntu, you can use `~/.bashrc.secrets` instead.
+On Linux, use `~/.bashrc.secrets` instead of `~/.zshrc.secrets`.
 
 Then:
 
@@ -239,18 +253,14 @@ Cloud offers are powerful, but they are not toys.
 
 If you want one simple cloud plan that is easy to understand, do this:
 
-1. Choose one Ubuntu virtual machine from Oracle Cloud, Azure, AWS, or Alibaba Cloud.
+1. Choose one Linux virtual machine from Oracle Cloud, Azure, AWS, or Alibaba Cloud (Ubuntu, Debian, Fedora, anything works).
 2. Choose one model API key, with OpenRouter as the easiest first try.
 3. Connect to the machine with SSH.
 4. Run:
 
 ```bash
-sudo apt update
-sudo apt install -y git
-git clone https://github.com/Louis-Ph/bulkhead-lm.git
-cd bulkhead-lm
 printf '%s\n' 'export OPEN_ROUTER_KEY="paste-your-key-here"' >> ~/.bashrc.secrets
-./run.sh
+curl -fsSL https://raw.githubusercontent.com/Louis-Ph/bulkhead-lm/main/install.sh | sh
 ```
 
 5. Choose `openrouter-free` or another model marked `[ready]`.
@@ -448,20 +458,7 @@ Official links:
 ## macOS: easiest local start
 
 1. Open the Terminal app.
-2. If `git` is missing, run:
-
-```bash
-xcode-select --install
-```
-
-3. Clone the repo:
-
-```bash
-git clone https://github.com/Louis-Ph/bulkhead-lm.git
-cd bulkhead-lm
-```
-
-4. Put your key in a secret file:
+2. Put your key in a secret file:
 
 ```bash
 printf '%s\n' 'export GOOGLE_API_KEY="paste-your-key-here"' >> ~/.zshrc.secret
@@ -469,48 +466,32 @@ printf '%s\n' 'export GOOGLE_API_KEY="paste-your-key-here"' >> ~/.zshrc.secret
 
 You can replace `GOOGLE_API_KEY` with `OPENAI_API_KEY`, `ANTHROPIC_API_KEY`, `MISTRAL_API_KEY`, `OPEN_ROUTER_KEY`, `DEEPSEEK_API_KEY`, `GROQ_API_KEY`, `PERPLEXITY_API_KEY`, `TOGETHER_API_KEY`, `CEREBRAS_API_KEY`, or `COHERE_API_KEY`.
 
-5. Start:
+3. Run the one-liner and press ENTER at every question:
 
 ```bash
-./run.sh
+curl -fsSL https://raw.githubusercontent.com/Louis-Ph/bulkhead-lm/main/install.sh | sh
 ```
 
-6. When BulkheadLM asks which model you want, choose a model marked `[ready]`.
+4. Choose a model marked `[ready]` and start chatting.
 
-## Ubuntu: easiest local start
+## Linux (Ubuntu, Debian, Fedora, Arch, Alpine ...): easiest local start
 
-1. Open the terminal.
-2. Install `git` if needed:
-
-```bash
-sudo apt update
-sudo apt install -y git
-```
-
-3. Clone the repo:
-
-```bash
-git clone https://github.com/Louis-Ph/bulkhead-lm.git
-cd bulkhead-lm
-```
-
-4. Put your key in a secret file:
+1. Open a terminal.
+2. Put your key in a secret file:
 
 ```bash
 printf '%s\n' 'export GOOGLE_API_KEY="paste-your-key-here"' >> ~/.bashrc.secret
 ```
 
-5. Start:
+3. Run the one-liner and press ENTER at every question:
 
 ```bash
-./run.sh
+curl -fsSL https://raw.githubusercontent.com/Louis-Ph/bulkhead-lm/main/install.sh | sh
 ```
 
-6. The starter can help with missing OCaml tools by itself.
+The installer detects your package manager (apt, dnf, pacman, apk, zypper) and installs everything automatically.
 
-## Windows with WSL Ubuntu: easiest local start
-
-This is the easiest Windows path because BulkheadLM already knows how to behave on Ubuntu.
+## Windows with WSL: easiest local start
 
 1. Open PowerShell as Administrator.
 2. Install WSL Ubuntu:
@@ -519,48 +500,27 @@ This is the easiest Windows path because BulkheadLM already knows how to behave 
 wsl --install -d Ubuntu
 ```
 
-3. Restart if Windows asks.
-4. Open the Ubuntu app.
-5. If Ubuntu asks you to create a username and password, do it once.
-6. Now follow the Ubuntu steps above inside Ubuntu.
-
-Short version inside WSL:
+3. Restart if Windows asks, then open the Ubuntu app.
+4. Inside WSL, run:
 
 ```bash
-sudo apt update
-sudo apt install -y git
-git clone https://github.com/Louis-Ph/bulkhead-lm.git
-cd bulkhead-lm
 printf '%s\n' 'export GOOGLE_API_KEY="paste-your-key-here"' >> ~/.bashrc.secret
-./run.sh
+curl -fsSL https://raw.githubusercontent.com/Louis-Ph/bulkhead-lm/main/install.sh | sh
 ```
 
 ## FreeBSD: easiest local start
 
 1. Open a shell.
-2. Install `git`:
-
-```bash
-sudo pkg install -y git
-```
-
-3. Clone the repo:
-
-```bash
-git clone https://github.com/Louis-Ph/bulkhead-lm.git
-cd bulkhead-lm
-```
-
-4. Put your key in a secret file:
+2. Put your key in a secret file:
 
 ```bash
 printf '%s\n' 'export GOOGLE_API_KEY="paste-your-key-here"' >> ~/.profile.secret
 ```
 
-5. Start:
+3. Run the one-liner:
 
 ```bash
-./run.sh
+curl -fsSL https://raw.githubusercontent.com/Louis-Ph/bulkhead-lm/main/install.sh | sh
 ```
 
 ## Android: easiest path
@@ -791,9 +751,8 @@ If the answer to number 2 is no, get a key first.
 
 If you want one simple first success:
 
-1. Use a Mac, Ubuntu, WSL Ubuntu, or FreeBSD machine.
-2. Get one Gemini API key.
-3. Put it in a secret file.
-4. Run `./run.sh`.
-5. Choose a ready model.
-6. Start chatting.
+1. Open a terminal on any machine (Mac, Linux, WSL, or FreeBSD).
+2. Put one API key in a secret file.
+3. Run `curl -fsSL https://raw.githubusercontent.com/Louis-Ph/bulkhead-lm/main/install.sh | sh`
+4. Press ENTER at every question.
+5. Choose a ready model and start chatting.
