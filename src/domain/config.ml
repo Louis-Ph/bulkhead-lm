@@ -444,8 +444,13 @@ let parse_backend json =
   >>= fun provider_id ->
   string_member "provider_kind" json
   >>= fun provider_kind_raw ->
-  provider_kind_of_string provider_kind_raw
-  >>= fun provider_kind ->
+  (* Unknown provider kinds fall back to openai_compat for forward compatibility.
+     Almost every new HTTP provider uses the OpenAI-compat wire format. *)
+  let provider_kind =
+    match provider_kind_of_string provider_kind_raw with
+    | Ok kind -> kind
+    | Error _ -> Openai_compat
+  in
   string_member "upstream_model" json
   >>= fun upstream_model ->
   let target_result =
@@ -470,14 +475,17 @@ let parse_route json =
   string_member "public_model" json
   >>= fun public_model ->
   let backend_values = list_member "backends" json in
-  let rec loop acc = function
-    | [] -> Ok (List.rev acc)
-    | item :: rest ->
-      (match parse_backend item with
-       | Ok backend -> loop (backend :: acc) rest
-       | Error err -> Error err)
+  (* Skip individual backends that fail to parse — a bad entry should not
+     prevent the remaining backends in the route from being usable. *)
+  let backends =
+    List.filter_map
+      (fun item ->
+        match parse_backend item with
+        | Ok backend -> Some backend
+        | Error _ -> None)
+      backend_values
   in
-  loop [] backend_values >>= fun backends -> Ok { public_model; backends }
+  Ok { public_model; backends }
 ;;
 
 let parse_virtual_key defaults json =
@@ -1072,12 +1080,24 @@ let load path =
   in
   let route_values = list_member "routes" json in
   let virtual_key_values = list_member "virtual_keys" json in
-  let rec parse_all parser acc = function
+  (* Strict: a bad virtual key entry is a hard error — it means an intended
+     principal silently loses access, which is worse than refusing to start. *)
+  let rec parse_all_strict parser acc = function
     | [] -> Ok (List.rev acc)
     | item :: rest ->
       (match parser item with
-       | Ok value -> parse_all parser (value :: acc) rest
+       | Ok value -> parse_all_strict parser (value :: acc) rest
        | Error err -> Error err)
+  in
+  (* Tolerant: a route that fails to parse is skipped — the gateway starts
+     with whatever routes could be loaded rather than refusing to start at all. *)
+  let parse_routes_tolerant values =
+    List.filter_map
+      (fun item ->
+        match parse_route item with
+        | Ok route -> Some route
+        | Error _ -> None)
+      values
   in
   match user_connectors with
   | Error err -> Error err
@@ -1085,30 +1105,28 @@ let load path =
     (match validate_control_plane_paths security_policy user_connectors with
      | Error err -> Error err
      | Ok () ->
-       (match parse_all parse_route [] route_values with
+       let routes = parse_routes_tolerant route_values in
+       (match parse_all_strict (parse_virtual_key security_policy) [] virtual_key_values with
         | Error err -> Error err
-        | Ok routes ->
-          (match parse_all (parse_virtual_key security_policy) [] virtual_key_values with
-           | Error err -> Error err
-           | Ok virtual_keys ->
-             let sqlite_path =
-               match object_member "sqlite_path" persistence_json with
-               | `String relative_path -> Some (resolve_path ~base_dir relative_path)
-               | _ -> None
-             in
-             let persistence =
-               { sqlite_path
-               ; busy_timeout_ms =
-                   int_member_with_default "busy_timeout_ms" persistence_json ~default:5000
-               }
-             in
-             Ok
-               { security_policy
-               ; persistence
-               ; error_catalog
-               ; providers_schema
-               ; user_connectors
-               ; routes
-               ; virtual_keys
-               })))
+        | Ok virtual_keys ->
+          let sqlite_path =
+            match object_member "sqlite_path" persistence_json with
+            | `String relative_path -> Some (resolve_path ~base_dir relative_path)
+            | _ -> None
+          in
+          let persistence =
+            { sqlite_path
+            ; busy_timeout_ms =
+                int_member_with_default "busy_timeout_ms" persistence_json ~default:5000
+            }
+          in
+          Ok
+            { security_policy
+            ; persistence
+            ; error_catalog
+            ; providers_schema
+            ; user_connectors
+            ; routes
+            ; virtual_keys
+            }))
 ;;
