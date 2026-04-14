@@ -6,19 +6,21 @@ BulkheadLM is not just a locked-down gateway. Architecturally, it is a secure AI
 
 - `config/`: hierarchical instance configuration, default policy catalogs, and a `local_only/` subtree for sensitive local configs that must stay out of git
 - `src/client/`: direct terminal client and JSONL worker mode over the shared runtime
-- `run.sh`: clone-and-run local wrapper that dispatches to the supported OS starter for macOS, Ubuntu, or FreeBSD
+- `install.sh`: one-line curl installer that installs git, clones the repo, and launches `run.sh`
+- `run.sh`: clone-and-run local wrapper that dispatches to the supported OS starter for any Linux, macOS, or FreeBSD
 - `scripts/starter_common.sh`: shared shell bootstrap layer for the local starters, including env loading, opam checks, build validation, and local-switch fallback
 - `scripts/toolchain_env.sh`: centralized project-local OCaml toolchain paths and version defaults
 - `scripts/bootstrap_local_toolchain.sh`: self-contained bootstrap for a repo-local `opam` binary, opam root, and `_opam` switch
 - `scripts/with_local_toolchain.sh`: wrapper that executes arbitrary commands inside the project-local switch
 - `scripts/macos_starter.sh`: beginner-oriented macOS launcher with Homebrew-aware bootstrap behavior
-- `scripts/ubuntu_starter.sh`: beginner-oriented Ubuntu launcher with `apt` bootstrap behavior
+- `scripts/linux_starter.sh`: beginner-oriented Linux launcher with auto-detected package manager (apt, dnf, yum, pacman, apk, zypper)
+- `scripts/ubuntu_starter.sh`: legacy Ubuntu launcher (kept for backward compatibility)
 - `scripts/freebsd_starter.sh`: beginner-oriented FreeBSD launcher with `pkg` bootstrap behavior
 - `scripts/remote_starter.sh`: remote human wrapper for SSH sessions with a TTY
 - `scripts/remote_worker.sh`: remote machine wrapper for JSONL worker traffic over SSH without a TTY
 - `scripts/remote_install.sh`: remote bootstrap wrapper that can serve a local installer or a filtered repo archive over SSH
 - `scripts/package_common.sh`: common staging and wrapper helpers for distributable package builds
-- `scripts/build_dist_package.sh`: native package builder for macOS, Ubuntu, and FreeBSD
+- `scripts/build_dist_package.sh`: native package builder for macOS, Linux, and FreeBSD
 - `src/domain/`: business types, OpenAI-compatible JSON parsing, normalized errors
 - `src/security/`: authentication, privacy filtering, threat detection, output guarding, secret redaction, egress policy, and peer mesh hop control
 - `src/runtime/`: in-memory state, budget ledger, rate limiting, routing

@@ -17,9 +17,23 @@ security behavior.
 
 - open an issue before large features, new provider families, or major refactors
 - keep changes narrowly scoped and easy to review
-- avoid introducing automatic provider discovery or implicit fallback behavior
+- keep routing and fallback behavior explicit; auto-detection is welcome for environment-based provider and connector enablement
 
 ## Development setup
+
+The simplest path on any machine (Linux, macOS, FreeBSD):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Louis-Ph/bulkhead-lm/main/install.sh | sh
+```
+
+If you already cloned the repo:
+
+```bash
+./run.sh
+```
+
+For a fully manual path:
 
 ```bash
 opam install . --deps-only --with-test
