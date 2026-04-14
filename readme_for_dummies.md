@@ -676,6 +676,86 @@ what can you do for me?
 /quit
 ```
 
+## Chat from Telegram, WhatsApp, or other apps
+
+BulkheadLM can connect to your favorite chat apps so you talk to your AI
+from your phone, just like texting a friend. No JSON editing needed.
+
+### Telegram (the easiest one)
+
+1. Open Telegram. Search for `@BotFather`. Send `/newbot`. Follow the steps.
+   BotFather gives you a token that looks like `123456:ABC-DEF...`.
+2. Save that token:
+
+```bash
+printf 'export TELEGRAM_BOT_TOKEN="paste-your-token-here"\n' >> ~/.bashrc.secrets
+```
+
+3. Run BulkheadLM:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Louis-Ph/bulkhead-lm/main/install.sh | sh
+```
+
+4. In a separate terminal, start the server:
+
+```bash
+cd ~/bulkhead-lm
+./scripts/with_local_toolchain.sh dune exec bulkhead-lm -- --config config/local_only/starter.gateway.json
+```
+
+5. Tell Telegram where your server is (replace `your-public-host`):
+
+```bash
+curl -sS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
+  -H 'content-type: application/json' \
+  -d '{"url": "https://your-public-host/connectors/telegram/webhook", "allowed_updates": ["message"]}'
+```
+
+6. Open Telegram, find your bot, and send a message. Your AI answers.
+
+### WhatsApp
+
+1. Go to [developers.facebook.com](https://developers.facebook.com), create an
+   app, turn on WhatsApp. Copy the temporary access token.
+2. Save the tokens:
+
+```bash
+cat >> ~/.bashrc.secrets << 'EOF'
+export WHATSAPP_ACCESS_TOKEN="paste-access-token"
+export WHATSAPP_VERIFY_TOKEN="pick-any-random-string"
+EOF
+```
+
+3. Run BulkheadLM. Start the server.
+4. In the Meta dashboard, set the webhook URL to
+   `https://your-public-host/connectors/whatsapp/webhook` and the verify token
+   to the same random string you picked. Subscribe to `messages`.
+5. Send a WhatsApp message to your test number.
+
+### Other supported apps
+
+The same pattern works for all these apps. Set the token, run BulkheadLM,
+point the webhook.
+
+| App | What to set | Where to get it |
+| --- | --- | --- |
+| Telegram | `TELEGRAM_BOT_TOKEN` | [@BotFather](https://t.me/BotFather) |
+| WhatsApp | `WHATSAPP_ACCESS_TOKEN` + `WHATSAPP_VERIFY_TOKEN` | [Meta for Developers](https://developers.facebook.com) |
+| Messenger | `MESSENGER_ACCESS_TOKEN` + `MESSENGER_VERIFY_TOKEN` | [Meta for Developers](https://developers.facebook.com) |
+| Instagram | `INSTAGRAM_ACCESS_TOKEN` + `INSTAGRAM_VERIFY_TOKEN` | [Meta for Developers](https://developers.facebook.com) |
+| LINE | `LINE_ACCESS_TOKEN` + `LINE_CHANNEL_SECRET` | [LINE Developers](https://developers.line.biz) |
+| Viber | `VIBER_AUTH_TOKEN` | [Viber Partners](https://partners.viber.com) |
+| WeChat | `WECHAT_SIGNATURE_TOKEN` | WeChat Official Accounts Platform |
+| Discord | `DISCORD_PUBLIC_KEY` | [Discord Developers](https://discord.com/developers/applications) |
+
+For every app: add the token to `~/.bashrc.secrets`, run BulkheadLM, and
+point the platform's webhook setting to
+`https://your-public-host/connectors/<app-name>/webhook`.
+
+BulkheadLM does the rest: it picks your best model, wires up authentication,
+and remembers each conversation separately.
+
 ## If no model is ready
 
 That usually means your key is missing or empty.

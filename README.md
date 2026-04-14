@@ -118,405 +118,232 @@ dune runtest
 dune exec bulkhead-lm -- --config config/example.gateway.json --port 4200
 ```
 
-## User chat connectors
+## Chat connectors
 
-BulkheadLM can now expose nine user-facing chat connectors through the same
-HTTP server architecture:
+BulkheadLM auto-detects chat platform credentials in the environment and
+enables the matching connectors with zero manual config editing.
 
-- Telegram Bot API
-- WhatsApp Cloud API
-- Facebook Messenger
-- Instagram Direct
-- LINE Messaging API
-- Viber REST Bot API
-- WeChat Service Account
-- Discord Interactions
-- Google Chat HTTP app webhooks
+Set one environment variable, run `./run.sh`, and chat with your AI from
+Telegram, WhatsApp, or any supported platform.
 
-Each connector keeps the same gateway guarantees:
+### How auto-detection works
 
-- it reuses a normal BulkheadLM virtual key from `authorization_env`
-- route allowlists, budgets, rate limits, privacy filtering, and output guards still apply
-- conversation memory is scoped per external conversation instead of being shared globally
-- enabled connectors must use distinct `webhook_path` values, and config load now rejects ambiguous path reuse
-- `/help` and `/reset` are supported on the text channels implemented here
+1. Put your platform token in a secrets file (e.g. `~/.bashrc.secrets`).
+2. Run `./run.sh` or the one-line installer.
+3. The starter detects the token, auto-enables the connector, picks your first
+   ready model, and wires up authentication automatically.
+4. Start the BulkheadLM server. Point the platform's webhook to your server.
+5. Chat.
 
-### Telegram
+No JSON editing. No separate auth env var. `BULKHEAD_LM_API_KEY` is exported
+automatically to the default virtual key.
 
-Reference checked for this connector work: 2026-04-11.
+### Telegram (easiest)
+
+1. Talk to [@BotFather](https://t.me/BotFather) on Telegram. Send `/newbot` and
+   follow the prompts. Copy the token it gives you.
+2. Add the token to your secrets:
 
 ```bash
-export TELEGRAM_BOT_TOKEN="123456:telegram-bot-token"
-export TELEGRAM_WEBHOOK_SECRET="choose-a-random-secret"
-export BULKHEAD_TELEGRAM_AUTH="sk-bulkhead-lm-dev"
+printf 'export TELEGRAM_BOT_TOKEN="paste-your-token-here"\n' >> ~/.bashrc.secrets
 ```
 
-```json
-{
-  "user_connectors": {
-    "telegram": {
-      "enabled": true,
-      "webhook_path": "/connectors/telegram/webhook",
-      "bot_token_env": "TELEGRAM_BOT_TOKEN",
-      "secret_token_env": "TELEGRAM_WEBHOOK_SECRET",
-      "authorization_env": "BULKHEAD_TELEGRAM_AUTH",
-      "route_model": "gpt-5-mini",
-      "system_prompt": "Reply in a concise, practical tone for chat users.",
-      "allowed_chat_ids": []
-    }
-  }
-}
+3. Install and start BulkheadLM:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Louis-Ph/bulkhead-lm/main/install.sh | sh
 ```
+
+4. In a separate terminal, start the gateway server:
+
+```bash
+cd ~/bulkhead-lm
+./scripts/with_local_toolchain.sh dune exec bulkhead-lm -- --config config/local_only/starter.gateway.json
+```
+
+5. Point Telegram to your server (replace `your-public-host`):
 
 ```bash
 curl -sS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
   -H 'content-type: application/json' \
-  -d '{
-    "url": "https://your-public-host/connectors/telegram/webhook",
-    "secret_token": "'"${TELEGRAM_WEBHOOK_SECRET}"'",
-    "allowed_updates": ["message"]
-  }'
+  -d '{"url": "https://your-public-host/connectors/telegram/webhook", "allowed_updates": ["message"]}'
 ```
+
+6. Open Telegram. Send a message to your bot. Done.
 
 ### WhatsApp Cloud API
 
-Reference checked for this connector work: 2026-04-11.
+1. Create a Meta app at [developers.facebook.com](https://developers.facebook.com)
+   and enable the WhatsApp product. Copy your temporary access token.
+2. Add the tokens:
 
 ```bash
-export WHATSAPP_VERIFY_TOKEN="choose-a-random-verify-token"
-export WHATSAPP_APP_SECRET="meta-app-secret"
-export WHATSAPP_ACCESS_TOKEN="meta-access-token"
-export BULKHEAD_WHATSAPP_AUTH="sk-bulkhead-lm-dev"
+cat >> ~/.bashrc.secrets << 'EOF'
+export WHATSAPP_ACCESS_TOKEN="paste-access-token"
+export WHATSAPP_VERIFY_TOKEN="pick-any-random-string"
+EOF
 ```
 
-```json
-{
-  "user_connectors": {
-    "whatsapp": {
-      "enabled": true,
-      "webhook_path": "/connectors/whatsapp/webhook",
-      "verify_token_env": "WHATSAPP_VERIFY_TOKEN",
-      "app_secret_env": "WHATSAPP_APP_SECRET",
-      "access_token_env": "WHATSAPP_ACCESS_TOKEN",
-      "authorization_env": "BULKHEAD_WHATSAPP_AUTH",
-      "route_model": "gpt-5-mini",
-      "system_prompt": "Reply in a concise, practical tone for chat users.",
-      "allowed_sender_numbers": [],
-      "api_base": "https://graph.facebook.com/v23.0"
-    }
-  }
-}
-```
+3. Run `./run.sh` (or the one-liner). The starter auto-enables WhatsApp.
+4. Start the gateway server.
+5. In the Meta App Dashboard, go to WhatsApp > Configuration > Webhook. Set the
+   callback URL to `https://your-public-host/connectors/whatsapp/webhook` and
+   the verify token to the same random string you chose above. Subscribe to
+   `messages`.
+6. Send a WhatsApp message to the test number shown in your Meta dashboard.
 
-Implementation notes:
-
-- `verify_token_env` is used for Meta's initial webhook challenge
-- `app_secret_env` enables `X-Hub-Signature-256` verification for webhook POSTs
-- inbound text replies are sent back through the configured Graph API base
+Optional: set `WHATSAPP_APP_SECRET` for `X-Hub-Signature-256` verification.
 
 ### Facebook Messenger
 
-Reference checked for this connector work: 2026-04-11.
+1. Create a Meta app and enable the Messenger product. Generate a Page access
+   token.
+2. Add the tokens:
 
 ```bash
-export MESSENGER_VERIFY_TOKEN="choose-a-random-verify-token"
-export MESSENGER_APP_SECRET="meta-app-secret"
-export MESSENGER_ACCESS_TOKEN="facebook-page-access-token"
-export BULKHEAD_MESSENGER_AUTH="sk-bulkhead-lm-dev"
+cat >> ~/.bashrc.secrets << 'EOF'
+export MESSENGER_ACCESS_TOKEN="paste-page-access-token"
+export MESSENGER_VERIFY_TOKEN="pick-any-random-string"
+EOF
 ```
 
-```json
-{
-  "user_connectors": {
-    "messenger": {
-      "enabled": true,
-      "webhook_path": "/connectors/messenger/webhook",
-      "verify_token_env": "MESSENGER_VERIFY_TOKEN",
-      "app_secret_env": "MESSENGER_APP_SECRET",
-      "access_token_env": "MESSENGER_ACCESS_TOKEN",
-      "authorization_env": "BULKHEAD_MESSENGER_AUTH",
-      "route_model": "gpt-5-mini",
-      "system_prompt": "Reply in a concise, practical tone for chat users.",
-      "allowed_page_ids": [],
-      "allowed_sender_ids": [],
-      "api_base": "https://graph.facebook.com/v23.0"
-    }
-  }
-}
-```
-
-Implementation notes:
-
-- `access_token_env` should hold the Page access token used to send replies
-- webhook verification and optional `X-Hub-Signature-256` validation follow the normal Meta webhook flow
-- outbound text replies are sent to `/{page-id}/messages`
-- conversation memory is scoped per `page_id + sender_id`
+3. Run `./run.sh`. Start the server. Set the webhook in the Meta dashboard to
+   `https://your-public-host/connectors/messenger/webhook` with the same verify
+   token. Subscribe to `messages`.
+4. Message your page on Facebook.
 
 ### Instagram Direct
 
-Reference checked for this connector work: 2026-04-11.
+Same Meta app flow as Messenger:
 
 ```bash
-export INSTAGRAM_VERIFY_TOKEN="choose-a-random-verify-token"
-export INSTAGRAM_APP_SECRET="meta-app-secret"
-export INSTAGRAM_ACCESS_TOKEN="instagram-access-token"
-export BULKHEAD_INSTAGRAM_AUTH="sk-bulkhead-lm-dev"
+cat >> ~/.bashrc.secrets << 'EOF'
+export INSTAGRAM_ACCESS_TOKEN="paste-instagram-access-token"
+export INSTAGRAM_VERIFY_TOKEN="pick-any-random-string"
+EOF
 ```
 
-```json
-{
-  "user_connectors": {
-    "instagram": {
-      "enabled": true,
-      "webhook_path": "/connectors/instagram/webhook",
-      "verify_token_env": "INSTAGRAM_VERIFY_TOKEN",
-      "app_secret_env": "INSTAGRAM_APP_SECRET",
-      "access_token_env": "INSTAGRAM_ACCESS_TOKEN",
-      "authorization_env": "BULKHEAD_INSTAGRAM_AUTH",
-      "route_model": "gpt-5-mini",
-      "system_prompt": "Reply in a concise, practical tone for chat users.",
-      "allowed_account_ids": [],
-      "allowed_sender_ids": [],
-      "api_base": "https://graph.instagram.com/v23.0"
-    }
-  }
-}
-```
-
-Implementation notes:
-
-- webhook verification and optional `X-Hub-Signature-256` validation follow the normal Meta webhook flow
-- inbound events are parsed from `object=instagram` with `entry[].messaging[]`
-- outbound text replies are sent to `/me/messages`
-- conversation memory is scoped per `instagram_account_id + sender_id`
+Webhook URL: `https://your-public-host/connectors/instagram/webhook`.
 
 ### LINE
 
-Reference checked for this connector work: 2026-04-11.
+1. Create a Messaging API channel at
+   [developers.line.biz](https://developers.line.biz).
+2. Add the tokens:
 
 ```bash
-export LINE_CHANNEL_SECRET="line-channel-secret"
-export LINE_ACCESS_TOKEN="line-channel-access-token"
-export BULKHEAD_LINE_AUTH="sk-bulkhead-lm-dev"
+cat >> ~/.bashrc.secrets << 'EOF'
+export LINE_ACCESS_TOKEN="paste-channel-access-token"
+export LINE_CHANNEL_SECRET="paste-channel-secret"
+EOF
 ```
 
-```json
-{
-  "user_connectors": {
-    "line": {
-      "enabled": true,
-      "webhook_path": "/connectors/line/webhook",
-      "channel_secret_env": "LINE_CHANNEL_SECRET",
-      "access_token_env": "LINE_ACCESS_TOKEN",
-      "authorization_env": "BULKHEAD_LINE_AUTH",
-      "route_model": "gpt-5-mini",
-      "system_prompt": "Reply in a concise, practical tone for chat users.",
-      "allowed_user_ids": [],
-      "allowed_group_ids": [],
-      "allowed_room_ids": [],
-      "api_base": "https://api.line.me/v2/bot"
-    }
-  }
-}
-```
-
-Implementation notes:
-
-- `channel_secret_env` verifies the `X-Line-Signature` HMAC on webhook POSTs
-- replies use LINE's reply-token flow through `/message/reply`
-- conversation memory is scoped to the smallest stable LINE conversation source: user, group, or room
+3. Run `./run.sh`. Start the server. Set the webhook URL in the LINE console to
+   `https://your-public-host/connectors/line/webhook`.
 
 ### Viber
 
-Reference checked for this connector work: 2026-04-11.
+1. Create a bot at [partners.viber.com](https://partners.viber.com).
+2. Add the token:
 
 ```bash
-export VIBER_AUTH_TOKEN="viber-bot-auth-token"
-export BULKHEAD_VIBER_AUTH="sk-bulkhead-lm-dev"
+printf 'export VIBER_AUTH_TOKEN="paste-auth-token"\n' >> ~/.bashrc.secrets
 ```
 
-```json
-{
-  "user_connectors": {
-    "viber": {
-      "enabled": true,
-      "webhook_path": "/connectors/viber/webhook",
-      "auth_token_env": "VIBER_AUTH_TOKEN",
-      "authorization_env": "BULKHEAD_VIBER_AUTH",
-      "route_model": "gpt-5-mini",
-      "system_prompt": "Reply in a concise, practical tone for chat users.",
-      "allowed_sender_ids": [],
-      "sender_name": "BulkheadLM",
-      "sender_avatar": "https://example.test/avatar.png",
-      "api_base": "https://chatapi.viber.com/pa"
-    }
-  }
-}
+3. Run `./run.sh`. Start the server. Register the webhook:
+
+```bash
+curl -sS https://chatapi.viber.com/pa/set_webhook \
+  -H "X-Viber-Auth-Token: ${VIBER_AUTH_TOKEN}" \
+  -H 'content-type: application/json' \
+  -d '{"url": "https://your-public-host/connectors/viber/webhook"}'
 ```
-
-Implementation notes:
-
-- `auth_token_env` is reused for both webhook signature validation (`X-Viber-Content-Signature`) and outbound `X-Viber-Auth-Token`
-- outbound text replies are sent through `send_message`
-- `conversation_started` receives an onboarding reply, while normal text messages reuse the standard BulkheadLM route and session memory path
 
 ### WeChat Service Account
 
-Reference checked for this connector work: 2026-04-11.
+1. Get your signature token from the WeChat Official Accounts Platform.
+2. Add the token:
 
 ```bash
-export WECHAT_SIGNATURE_TOKEN="wechat-signature-token"
-export WECHAT_ENCODING_AES_KEY="43-char-wechat-encoding-aes-key"
-export WECHAT_APP_ID="wechat-app-id-example"
-export BULKHEAD_WECHAT_AUTH="sk-bulkhead-lm-dev"
+printf 'export WECHAT_SIGNATURE_TOKEN="paste-signature-token"\n' >> ~/.bashrc.secrets
 ```
 
-```json
-{
-  "user_connectors": {
-    "wechat": {
-      "enabled": true,
-      "webhook_path": "/connectors/wechat/webhook",
-      "signature_token_env": "WECHAT_SIGNATURE_TOKEN",
-      "encoding_aes_key_env": "WECHAT_ENCODING_AES_KEY",
-      "app_id_env": "WECHAT_APP_ID",
-      "authorization_env": "BULKHEAD_WECHAT_AUTH",
-      "route_model": "gpt-5-mini",
-      "system_prompt": "Reply in a concise, practical tone for chat users.",
-      "allowed_open_ids": [],
-      "allowed_account_ids": []
-    }
-  }
-}
-```
+3. Run `./run.sh`. Start the server. Set the URL in the WeChat developer
+   console to `https://your-public-host/connectors/wechat/webhook`.
 
-Implementation notes:
-
-- `signature_token_env` is used for plaintext URL verification and plaintext POST signature validation through `signature + timestamp + nonce`
-- `encoding_aes_key_env` plus `app_id_env` enable WeChat compatibility mode and security mode through the official `msg_signature + Encrypt` flow
-- inbound user messages arrive as XML and are answered through passive XML replies on the same request
-- encrypted WeChat requests are decrypted and encrypted replies are rewrapped into the standard `<Encrypt/> + <MsgSignature/> + <TimeStamp/> + <Nonce/>` XML envelope
-- conversation memory is scoped per `account_id + open_id`
-- because this is a passive reply flow, the model call still needs to finish within WeChat's response window
+Optional: set `WECHAT_ENCODING_AES_KEY` and `WECHAT_APP_ID` for encrypted mode.
 
 ### Discord Interactions
 
-Reference checked for this connector work: 2026-04-11.
+1. Create an application at [discord.com/developers](https://discord.com/developers/applications).
+   Copy the public key from General Information.
+2. Add the key:
 
 ```bash
-export DISCORD_PUBLIC_KEY="discord-app-public-key-hex"
-export BULKHEAD_DISCORD_AUTH="sk-bulkhead-lm-dev"
+printf 'export DISCORD_PUBLIC_KEY="paste-public-key-hex"\n' >> ~/.bashrc.secrets
 ```
 
-```json
-{
-  "user_connectors": {
-    "discord": {
-      "enabled": true,
-      "webhook_path": "/connectors/discord/webhook",
-      "public_key_env": "DISCORD_PUBLIC_KEY",
-      "authorization_env": "BULKHEAD_DISCORD_AUTH",
-      "route_model": "gpt-5-mini",
-      "system_prompt": "Reply in a concise, practical tone for chat users.",
-      "allowed_application_ids": [],
-      "allowed_user_ids": [],
-      "allowed_channel_ids": [],
-      "allowed_guild_ids": [],
-      "ephemeral_by_default": true
-    }
-  }
-}
-```
-
-Optional command-registration example:
+3. Run `./run.sh`. Start the server. In the Discord developer portal, set the
+   Interactions Endpoint URL to
+   `https://your-public-host/connectors/discord/webhook`.
+4. Register a slash command (one-time):
 
 ```bash
-export DISCORD_APPLICATION_ID="123456789012345678"
-export DISCORD_BOT_TOKEN="discord-bot-token"
-
 curl -sS "https://discord.com/api/v10/applications/${DISCORD_APPLICATION_ID}/commands" \
   -H "Authorization: Bot ${DISCORD_BOT_TOKEN}" \
   -H 'content-type: application/json' \
-  -d '{
-    "name": "bulkhead",
-    "type": 1,
-    "description": "Talk to BulkheadLM",
-    "integration_types": [0, 1],
-    "contexts": [0, 1],
-    "options": [
-      {
-        "name": "message",
-        "description": "Your message to the assistant",
-        "type": 3,
-        "required": true
-      }
-    ]
-  }'
+  -d '{"name":"bulkhead","type":1,"description":"Talk to BulkheadLM","options":[{"name":"message","description":"Your message","type":3,"required":true}]}'
 ```
-
-Implementation notes:
-
-- this connector uses Discord's signed outgoing interaction webhooks, not general gateway message events
-- `public_key_env` is used to verify `X-Signature-Ed25519` and `X-Signature-Timestamp`
-- application commands are acknowledged immediately, then the original Discord response is edited asynchronously so the model call can outlive Discord's 3-second initial-response window
-- conversation memory is scoped per `application_id + guild_or_dm + channel_id + user_id`
-- this connector currently targets slash-command style conversation rather than arbitrary message-content bot listeners
 
 ### Google Chat
 
-Reference checked for this connector work: 2026-04-11.
+1. Create a Google Chat app in [Google Cloud Console](https://console.cloud.google.com).
+2. No extra env var needed beyond `BULKHEAD_LM_API_KEY` (auto-exported).
+3. Set the HTTP endpoint in the Chat API configuration to
+   `https://your-public-host/connectors/google-chat/webhook`.
 
-```bash
-export BULKHEAD_GOOGLE_CHAT_AUTH="sk-bulkhead-lm-dev"
-```
+### Connector quick reference
 
-```json
-{
-  "user_connectors": {
-    "google_chat": {
-      "enabled": true,
-      "webhook_path": "/connectors/google-chat/webhook",
-      "authorization_env": "BULKHEAD_GOOGLE_CHAT_AUTH",
-      "route_model": "gpt-5-mini",
-      "system_prompt": "Reply in a concise, practical tone for chat users.",
-      "allowed_space_names": [],
-      "allowed_user_names": [],
-      "id_token_auth": {
-        "audience": "https://your-public-host/connectors/google-chat/webhook",
-        "certs_url": "https://www.googleapis.com/oauth2/v1/certs"
-      }
-    }
-  }
-}
-```
+| Platform | Set this env var | Webhook path |
+|---|---|---|
+| Telegram | `TELEGRAM_BOT_TOKEN` | `/connectors/telegram/webhook` |
+| WhatsApp | `WHATSAPP_ACCESS_TOKEN` + `WHATSAPP_VERIFY_TOKEN` | `/connectors/whatsapp/webhook` |
+| Messenger | `MESSENGER_ACCESS_TOKEN` + `MESSENGER_VERIFY_TOKEN` | `/connectors/messenger/webhook` |
+| Instagram | `INSTAGRAM_ACCESS_TOKEN` + `INSTAGRAM_VERIFY_TOKEN` | `/connectors/instagram/webhook` |
+| LINE | `LINE_ACCESS_TOKEN` + `LINE_CHANNEL_SECRET` | `/connectors/line/webhook` |
+| Viber | `VIBER_AUTH_TOKEN` | `/connectors/viber/webhook` |
+| WeChat | `WECHAT_SIGNATURE_TOKEN` | `/connectors/wechat/webhook` |
+| Discord | `DISCORD_PUBLIC_KEY` | `/connectors/discord/webhook` |
+| Google Chat | (auto) | `/connectors/google-chat/webhook` |
 
-Implementation notes:
-
-- this connector uses synchronous Google Chat responses, so the model call must finish within Google's response window
-- `id_token_auth` enables verification of the Google-signed bearer token sent in the `Authorization` header for self-hosted HTTP endpoints
-- conversation memory is scoped to the Google Chat thread when a thread exists, otherwise to the space
+All connectors share the same gateway guarantees: virtual-key auth, route
+allowlists, budgets, rate limits, privacy filtering, output guards, and
+per-conversation memory. `/help` and `/reset` work in every text channel.
 
 ## Local starter
 
-On macOS, Ubuntu, or FreeBSD, the simplest entry point is the starter script:
+The simplest entry point on any machine (Linux, macOS, FreeBSD):
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Louis-Ph/bulkhead-lm/main/install.sh | sh
+```
+
+Or, if you already cloned the repo:
 
 ```bash
 ./run.sh
 ```
 
-On macOS, you can also use the Finder-friendly launcher:
-
-```bash
-./start-macos-client.command
-```
+On macOS, you can also double-click `start-macos-client.command` in Finder.
 
 The starter:
 
-- supports local first-run flows on macOS, Ubuntu, and FreeBSD through OS-specific wrappers behind the same `./run.sh` entrypoint
-- can bootstrap a repo-local `opam` binary before falling back to Homebrew, `apt`, or `pkg`
+- works on any Linux distro (Debian, Fedora, Arch, Alpine, openSUSE ...), macOS, and FreeBSD
+- auto-detects the package manager and installs build prerequisites
+- can bootstrap a repo-local `opam` binary before falling back to Homebrew, `apt`, `dnf`, `pacman`, `apk`, `zypper`, or `pkg`
 - sources `~/.zshrc.secret`, `~/.zshrc.secrets`, `~/.bashrc.secret`, `~/.bashrc.secrets`, `~/.profile.secret`, `~/.profile.secrets`, and `~/.config/bulkhead-lm/env` when present
-- checks the current `opam` switch first and only offers a project-local fallback when the active toolchain is not coherent for this repo
-- can offer Homebrew, `apt`, or `pkg` bootstrap steps instead of dropping raw OCaml build errors on a beginner
+- auto-includes providers with detected API keys and auto-enables chat connectors with detected credentials
+- defaults to creating a project-local switch when the active toolchain is not coherent for this repo
 - reuses your configured provider keys from the shell environment
 - asks which configured model you want to use now
 - can generate a starter config that expands one provider key into several curated model routes for that provider
