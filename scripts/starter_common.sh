@@ -119,6 +119,15 @@ load_secret_files() {
   IFS=$old_ifs
 }
 
+ensure_connector_auth() {
+  # Auto-export BULKHEAD_LM_API_KEY so chat connectors can authenticate
+  # without the user setting a separate env var.
+  if [ -z "${BULKHEAD_LM_API_KEY:-}" ]; then
+    BULKHEAD_LM_API_KEY="sk-bulkhead-lm-dev"
+    export BULKHEAD_LM_API_KEY
+  fi
+}
+
 find_opam() {
   if [ -x "$BULKHEAD_LM_LOCAL_OPAM_BIN" ]; then
     OPAM_BIN=$BULKHEAD_LM_LOCAL_OPAM_BIN
@@ -398,6 +407,7 @@ starter_exec_client() {
 starter_main() {
   ensure_exec_bits
   load_secret_files
+  ensure_connector_auth
   trap cleanup_temp_files EXIT INT TERM
 
   if has_hook platform_validate_host; then

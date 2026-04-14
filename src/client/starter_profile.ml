@@ -195,6 +195,119 @@ let env_statuses ?(lookup = Sys.getenv_opt) () =
     | Some value -> { name; present = true; masked_value = Some (mask_secret value) })
 ;;
 
+type connector_family =
+  { connector_key : string
+  ; connector_label : string
+  ; detection_env : string
+  ; extra_envs : (string * string) list
+  ; webhook_path : string
+  }
+
+let connector_families =
+  [ { connector_key = "telegram"
+    ; connector_label = "Telegram"
+    ; detection_env = "TELEGRAM_BOT_TOKEN"
+    ; extra_envs = []
+    ; webhook_path = "/connectors/telegram/webhook"
+    }
+  ; { connector_key = "whatsapp"
+    ; connector_label = "WhatsApp"
+    ; detection_env = "WHATSAPP_ACCESS_TOKEN"
+    ; extra_envs = [ "verify_token_env", "WHATSAPP_VERIFY_TOKEN" ]
+    ; webhook_path = "/connectors/whatsapp/webhook"
+    }
+  ; { connector_key = "messenger"
+    ; connector_label = "Messenger"
+    ; detection_env = "MESSENGER_ACCESS_TOKEN"
+    ; extra_envs =
+        [ "verify_token_env", "MESSENGER_VERIFY_TOKEN" ]
+    ; webhook_path = "/connectors/messenger/webhook"
+    }
+  ; { connector_key = "instagram"
+    ; connector_label = "Instagram"
+    ; detection_env = "INSTAGRAM_ACCESS_TOKEN"
+    ; extra_envs =
+        [ "verify_token_env", "INSTAGRAM_VERIFY_TOKEN" ]
+    ; webhook_path = "/connectors/instagram/webhook"
+    }
+  ; { connector_key = "line"
+    ; connector_label = "LINE"
+    ; detection_env = "LINE_ACCESS_TOKEN"
+    ; extra_envs = [ "channel_secret_env", "LINE_CHANNEL_SECRET" ]
+    ; webhook_path = "/connectors/line/webhook"
+    }
+  ; { connector_key = "viber"
+    ; connector_label = "Viber"
+    ; detection_env = "VIBER_AUTH_TOKEN"
+    ; extra_envs = []
+    ; webhook_path = "/connectors/viber/webhook"
+    }
+  ; { connector_key = "wechat"
+    ; connector_label = "WeChat"
+    ; detection_env = "WECHAT_SIGNATURE_TOKEN"
+    ; extra_envs = []
+    ; webhook_path = "/connectors/wechat/webhook"
+    }
+  ; { connector_key = "discord"
+    ; connector_label = "Discord"
+    ; detection_env = "DISCORD_PUBLIC_KEY"
+    ; extra_envs = []
+    ; webhook_path = "/connectors/discord/webhook"
+    }
+  ; { connector_key = "google_chat"
+    ; connector_label = "Google Chat"
+    ; detection_env = "BULKHEAD_GOOGLE_CHAT_AUTH"
+    ; extra_envs = []
+    ; webhook_path = "/connectors/google-chat/webhook"
+    }
+  ]
+;;
+
+let connector_json
+  (family : connector_family)
+  ~route_model
+  ~authorization_env
+  =
+  let primary_field =
+    match family.connector_key with
+    | "telegram" -> "bot_token_env"
+    | "whatsapp" | "messenger" | "instagram" | "line" -> "access_token_env"
+    | "viber" -> "auth_token_env"
+    | "wechat" -> "signature_token_env"
+    | "discord" -> "public_key_env"
+    | _ -> "authorization_env"
+  in
+  let base_fields =
+    [ "enabled", `Bool true
+    ; "webhook_path", `String family.webhook_path
+    ]
+    @ (if family.connector_key <> "google_chat"
+       then [ primary_field, `String family.detection_env ]
+       else [])
+    @ List.map
+        (fun (field, env) -> field, `String env)
+        family.extra_envs
+    @ [ "authorization_env", `String authorization_env
+      ; "route_model", `String route_model
+      ; "system_prompt", `String "Reply in a concise, practical tone for chat users."
+      ]
+  in
+  family.connector_key, `Assoc base_fields
+;;
+
+let user_connectors_json ~enabled_connectors ~route_model ~authorization_env =
+  if enabled_connectors = []
+  then []
+  else
+    [ ( "user_connectors"
+      , `Assoc
+          (List.map
+             (fun family ->
+               connector_json family ~route_model ~authorization_env)
+             enabled_connectors) )
+    ]
+;;
+
 let backend_json (preset : provider_preset) =
   `Assoc
     [ "provider_id", `String preset.provider_id
@@ -216,6 +329,7 @@ let config_json
   ?(security_policy_file = "defaults/security_policy.json")
   ?(error_catalog_file = "defaults/error_catalog.json")
   ?(providers_schema_file = "defaults/providers.schema.json")
+  ?(enabled_connectors = [])
   ~(selected_presets : provider_preset list)
   ~virtual_key_name
   ~token_plaintext
@@ -224,31 +338,44 @@ let config_json
   ~sqlite_path
   ()
   =
+  let first_route =
+    match selected_presets with
+    | preset :: _ -> preset.public_model
+    | [] -> "gpt-5-mini"
+  in
+  let connector_fields =
+    user_connectors_json
+      ~enabled_connectors
+      ~route_model:first_route
+      ~authorization_env:"BULKHEAD_LM_API_KEY"
+  in
   `Assoc
-    [ "security_policy_file", `String security_policy_file
-    ; "error_catalog_file", `String error_catalog_file
-    ; "providers_schema_file", `String providers_schema_file
-    ; ( "persistence"
-      , `Assoc
-          [ "sqlite_path", `String sqlite_path
-          ; "busy_timeout_ms", `Int 5000
-          ] )
-    ; ( "virtual_keys"
-      , `List
-          [ `Assoc
-              [ "name", `String virtual_key_name
-              ; "token_plaintext", `String token_plaintext
-              ; "daily_token_budget", `Int daily_token_budget
-              ; "requests_per_minute", `Int requests_per_minute
-              ; ( "allowed_routes"
-                , `List
-                    (List.map
-                       (fun (preset : provider_preset) -> `String preset.public_model)
-                       selected_presets) )
-              ]
-          ] )
-    ; "routes", `List (List.map route_json selected_presets)
-    ]
+    ([ "security_policy_file", `String security_policy_file
+     ; "error_catalog_file", `String error_catalog_file
+     ; "providers_schema_file", `String providers_schema_file
+     ; ( "persistence"
+       , `Assoc
+           [ "sqlite_path", `String sqlite_path
+           ; "busy_timeout_ms", `Int 10000
+           ] )
+     ]
+     @ connector_fields
+     @ [ ( "virtual_keys"
+         , `List
+             [ `Assoc
+                 [ "name", `String virtual_key_name
+                 ; "token_plaintext", `String token_plaintext
+                 ; "daily_token_budget", `Int daily_token_budget
+                 ; "requests_per_minute", `Int requests_per_minute
+                 ; ( "allowed_routes"
+                   , `List
+                       (List.map
+                          (fun (preset : provider_preset) -> `String preset.public_model)
+                          selected_presets) )
+                 ]
+             ] )
+        ; "routes", `List (List.map route_json selected_presets)
+        ])
 ;;
 
 let rec ensure_dir path =

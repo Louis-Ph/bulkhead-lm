@@ -71,10 +71,16 @@ let catalog_references_for_output_path ~base_config_path output_path =
 
 let default_local_config_json ~base_config_path ~output_path =
   let references = catalog_references_for_output_path ~base_config_path output_path in
+  let detected_connectors =
+    Starter_profile.connector_families
+    |> List.filter (fun (c : Starter_profile.connector_family) ->
+      Starter_profile.non_empty_env Sys.getenv_opt c.detection_env)
+  in
   Starter_profile.config_json
     ~security_policy_file:references.security_policy_file
     ~error_catalog_file:references.error_catalog_file
     ~providers_schema_file:references.providers_schema_file
+    ~enabled_connectors:detected_connectors
     ~selected_presets:Starter_profile.presets
     ~virtual_key_name:Starter_constants.Defaults.virtual_key_name
     ~token_plaintext:Starter_constants.Defaults.virtual_key_token

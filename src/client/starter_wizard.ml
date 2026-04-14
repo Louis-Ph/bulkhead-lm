@@ -295,12 +295,55 @@ let build_starter_config ~base_config_path ~output_path =
   if selected_presets = []
   then Error "No provider was selected."
   else (
+    (* Auto-detect chat connectors *)
+    let detected_connectors, missing_connectors =
+      Starter_profile.connector_families
+      |> List.partition (fun (c : Starter_profile.connector_family) ->
+        Starter_profile.non_empty_env Sys.getenv_opt c.detection_env)
+    in
+    let enabled_connectors =
+      if detected_connectors <> []
+      then (
+        print_line "";
+        print_wrapped "Chat connectors with detected credentials (auto-enabled):";
+        detected_connectors
+        |> List.iter (fun (c : Starter_profile.connector_family) ->
+          print_line
+            (Fmt.str
+               "  %s %s (via %s, webhook %s)"
+               (Starter_constants.Ansi.green "\xe2\x9c\x93")
+               c.connector_label
+               c.detection_env
+               c.webhook_path));
+        detected_connectors)
+      else []
+    in
+    let extra_connectors =
+      if missing_connectors <> []
+      then (
+        if detected_connectors <> [] then print_line "";
+        print_wrapped "Chat connectors without detected credentials:";
+        missing_connectors
+        |> List.iter (fun (c : Starter_profile.connector_family) ->
+          print_line
+            (Fmt.str
+               "  %s %s (needs %s)"
+               (Starter_constants.Ansi.dim "-")
+               c.connector_label
+               c.detection_env));
+        [])
+      else []
+    in
+    let all_connectors = enabled_connectors @ extra_connectors in
     let virtual_key_name =
       prompt ~default:Starter_constants.Defaults.virtual_key_name "Virtual key name"
     in
     let token_plaintext =
       prompt ~default:Starter_constants.Defaults.virtual_key_token "Virtual key token"
     in
+    (* Auto-export BULKHEAD_LM_API_KEY so connectors authenticate *)
+    if all_connectors <> []
+    then Unix.putenv "BULKHEAD_LM_API_KEY" token_plaintext;
     let daily_token_budget =
       prompt_int
         ~default:Starter_constants.Defaults.daily_token_budget
@@ -324,6 +367,7 @@ let build_starter_config ~base_config_path ~output_path =
         ~security_policy_file:refs.security_policy_file
         ~error_catalog_file:refs.error_catalog_file
         ~providers_schema_file:refs.providers_schema_file
+        ~enabled_connectors:all_connectors
         ~selected_presets
         ~virtual_key_name
         ~token_plaintext
