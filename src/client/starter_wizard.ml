@@ -92,12 +92,28 @@ let prompt ?default label =
 ;;
 
 let rec prompt_yes_no ?(default = true) label =
-  let fallback = if default then "Y/n" else "y/N" in
-  match String.lowercase_ascii (prompt ~default:fallback label) with
+  let hint = if default then "Y/n" else "y/N" in
+  let short_label =
+    let width = terminal_width () - 10 in
+    if String.length label <= width
+    then label
+    else (
+      print_wrapped label;
+      "Include?")
+  in
+  let full_prompt = short_label ^ " [" ^ hint ^ "]: " in
+  let raw =
+    try
+      Starter_terminal.read_line ~prompt:full_prompt ()
+      |> Option.value ~default:""
+      |> String.trim
+    with
+    | End_of_file | Sys.Break -> ""
+  in
+  match String.lowercase_ascii raw with
   | "" -> default
   | "y" | "yes" -> true
   | "n" | "no" -> false
-  | value when String.equal value fallback -> default
   | _ ->
     print_line "Please answer y or n.";
     prompt_yes_no ~default label
@@ -206,7 +222,7 @@ let maybe_capture_session_key env_name =
     if String.trim value <> "" then Unix.putenv env_name value)
 ;;
 
-let build_starter_config ~output_path =
+let build_starter_config ~base_config_path ~output_path =
   print_line "";
   print_wrapped Starter_constants.Text.builder_title;
   print_wrapped_lines Starter_constants.Text.builder_intro_lines;
@@ -279,8 +295,16 @@ let build_starter_config ~output_path =
     let sqlite_path =
       prompt ~default:Starter_constants.Defaults.sqlite_path "SQLite path"
     in
+    let refs =
+      Starter_saved_config.catalog_references_for_output_path
+        ~base_config_path
+        output_path
+    in
     let config_json =
       Starter_profile.config_json
+        ~security_policy_file:refs.security_policy_file
+        ~error_catalog_file:refs.error_catalog_file
+        ~providers_schema_file:refs.providers_schema_file
         ~selected_presets
         ~virtual_key_name
         ~token_plaintext
@@ -1145,7 +1169,7 @@ let run ~base_config_path ~starter_output_path () =
     match choose_config_source ~base_config_path ~starter_output_path with
     | Example_config -> Ok base_config_path
     | Saved_starter_config -> Ok starter_output_path
-    | Build_starter_config -> build_starter_config ~output_path:starter_output_path
+    | Build_starter_config -> build_starter_config ~base_config_path ~output_path:starter_output_path
   in
   match selected_path with
   | Error message ->
