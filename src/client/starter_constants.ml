@@ -145,8 +145,8 @@ end
 module Defaults = struct
   let virtual_key_name = "local-dev"
   let virtual_key_token = "sk-bulkhead-lm-dev"
-  let daily_token_budget = 50_000
-  let requests_per_minute = 30
+  let daily_token_budget = 500_000
+  let requests_per_minute = 120
   let sqlite_path = "../var/bulkhead-lm.sqlite"
   let starter_output = "config/local_only/starter.gateway.json"
   let base_config = "config/example.gateway.json"

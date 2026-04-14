@@ -352,7 +352,7 @@ ensure_local_switch_requested() {
     return 0
   fi
 
-  if ! prompt_yes_no "Create a project-local fallback switch in $ROOT_DIR/_opam?" "N"; then
+  if ! prompt_yes_no "Create a project-local fallback switch in $ROOT_DIR/_opam?" "Y"; then
     return 1
   fi
 

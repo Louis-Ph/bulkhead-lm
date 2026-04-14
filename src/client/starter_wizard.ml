@@ -226,52 +226,71 @@ let build_starter_config ~base_config_path ~output_path =
   print_line "";
   print_wrapped Starter_constants.Text.builder_title;
   print_wrapped_lines Starter_constants.Text.builder_intro_lines;
-  let selected_presets =
+  let ready_families, missing_families =
     Starter_profile.provider_families
-    |> List.concat_map (fun (family : Starter_model_catalog.provider_family) ->
-      let family_presets : Starter_profile.provider_preset list =
-        Starter_profile.presets_for_provider_key family.key
-      in
-      let sample_models =
-        family_presets
-        |> List.map (fun (preset : Starter_profile.provider_preset) ->
-          Fmt.str "%s (%s)" preset.public_model preset.model_label)
-        |> String.concat ", "
-      in
-      let ready = Starter_profile.non_empty_env Sys.getenv_opt family.api_key_env in
-      let default = ready in
-      let label =
-        if ready
-        then
-          Fmt.str
-            "Include %s (%d model routes: %s, detected via %s)"
-            family.label
-            (List.length family_presets)
-            sample_models
-            family.api_key_env
-        else
-          Fmt.str
-            "Include %s (%d model routes: %s, no %s detected yet)"
-            family.label
-            (List.length family_presets)
-            sample_models
-            family.api_key_env
-      in
-      if prompt_yes_no ~default label
-      then (
-        let api_key_env =
-          if ready
-          then family.api_key_env
-          else
-            prompt
-              ~default:family.api_key_env
-              (Fmt.str "Environment variable for %s" family.label)
+    |> List.partition (fun (family : Starter_model_catalog.provider_family) ->
+      Starter_profile.non_empty_env Sys.getenv_opt family.api_key_env)
+  in
+  (* Auto-include all providers with detected API keys *)
+  let auto_presets =
+    if ready_families <> []
+    then (
+      print_line "";
+      print_wrapped "Providers with detected API keys (auto-included):";
+      ready_families
+      |> List.concat_map (fun (family : Starter_model_catalog.provider_family) ->
+        let family_presets = Starter_profile.presets_for_provider_key family.key in
+        let route_count = List.length family_presets in
+        print_line
+          (Fmt.str
+             "  %s %s (%d routes, via %s)"
+             (Starter_constants.Ansi.green "\xe2\x9c\x93")
+             family.label
+             route_count
+             family.api_key_env);
+        family_presets))
+    else []
+  in
+  (* Show skipped providers and offer one batch prompt *)
+  let extra_presets =
+    if missing_families <> []
+    then (
+      print_line "";
+      print_wrapped "Providers without detected API keys:";
+      missing_families
+      |> List.iter (fun (family : Starter_model_catalog.provider_family) ->
+        let route_count =
+          List.length (Starter_profile.presets_for_provider_key family.key)
         in
-        if not ready then maybe_capture_session_key api_key_env;
-        family_presets
-        |> List.map (fun preset ->
-          Starter_profile.preset_with_api_key_env preset api_key_env))
+        print_line
+          (Fmt.str
+             "  %s %s (%d routes, needs %s)"
+             (Starter_constants.Ansi.dim "-")
+             family.label
+             route_count
+             family.api_key_env));
+      print_line "";
+      if prompt_yes_no ~default:false "Configure additional providers without detected keys?"
+      then
+        missing_families
+        |> List.concat_map (fun (family : Starter_model_catalog.provider_family) ->
+          let family_presets = Starter_profile.presets_for_provider_key family.key in
+          if prompt_yes_no ~default:false (Fmt.str "Include %s?" family.label)
+          then (
+            let api_key_env =
+              prompt
+                ~default:family.api_key_env
+                (Fmt.str "Environment variable for %s" family.label)
+            in
+            maybe_capture_session_key api_key_env;
+            family_presets
+            |> List.map (fun preset ->
+              Starter_profile.preset_with_api_key_env preset api_key_env))
+          else [])
       else [])
+    else []
+  in
+  let selected_presets = auto_presets @ extra_presets
   in
   if selected_presets = []
   then Error "No provider was selected."
