@@ -434,6 +434,15 @@ caller-supplied `summary`, `recent_turns`, and `compressed_turn_count`. This
 lets an external swarm runtime clear memory, inspect it, or substitute it with
 its own adapted summary instead of relying only on `/reset`.
 
+If you want a direct low-level smoke test against a running gateway, use:
+
+```bash
+BULKHEAD_ADMIN_TOKEN=... ./scripts/smoke_memory_control_plane.sh
+```
+
+That script performs one `PUT`, one `GET`, and one `DELETE` against the memory
+session control-plane API and prints the returned JSON.
+
 ## Terminal client
 
 For direct terminal use without starting the HTTP gateway, use `bulkhead-lm-client`.
