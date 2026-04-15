@@ -375,12 +375,7 @@ let starter_profile_exposes_multiple_models_per_provider_test _switch () =
 ;;
 
 let example_gateway_exposes_multiple_models_per_provider_test _switch () =
-  let project_root =
-    Filename.dirname (Filename.dirname (Filename.dirname (Sys.getcwd ())))
-  in
-  let example_path =
-    Filename.concat (Filename.concat project_root "config") "example.gateway.json"
-  in
+  let example_path = Filename.concat (Sys.getcwd ()) "config/example.gateway.json" in
   match Bulkhead_lm.Config.load example_path with
   | Error err -> Alcotest.failf "failed to load example config: %s" err
   | Ok config ->
@@ -434,6 +429,62 @@ let example_gateway_exposes_multiple_models_per_provider_test _switch () =
     Lwt.return_unit
 ;;
 
+let example_ollama_swarm_gateway_loads_test _switch () =
+  let example_path =
+    Filename.concat (Sys.getcwd ()) "config/example.ollama_swarm.gateway.json"
+  in
+  match Bulkhead_lm.Config.load example_path with
+  | Error err -> Alcotest.failf "failed to load ollama swarm config: %s" err
+  | Ok config ->
+    Alcotest.(check bool)
+      "ollama swarm overlay relaxes private egress"
+      false
+      config.Bulkhead_lm.Config.security_policy.egress.deny_private_ranges;
+    Alcotest.(check int) "ollama swarm exposes seven routes" 7 (List.length config.routes);
+    let statuses =
+      Bulkhead_lm.Starter_profile.route_statuses
+        ~lookup:(function
+          | "OLLAMA_API_KEY" -> Some "ollama"
+          | _ -> None)
+        config
+    in
+    let find_route public_model =
+      List.find_opt
+        (fun (status : Bulkhead_lm.Starter_profile.route_status) ->
+          String.equal status.public_model public_model)
+        statuses
+    in
+    (match find_route "swarm-router" with
+     | None -> Alcotest.fail "expected swarm-router route"
+     | Some status ->
+       Alcotest.(check bool) "swarm-router ready from env" true status.ready;
+       (match status.backends with
+        | [ backend ] ->
+          Alcotest.(check string)
+            "swarm-router upstream model"
+            "swarm-router:latest"
+            backend.upstream_model;
+          Alcotest.(check bool)
+            "swarm-router uses ollama kind"
+            true
+            (match backend.provider_kind with
+             | Bulkhead_lm.Config.Ollama_openai -> true
+             | _ -> false)
+        | _ -> Alcotest.fail "expected one swarm-router backend"));
+    (match find_route "all-minilm-local" with
+     | None -> Alcotest.fail "expected all-minilm-local route"
+     | Some status ->
+       Alcotest.(check bool) "all-minilm-local ready from env" true status.ready;
+       (match status.backends with
+        | [ backend ] ->
+          Alcotest.(check string)
+            "all-minilm upstream model"
+            "all-minilm:latest"
+            backend.upstream_model
+        | _ -> Alcotest.fail "expected one all-minilm backend"));
+    Lwt.return_unit
+;;
+
 let tests =
   [
     Alcotest_lwt.test_case "worker rejects malformed json lines" `Quick worker_rejects_malformed_json_lines_test
@@ -446,6 +497,7 @@ let tests =
   ; Alcotest_lwt.test_case "starter profile masks environment values" `Quick starter_profile_masks_environment_values_test
   ; Alcotest_lwt.test_case "starter profile exposes multiple models per provider" `Quick starter_profile_exposes_multiple_models_per_provider_test
   ; Alcotest_lwt.test_case "example gateway exposes multiple models per provider" `Quick example_gateway_exposes_multiple_models_per_provider_test
+  ; Alcotest_lwt.test_case "ollama swarm example gateway loads" `Quick example_ollama_swarm_gateway_loads_test
   ]
 ;;
 

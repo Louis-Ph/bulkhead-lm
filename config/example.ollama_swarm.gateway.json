@@ -1,0 +1,112 @@
+{
+  "security_policy_file": "defaults/security_policy.ollama_local.json",
+  "error_catalog_file": "defaults/error_catalog.json",
+  "providers_schema_file": "defaults/providers.schema.json",
+  "persistence": {
+    "sqlite_path": "var/bulkhead-lm.sqlite",
+    "busy_timeout_ms": 5000
+  },
+  "virtual_keys": [
+    {
+      "name": "local-dev",
+      "token_plaintext": "sk-bulkhead-lm-dev",
+      "daily_token_budget": 500000,
+      "requests_per_minute": 120,
+      "allowed_routes": [
+        "swarm-router",
+        "swarm-worker",
+        "swarm-lead",
+        "swarm-critic",
+        "all-minilm-local",
+        "llama3.2-1b-local",
+        "qwen3-4b-local"
+      ]
+    }
+  ],
+  "routes": [
+    {
+      "public_model": "swarm-router",
+      "backends": [
+        {
+          "provider_id": "ollama-swarm-router",
+          "provider_kind": "ollama_openai",
+          "upstream_model": "swarm-router:latest",
+          "api_base": "http://127.0.0.1:11434/v1",
+          "api_key_env": "OLLAMA_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "swarm-worker",
+      "backends": [
+        {
+          "provider_id": "ollama-swarm-worker",
+          "provider_kind": "ollama_openai",
+          "upstream_model": "swarm-worker:latest",
+          "api_base": "http://127.0.0.1:11434/v1",
+          "api_key_env": "OLLAMA_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "swarm-lead",
+      "backends": [
+        {
+          "provider_id": "ollama-swarm-lead",
+          "provider_kind": "ollama_openai",
+          "upstream_model": "swarm-lead:latest",
+          "api_base": "http://127.0.0.1:11434/v1",
+          "api_key_env": "OLLAMA_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "swarm-critic",
+      "backends": [
+        {
+          "provider_id": "ollama-swarm-critic",
+          "provider_kind": "ollama_openai",
+          "upstream_model": "swarm-critic:latest",
+          "api_base": "http://127.0.0.1:11434/v1",
+          "api_key_env": "OLLAMA_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "all-minilm-local",
+      "backends": [
+        {
+          "provider_id": "ollama-all-minilm",
+          "provider_kind": "ollama_openai",
+          "upstream_model": "all-minilm:latest",
+          "api_base": "http://127.0.0.1:11434/v1",
+          "api_key_env": "OLLAMA_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "llama3.2-1b-local",
+      "backends": [
+        {
+          "provider_id": "ollama-llama3-2-1b",
+          "provider_kind": "ollama_openai",
+          "upstream_model": "llama3.2:1b",
+          "api_base": "http://127.0.0.1:11434/v1",
+          "api_key_env": "OLLAMA_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "qwen3-4b-local",
+      "backends": [
+        {
+          "provider_id": "ollama-qwen3-4b",
+          "provider_kind": "ollama_openai",
+          "upstream_model": "qwen3:4b",
+          "api_base": "http://127.0.0.1:11434/v1",
+          "api_key_env": "OLLAMA_API_KEY"
+        }
+      ]
+    }
+  ]
+}

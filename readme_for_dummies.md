@@ -143,6 +143,9 @@ The safest easy choices are:
 
 6. Local models with Ollama.
    This is not a promotional cloud quota. It means the model runs on your own machine, so there is no API bill.
+   This repository also includes a dedicated BulkheadLM local swarm example at `config/example.ollama_swarm.gateway.json` and a ready smoke test at `./scripts/smoke_ollama.sh`.
+   If you want the direct no-menu path, use `./run-ollama.sh`.
+   That path is meant for explicit local-only use because it relaxes the default egress policy so BulkheadLM can talk to `127.0.0.1:11434`.
    Official links:
    [Ollama download](https://ollama.com/download)
    [Ollama OpenAI compatibility](https://docs.ollama.com/api/openai-compatibility)

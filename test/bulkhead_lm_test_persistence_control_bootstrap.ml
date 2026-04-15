@@ -254,7 +254,15 @@ let with_temp_dir prefix f =
 ;;
 
 let repo_root () =
-  Sys.getcwd () |> Filename.dirname |> Filename.dirname |> Filename.dirname
+  let marker = "config/defaults/security_policy.json" in
+  let rec search path =
+    if Sys.file_exists (Filename.concat path marker)
+    then path
+    else
+      let parent = Filename.dirname path in
+      if String.equal parent path then failwith "unable to locate repository root" else search parent
+  in
+  search (Sys.getcwd ())
 ;;
 
 let write_fixture_file path content =

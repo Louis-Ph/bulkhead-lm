@@ -254,6 +254,34 @@ let egress_blocks_localhost_test _switch () =
   Lwt.return_unit
 ;;
 
+let ollama_local_security_overlay_allows_private_egress_test _switch () =
+  let policy_path =
+    Filename.concat (Sys.getcwd ()) "config/defaults/security_policy.ollama_local.json"
+  in
+  let policy = Bulkhead_lm.Security_policy.load_file policy_path in
+  Alcotest.(check bool)
+    "overlay allows loopback ollama"
+    true
+    (match
+       Bulkhead_lm.Egress_policy.ensure_http_allowed
+         policy
+         "http://127.0.0.1:11434/v1"
+     with
+     | Ok () -> true
+     | Error _ -> false);
+  Alcotest.(check bool)
+    "overlay allows private-range peers"
+    true
+    (match
+       Bulkhead_lm.Egress_policy.ensure_http_allowed
+         policy
+         "http://192.168.1.40:11434/v1"
+     with
+     | Ok () -> true
+     | Error _ -> false);
+  Lwt.return_unit
+;;
+
 let request_body_limit_is_enforced_test _switch () =
   let base_config = Bulkhead_lm.Config_test_support.sample_config () in
   let config =
@@ -419,6 +447,7 @@ let tests =
   ; Alcotest_lwt.test_case "falls back on retryable upstream status" `Quick routing_falls_back_on_retryable_upstream_status_test
   ; Alcotest_lwt.test_case "stops on non-retryable upstream status" `Quick routing_stops_on_non_retryable_upstream_status_test
   ; Alcotest_lwt.test_case "blocks localhost egress" `Quick egress_blocks_localhost_test
+  ; Alcotest_lwt.test_case "ollama local overlay allows private egress" `Quick ollama_local_security_overlay_allows_private_egress_test
   ; Alcotest_lwt.test_case "enforces request body limit" `Quick request_body_limit_is_enforced_test
   ; Alcotest_lwt.test_case "falls back after provider exception" `Quick routing_falls_back_after_provider_exception_test
   ; Alcotest_lwt.test_case "responses parses string input" `Quick responses_request_accepts_string_input_test

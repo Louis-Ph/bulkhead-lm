@@ -695,6 +695,26 @@ It is not enabled in the bundled example config because the default fail-closed 
 
 Set `OLLAMA_API_KEY=ollama` when using that interface. Ollama documents that this key is required by client tooling but ignored by the local server.
 
+For a ready-to-run local swarm profile, use [config/example.ollama_swarm.gateway.json](config/example.ollama_swarm.gateway.json). It routes BulkheadLM public models to the local Ollama aliases `swarm-router`, `swarm-worker`, `swarm-lead`, `swarm-critic`, plus `all-minilm` for embeddings, and it opts into the explicit loopback/private-egress profile [config/defaults/security_policy.ollama_local.json](config/defaults/security_policy.ollama_local.json).
+
+That path is intentionally separate from the cloud-oriented example config so the default repository posture stays fail-closed.
+
+To launch that profile directly without the interactive starter menu, run:
+
+```bash
+./run-ollama.sh
+```
+
+The launcher defaults `OLLAMA_API_KEY=ollama`, uses [config/example.ollama_swarm.gateway.json](config/example.ollama_swarm.gateway.json), and accepts normal gateway flags such as `--port 4112`.
+
+Smoke-test the full BulkheadLM to Ollama path with:
+
+```bash
+./scripts/smoke_ollama.sh
+```
+
+The smoke script defaults `OLLAMA_API_KEY` to `ollama`, starts BulkheadLM with the Ollama swarm config, then verifies chat, responses, and embeddings against the local aliases already served by Ollama.
+
 Use the Beijing DashScope base instead of the international base when you intentionally deploy against the mainland China region.
 
 ## Real-provider smoke tests
