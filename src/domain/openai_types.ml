@@ -90,6 +90,17 @@ let parse_message json =
   string_field "content" json >>= fun content -> Ok ({ role; content } : message)
 ;;
 
+let non_empty_string_member names json =
+  let rec loop = function
+    | [] -> None
+    | name :: rest ->
+      (match member name json with
+       | Some (`String value) when String.trim value <> "" -> Some value
+       | _ -> loop rest)
+  in
+  loop names
+;;
+
 let chat_request_of_yojson json =
   string_field "model" json
   >>= fun model ->
@@ -136,7 +147,16 @@ let parse_chat_choice json =
   >>= fun index ->
   string_field "role" message_json
   >>= fun role ->
-  string_field "content" message_json
+  let content =
+    match
+      non_empty_string_member
+        [ "content"; "reasoning"; "thinking"; "reasoning_content" ]
+        message_json
+    with
+    | Some value -> Ok value
+    | None -> string_field "content" message_json
+  in
+  content
   >>= fun content ->
   Ok { index; message = ({ role; content } : chat_message); finish_reason }
 ;;

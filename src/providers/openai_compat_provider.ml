@@ -44,6 +44,19 @@ let post_json uri ~headers body =
   Cohttp_lwt.Body.to_string body >|= fun body_string -> response, body_string
 ;;
 
+let ollama_reasoning_effort_disabled = "none"
+
+let chat_request_body backend request =
+  let request_json =
+    Openai_types.chat_request_to_yojson
+      { request with model = backend.Config.upstream_model }
+  in
+  match backend.Config.provider_kind, request_json with
+  | Config.Ollama_openai, `Assoc fields ->
+    `Assoc (fields @ [ "reasoning_effort", `String ollama_reasoning_effort_disabled ])
+  | _, _ -> request_json
+;;
+
 let invoke_chat upstream_context backend request =
   match api_key_from_env backend with
   | Error err -> Lwt.return (Error err)
@@ -63,10 +76,7 @@ let invoke_chat upstream_context backend request =
            [ "content-type", "application/json"; "authorization", "Bearer " ^ api_key ])
         upstream_context.Provider_client.peer_headers
     in
-    let body =
-      Openai_types.chat_request_to_yojson
-        { request with model = backend.Config.upstream_model }
-    in
+    let body = chat_request_body backend request in
     post_json uri ~headers body
     >>= fun (response, body_string) ->
     let status = Cohttp.Response.status response |> Cohttp.Code.code_of_status in
