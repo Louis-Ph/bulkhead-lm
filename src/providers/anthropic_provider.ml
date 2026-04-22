@@ -145,7 +145,7 @@ let invoke_chat _upstream_context backend request =
              ; model = request.model
              ; choices =
                  [ { index = 0
-                   ; message = { role = "assistant"; content }
+                   ; message = { role = "assistant"; content; extra = [] }
                    ; finish_reason = "stop"
                    }
                  ]

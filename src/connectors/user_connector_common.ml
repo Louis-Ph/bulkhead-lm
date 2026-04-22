@@ -117,20 +117,26 @@ let connector_system_messages
     if metadata_lines = []
     then []
     else
-      [ ({ Openai_types.role = "system"; content = String.concat "\n" metadata_lines }
+      [ ({ Openai_types.role = "system"
+         ; content = String.concat "\n" metadata_lines
+         ; extra = []
+         }
           : Openai_types.message)
       ]
   in
   let prompt_messages : Openai_types.message list =
     [ Some
-        ({ Openai_types.role = "system"; content = default_system_prompt }
+        ({ Openai_types.role = "system"; content = default_system_prompt; extra = [] }
          : Openai_types.message)
     ; Option.map
         (fun content ->
-          ({ Openai_types.role = "system"; content } : Openai_types.message))
+          ({ Openai_types.role = "system"; content; extra = [] } : Openai_types.message))
         system_prompt
     ; Some
-        ({ Openai_types.role = "system"; content = "Channel: " ^ channel_name }
+        ({ Openai_types.role = "system"
+         ; content = "Channel: " ^ channel_name
+         ; extra = []
+         }
          : Openai_types.message)
     ]
     |> List.filter_map Fun.id

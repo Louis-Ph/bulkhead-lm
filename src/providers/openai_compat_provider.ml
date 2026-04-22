@@ -57,25 +57,27 @@ let chat_request_body backend request =
   | _, _ -> request_json
 ;;
 
+let resolve_api_base backend =
+  match Config.backend_http_api_base backend with
+  | Some api_base -> api_base
+  | None ->
+    invalid_arg
+      ("openai_compat provider requires an HTTP target for " ^ backend.Config.provider_id)
+;;
+
+let build_auth_headers ~upstream_context ~api_key =
+  merge_headers
+    (Cohttp.Header.of_list
+       [ "content-type", "application/json"; "authorization", "Bearer " ^ api_key ])
+    upstream_context.Provider_client.peer_headers
+;;
+
 let invoke_chat upstream_context backend request =
   match api_key_from_env backend with
   | Error err -> Lwt.return (Error err)
   | Ok api_key ->
-    let api_base =
-      match Config.backend_http_api_base backend with
-      | Some api_base -> api_base
-      | None ->
-        invalid_arg
-          ("openai_compat provider requires an HTTP target for "
-           ^ backend.Config.provider_id)
-    in
-    let uri = endpoint api_base "chat/completions" in
-    let headers =
-      merge_headers
-        (Cohttp.Header.of_list
-           [ "content-type", "application/json"; "authorization", "Bearer " ^ api_key ])
-        upstream_context.Provider_client.peer_headers
-    in
+    let uri = endpoint (resolve_api_base backend) "chat/completions" in
+    let headers = build_auth_headers ~upstream_context ~api_key in
     let body = chat_request_body backend request in
     post_json uri ~headers body
     >>= fun (response, body_string) ->
@@ -105,21 +107,8 @@ let invoke_embeddings upstream_context backend request =
   match api_key_from_env backend with
   | Error err -> Lwt.return (Error err)
   | Ok api_key ->
-    let api_base =
-      match Config.backend_http_api_base backend with
-      | Some api_base -> api_base
-      | None ->
-        invalid_arg
-          ("openai_compat provider requires an HTTP target for "
-           ^ backend.Config.provider_id)
-    in
-    let uri = endpoint api_base "embeddings" in
-    let headers =
-      merge_headers
-        (Cohttp.Header.of_list
-           [ "content-type", "application/json"; "authorization", "Bearer " ^ api_key ])
-        upstream_context.Provider_client.peer_headers
-    in
+    let uri = endpoint (resolve_api_base backend) "embeddings" in
+    let headers = build_auth_headers ~upstream_context ~api_key in
     let body =
       `Assoc
         [ "model", `String backend.Config.upstream_model
@@ -177,9 +166,174 @@ let invoke_embeddings upstream_context backend request =
               (Fmt.str "Upstream status %d: %s" status body_string)))
 ;;
 
+let strip_data_prefix line =
+  if String.starts_with ~prefix:"data: " line
+  then Some (String.sub line 6 (String.length line - 6))
+  else if String.starts_with ~prefix:"data:" line
+  then Some (String.sub line 5 (String.length line - 5))
+  else None
+;;
+
+let trim_cr line =
+  let len = String.length line in
+  if len > 0 && line.[len - 1] = '\r' then String.sub line 0 (len - 1) else line
+;;
+
+let events_of_chunk_json json =
+  match Openai_types.member "choices" json with
+  | Some (`List (choice :: _)) ->
+    let delta = Option.value (Openai_types.member "delta" choice) ~default:`Null in
+    let reasoning =
+      match Openai_types.member "reasoning_content" delta with
+      | Some (`String value) when value <> "" ->
+        [ Provider_client.Reasoning_delta value ]
+      | _ -> []
+    in
+    let content =
+      match Openai_types.member "content" delta with
+      | Some (`String value) when value <> "" -> [ Provider_client.Text_delta value ]
+      | _ -> []
+    in
+    reasoning @ content
+  | _ -> []
+;;
+
+let response_stub_of_chunk backend (first_json : Yojson.Safe.t) : Openai_types.chat_response =
+  let id =
+    match Openai_types.member "id" first_json with
+    | Some (`String value) -> value
+    | _ -> "chatcmpl-stream"
+  in
+  let created =
+    match Openai_types.member "created" first_json with
+    | Some (`Int value) -> value
+    | Some (`Intlit value) -> int_of_string value
+    | _ -> int_of_float (Unix.time ())
+  in
+  let model =
+    match Openai_types.member "model" first_json with
+    | Some (`String value) -> value
+    | _ -> backend.Config.upstream_model
+  in
+  { id
+  ; created
+  ; model
+  ; choices =
+      [ { index = 0
+        ; message = { role = "assistant"; content = ""; extra = [] }
+        ; finish_reason = "stop"
+        }
+      ]
+  ; usage = { prompt_tokens = 0; completion_tokens = 0; total_tokens = 0 }
+  }
+;;
+
 let invoke_chat_stream upstream_context backend request =
-  invoke_chat upstream_context backend { request with Openai_types.stream = false }
-  >|= Result.map Provider_stream.of_chat_response
+  match api_key_from_env backend with
+  | Error err -> Lwt.return (Error err)
+  | Ok api_key ->
+    let uri = endpoint (resolve_api_base backend) "chat/completions" in
+    let headers = build_auth_headers ~upstream_context ~api_key in
+    let body = chat_request_body backend { request with Openai_types.stream = true } in
+    Cohttp_lwt_unix.Client.post
+      ~headers
+      ~body:(Cohttp_lwt.Body.of_string (Yojson.Safe.to_string body))
+      uri
+    >>= fun (http_response, http_body) ->
+    let status =
+      Cohttp.Response.status http_response |> Cohttp.Code.code_of_status
+    in
+    if status < 200 || status >= 300
+    then
+      Cohttp_lwt.Body.to_string http_body
+      >|= fun body_string ->
+      Error
+        (Domain_error.upstream_status
+           ~provider_id:backend.Config.provider_id
+           ~status
+           (Fmt.str "Upstream status %d: %s" status body_string))
+    else (
+      let source = Cohttp_lwt.Body.to_stream http_body in
+      let json_stream, push = Lwt_stream.create () in
+      let buffer = Buffer.create 1024 in
+      let closed = ref false in
+      let close_once () =
+        if not !closed
+        then (
+          closed := true;
+          push None)
+      in
+      let process_line raw =
+        if !closed
+        then ()
+        else (
+          let line = trim_cr raw in
+          match strip_data_prefix line with
+          | None -> ()
+          | Some payload ->
+            let trimmed = String.trim payload in
+            if trimmed = "[DONE]"
+            then close_once ()
+            else if trimmed = ""
+            then ()
+            else (
+              match Yojson.Safe.from_string trimmed with
+              | json -> push (Some json)
+              | exception _ -> ()))
+      in
+      let flush () =
+        let contents = Buffer.contents buffer in
+        let rec loop s =
+          match String.index_opt s '\n' with
+          | None -> s
+          | Some idx ->
+            let line = String.sub s 0 idx in
+            let rest = String.sub s (idx + 1) (String.length s - idx - 1) in
+            process_line line;
+            loop rest
+        in
+        let remainder = loop contents in
+        Buffer.clear buffer;
+        Buffer.add_string buffer remainder
+      in
+      let rec consume () =
+        Lwt_stream.get source
+        >>= function
+        | None ->
+          if Buffer.length buffer > 0 then process_line (Buffer.contents buffer);
+          close_once ();
+          Lwt.return_unit
+        | Some chunk ->
+          Buffer.add_string buffer chunk;
+          flush ();
+          consume ()
+      in
+      Lwt.async (fun () ->
+        Lwt.catch consume (fun _ ->
+          close_once ();
+          Lwt.return_unit));
+      Lwt_stream.get json_stream
+      >>= function
+      | None ->
+        Lwt.return
+          (Error
+             (Domain_error.upstream
+                ~provider_id:backend.Config.provider_id
+                "Empty SSE stream from upstream"))
+      | Some first_json ->
+        let response = response_stub_of_chunk backend first_json in
+        let first_events = events_of_chunk_json first_json in
+        let rest_events =
+          Lwt_stream.map_list events_of_chunk_json json_stream
+        in
+        let events =
+          Lwt_stream.append (Lwt_stream.of_list first_events) rest_events
+        in
+        let close () =
+          close_once ();
+          Lwt.return_unit
+        in
+        Lwt.return (Ok { Provider_client.response; events; close }))
 ;;
 
 let make () = { Provider_client.invoke_chat; invoke_chat_stream; invoke_embeddings }

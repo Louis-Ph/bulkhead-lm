@@ -149,7 +149,7 @@ let sync_virtual_key db security_policy (virtual_key : Config.virtual_key) =
   in
   with_stmt
     db
-    {|INSERT INTO virtual_keys (
+    {|INSERT OR REPLACE INTO virtual_keys (
          name,
          token_hash,
          daily_token_budget,
@@ -157,13 +157,7 @@ let sync_virtual_key db security_policy (virtual_key : Config.virtual_key) =
          allowed_routes_json,
          created_at,
          updated_at
-       ) VALUES (?, ?, ?, ?, ?, ?, ?)
-       ON CONFLICT(name) DO UPDATE SET
-         token_hash = excluded.token_hash,
-         daily_token_budget = excluded.daily_token_budget,
-         requests_per_minute = excluded.requests_per_minute,
-         allowed_routes_json = excluded.allowed_routes_json,
-         updated_at = excluded.updated_at|}
+       ) VALUES (?, ?, ?, ?, ?, ?, ?)|}
     (fun stmt ->
        let now = timestamp_now () in
        expect_rc db "bind key name" (Sqlite3.bind_text stmt 1 virtual_key.name);

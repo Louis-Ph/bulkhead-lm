@@ -96,9 +96,10 @@ let ollama_chat_request_body_disables_reasoning_test _switch () =
   in
   let request : Bulkhead_lm.Openai_types.chat_request =
     { model = "qwen3-4b-local"
-    ; messages = [ { role = "user"; content = "hello" } ]
+    ; messages = [ { role = "user"; content = "hello"; extra = [] } ]
     ; stream = false
     ; max_tokens = Some 128
+    ; extra = []
     }
   in
   let body = Bulkhead_lm.Openai_compat_provider.chat_request_body backend request in
@@ -125,9 +126,10 @@ let non_ollama_chat_request_body_keeps_default_shape_test _switch () =
   in
   let request : Bulkhead_lm.Openai_types.chat_request =
     { model = "public-route"
-    ; messages = [ { role = "user"; content = "hello" } ]
+    ; messages = [ { role = "user"; content = "hello"; extra = [] } ]
     ; stream = false
     ; max_tokens = Some 64
+    ; extra = []
     }
   in
   let body = Bulkhead_lm.Openai_compat_provider.chat_request_body backend request in

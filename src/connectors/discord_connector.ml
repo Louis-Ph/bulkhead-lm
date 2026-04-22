@@ -490,6 +490,7 @@ let fulfill_interaction
         @ Session_memory.request_messages session_limits conversation ~pending_user:prompt
     ; stream = false
     ; max_tokens = None
+    ; extra = []
     }
   in
   Router.dispatch_chat store ~authorization request

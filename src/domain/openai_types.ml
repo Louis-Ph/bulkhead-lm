@@ -3,6 +3,7 @@ let ( >>= ) = Result.bind
 type message =
   { role : string
   ; content : string
+  ; extra : (string * Yojson.Safe.t) list
   }
 
 type chat_request =
@@ -10,11 +11,13 @@ type chat_request =
   ; messages : message list
   ; stream : bool
   ; max_tokens : int option
+  ; extra : (string * Yojson.Safe.t) list
   }
 
 type chat_message =
   { role : string
   ; content : string
+  ; extra : (string * Yojson.Safe.t) list
   }
 
 type chat_choice =
@@ -84,10 +87,26 @@ let int_field_opt name json =
   | _ -> None
 ;;
 
+let message_known_keys = [ "role"; "content" ]
+let chat_request_known_keys = [ "model"; "messages"; "stream"; "max_tokens" ]
+
+let extract_extra known_keys fields =
+  List.filter (fun (key, _) -> not (List.mem key known_keys)) fields
+;;
+
 let parse_message json =
-  string_field "role" json
-  >>= fun role ->
-  string_field "content" json >>= fun content -> Ok ({ role; content } : message)
+  match json with
+  | `Assoc fields ->
+    string_field "role" json
+    >>= fun role ->
+    let content =
+      match List.assoc_opt "content" fields with
+      | Some (`String value) -> value
+      | _ -> ""
+    in
+    let extra = extract_extra message_known_keys fields in
+    Ok ({ role; content; extra } : message)
+  | _ -> Error "role"
 ;;
 
 let non_empty_string_member names json =
@@ -102,29 +121,34 @@ let non_empty_string_member names json =
 ;;
 
 let chat_request_of_yojson json =
-  string_field "model" json
-  >>= fun model ->
-  let messages =
-    match member "messages" json with
-    | Some (`List values) ->
-      let rec loop acc = function
-        | [] -> Ok (List.rev acc)
-        | item :: rest ->
-          (match parse_message item with
-           | Ok message -> loop (message :: acc) rest
-           | Error err -> Error err)
-      in
-      loop [] values
-    | _ -> Error "messages"
-  in
-  messages
-  >>= fun messages ->
-  Ok
-    { model
-    ; messages
-    ; stream = bool_field_with_default "stream" json ~default:false
-    ; max_tokens = int_field_opt "max_tokens" json
-    }
+  match json with
+  | `Assoc fields ->
+    string_field "model" json
+    >>= fun model ->
+    let messages =
+      match List.assoc_opt "messages" fields with
+      | Some (`List values) ->
+        let rec loop acc = function
+          | [] -> Ok (List.rev acc)
+          | item :: rest ->
+            (match parse_message item with
+             | Ok message -> loop (message :: acc) rest
+             | Error err -> Error err)
+        in
+        loop [] values
+      | _ -> Error "messages"
+    in
+    messages
+    >>= fun messages ->
+    let extra = extract_extra chat_request_known_keys fields in
+    Ok
+      { model
+      ; messages
+      ; stream = bool_field_with_default "stream" json ~default:false
+      ; max_tokens = int_field_opt "max_tokens" json
+      ; extra
+      }
+  | _ -> Error "model"
 ;;
 
 let usage_of_yojson json =
@@ -158,7 +182,12 @@ let parse_chat_choice json =
   in
   content
   >>= fun content ->
-  Ok { index; message = ({ role; content } : chat_message); finish_reason }
+  let extra =
+    match message_json with
+    | `Assoc fields -> extract_extra message_known_keys fields
+    | _ -> []
+  in
+  Ok { index; message = ({ role; content; extra } : chat_message); finish_reason }
 ;;
 
 let chat_response_of_yojson json =
@@ -186,24 +215,33 @@ let chat_response_of_yojson json =
   loop [] choices_values >>= fun choices -> Ok { id; created; model; choices; usage }
 ;;
 
+let message_to_yojson (message : message) =
+  let base =
+    [ "role", `String message.role; "content", `String message.content ]
+  in
+  `Assoc (base @ message.extra)
+;;
+
+let chat_message_to_yojson (message : chat_message) =
+  let base =
+    [ "role", `String message.role; "content", `String message.content ]
+  in
+  `Assoc (base @ message.extra)
+;;
+
 let chat_request_to_yojson (request : chat_request) =
-  `Assoc
+  let base =
     [ "model", `String request.model
-    ; ( "messages"
-      , `List
-          (List.map
-             (fun (message : message) ->
-               `Assoc [ "role", `String message.role; "content", `String message.content ])
-             request.messages) )
+    ; "messages", `List (List.map message_to_yojson request.messages)
     ; "stream", `Bool request.stream
     ]
-  |> fun json ->
-  match request.max_tokens with
-  | None -> json
-  | Some max_tokens ->
-    (match json with
-     | `Assoc fields -> `Assoc (fields @ [ "max_tokens", `Int max_tokens ])
-     | _ -> json)
+  in
+  let with_max_tokens =
+    match request.max_tokens with
+    | None -> base
+    | Some max_tokens -> base @ [ "max_tokens", `Int max_tokens ]
+  in
+  `Assoc (with_max_tokens @ request.extra)
 ;;
 
 let chat_response_to_yojson (response : chat_response) =
@@ -219,11 +257,7 @@ let chat_response_to_yojson (response : chat_response) =
                `Assoc
                  [ "index", `Int choice.index
                  ; "finish_reason", `String choice.finish_reason
-                 ; ( "message"
-                   , `Assoc
-                       [ "role", `String choice.message.role
-                       ; "content", `String choice.message.content
-                       ] )
+                 ; "message", chat_message_to_yojson choice.message
                  ])
              response.choices) )
     ; ( "usage"

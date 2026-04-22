@@ -189,6 +189,138 @@ let terminal_client_infers_first_route_for_ask_test _switch () =
     Lwt.return_unit
 ;;
 
+let terminal_client_stream_reconstructs_response_text_test _switch () =
+  let config =
+    Bulkhead_lm.Config_test_support.sample_config
+      ~routes:
+        [ Bulkhead_lm.Config_test_support.route
+            ~public_model:"kimi-k2.6"
+            ~backends:
+              [ Bulkhead_lm.Config_test_support.backend
+                  ~provider_id:"moonshot-primary"
+                  ~provider_kind:Bulkhead_lm.Config.Moonshot_openai
+                  ~api_base:"https://api.moonshot.ai/v1"
+                  ~upstream_model:"kimi-k2.6"
+                  ~api_key_env:"MOONSHOT_API_KEY"
+                  ()
+              ]
+            ()
+        ]
+      ()
+  in
+  let streamed_response : Bulkhead_lm.Openai_types.chat_response =
+    { id = "chatcmpl-stream"
+    ; created = 1
+    ; model = "kimi-k2.6"
+    ; choices =
+        [ { index = 0
+          ; message = { role = "assistant"; content = ""; extra = [] }
+          ; finish_reason = "stop"
+          }
+        ]
+    ; usage = { prompt_tokens = 0; completion_tokens = 0; total_tokens = 0 }
+    }
+  in
+  let provider =
+    { Bulkhead_lm.Provider_client.invoke_chat =
+        (fun _headers _backend _request ->
+          Lwt.return
+            (Error
+               (Bulkhead_lm.Domain_error.unsupported_feature
+                  "non-streaming chat not used here")))
+    ; invoke_chat_stream =
+        (fun _headers _backend _request ->
+          Lwt.return
+            (Ok
+               { Bulkhead_lm.Provider_client.response = streamed_response
+               ; events =
+                   Lwt_stream.of_list
+                     [ Bulkhead_lm.Provider_client.Reasoning_delta "thinking"
+                     ; Bulkhead_lm.Provider_client.Text_delta "Bonjour"
+                     ; Bulkhead_lm.Provider_client.Text_delta " monde"
+                     ]
+               ; close = (fun () -> Lwt.return_unit)
+               }))
+    ; invoke_embeddings =
+        (fun _headers _backend _request ->
+          Lwt.return
+            (Error
+               (Bulkhead_lm.Domain_error.unsupported_feature
+                  "embeddings not used here")))
+    }
+  in
+  let store =
+    Bulkhead_lm.Runtime_state.create ~provider_factory:(fun _ -> provider) config
+  in
+  match
+    Bulkhead_lm.Terminal_client.build_ask_request
+      store
+      ~model:"kimi-k2.6"
+      ~stream:true
+      "hello"
+  with
+  | Error err ->
+    Alcotest.failf
+      "expected streaming ask request build success but got %s"
+      (Bulkhead_lm.Domain_error.to_string err)
+  | Ok request ->
+    Bulkhead_lm.Terminal_client.run_ask_stream
+      store
+      ~authorization:"Bearer sk-test"
+      request
+      ~on_delta:(fun _chunk -> Lwt.return_unit)
+    >>= function
+    | Error err ->
+      Alcotest.failf
+        "expected streaming ask success but got %s"
+        (Bulkhead_lm.Domain_error.to_string err)
+    | Ok (Bulkhead_lm.Terminal_client.Chat_response response) ->
+      Alcotest.(check string)
+        "streamed text stitched back into final response"
+        "Bonjour monde"
+        (Bulkhead_lm.Terminal_client.text_of_chat_response response);
+      Lwt.return_unit
+    | Ok _ -> Alcotest.fail "expected chat response from streaming ask"
+;;
+
+let persistent_store_allows_virtual_key_token_reuse_test _switch () =
+  let db_path = Filename.temp_file "bulkhead-lm-keys" ".sqlite" in
+  let make_config name =
+    let base_config =
+      Bulkhead_lm.Config_test_support.sample_config
+        ~virtual_keys:
+          [ Bulkhead_lm.Config_test_support.virtual_key
+              ~token_plaintext:"sk-shared"
+              ~name
+              ()
+          ]
+        ()
+    in
+    { base_config with
+      Bulkhead_lm.Config.persistence =
+        { sqlite_path = Some db_path; busy_timeout_ms = 5000 }
+    }
+  in
+  let _store1 = Bulkhead_lm.Runtime_state.create (make_config "starter-alpha") in
+  match Bulkhead_lm.Runtime_state.create_result (make_config "starter-beta") with
+  | Error err ->
+    Alcotest.failf
+      "expected persistent store bootstrap success when reusing token hash: %s"
+      err
+  | Ok store2 ->
+    (match Bulkhead_lm.Auth.authenticate store2 ~authorization:"Bearer sk-shared" with
+     | Error err ->
+       Alcotest.failf
+         "expected reused virtual key auth success but got %s"
+         (Bulkhead_lm.Domain_error.to_string err)
+     | Ok principal ->
+       Alcotest.(check string)
+         "reused token hash resolves to latest configured principal"
+         "starter-beta"
+         principal.Bulkhead_lm.Runtime_state.name);
+    Lwt.return_unit
+;;
+
 let client_ops_security_policy
   ?(file_ops_enabled = true)
   ?(exec_enabled = false)
@@ -425,6 +557,8 @@ let tests =
   ; Alcotest_lwt.test_case "persistent connector session survives restart" `Quick persistent_connector_session_survives_restart_test
   ; Alcotest_lwt.test_case "terminal client resolves single plaintext virtual key" `Quick terminal_client_resolves_single_plaintext_virtual_key_test
   ; Alcotest_lwt.test_case "terminal client infers first route for ask" `Quick terminal_client_infers_first_route_for_ask_test
+  ; Alcotest_lwt.test_case "terminal client reconstructs streamed response text" `Quick terminal_client_stream_reconstructs_response_text_test
+  ; Alcotest_lwt.test_case "persistent store allows virtual key token reuse" `Quick persistent_store_allows_virtual_key_token_reuse_test
   ; Alcotest_lwt.test_case "control plane exposes ui and status" `Quick control_plane_exposes_ui_and_status_test
   ]
 ;;

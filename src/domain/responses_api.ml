@@ -106,13 +106,14 @@ let to_chat_request request =
   let messages =
     List.map
       (fun (message : input_message) : Openai_types.message ->
-        { Openai_types.role = message.role; content = message.content })
+        { Openai_types.role = message.role; content = message.content; extra = [] })
       messages
   in
   { Openai_types.model = request.model
   ; messages
   ; stream = request.stream
   ; max_tokens = None
+  ; extra = []
   }
 ;;
 

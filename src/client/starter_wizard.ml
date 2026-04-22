@@ -877,6 +877,7 @@ let request_messages state runtime prompt : Openai_types.message list =
   let capability_message : Openai_types.message =
     { Openai_types.role = "system"
     ; content = Starter_constants.Text.assistant_capabilities_system_prompt
+    ; extra = []
     }
   in
   let prompt =
@@ -892,7 +893,8 @@ let request_messages state runtime prompt : Openai_types.message list =
          ~pending_user:prompt
   else
     [ capability_message
-    ; ({ Openai_types.role = "user"; content = prompt } : Openai_types.message)
+    ; ({ Openai_types.role = "user"; content = prompt; extra = [] }
+        : Openai_types.message)
     ]
 ;;
 

@@ -259,6 +259,7 @@ let handle_text_message
         @ Session_memory.request_messages session_limits conversation ~pending_user:text
     ; stream = false
     ; max_tokens = None
+    ; extra = []
     }
   in
   Router.dispatch_chat store ~authorization request

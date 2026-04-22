@@ -66,6 +66,23 @@ let chat_delta_chunk (response : Openai_types.chat_response) part =
     ]
 ;;
 
+let chat_reasoning_delta_chunk (response : Openai_types.chat_response) part =
+  `Assoc
+    [ "id", `String response.id
+    ; "object", `String "chat.completion.chunk"
+    ; "created", `Int response.created
+    ; "model", `String response.model
+    ; ( "choices"
+      , `List
+          [ `Assoc
+              [ "index", `Int 0
+              ; "delta", `Assoc [ "reasoning_content", `String part ]
+              ; "finish_reason", `Null
+              ]
+          ] )
+    ]
+;;
+
 let chat_outro_chunk (response : Openai_types.chat_response) =
   `Assoc
     [ "id", `String response.id
@@ -187,6 +204,9 @@ let respond_chat_stream (stream : Provider_client.chat_stream) =
         | Some (Provider_client.Text_delta part) ->
           push (Some (encode (chat_delta_chunk response part)));
           loop ()
+        | Some (Provider_client.Reasoning_delta part) ->
+          push (Some (encode (chat_reasoning_delta_chunk response part)));
+          loop ()
       in
       loop ())
 ;;
@@ -233,6 +253,8 @@ let respond_response_stream ~response (stream : Provider_client.chat_stream) =
         | Some (Provider_client.Text_delta part) ->
           let event, json = response_delta_event part in
           push (Some (encode ?event json));
+          loop ()
+        | Some (Provider_client.Reasoning_delta _) ->
           loop ()
       in
       loop ())

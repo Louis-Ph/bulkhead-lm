@@ -156,6 +156,7 @@
         "kimi-latest",
         "kimi-k2",
         "kimi-k2.5",
+        "kimi-k2.6",
         "deepseek-v3",
         "deepseek-r1",
         "deepseek-r1-lite",
@@ -532,6 +533,18 @@
           "provider_id": "moonshot-kimi-k2-5",
           "provider_kind": "moonshot_openai",
           "upstream_model": "kimi-k2.5",
+          "api_base": "https://api.moonshot.ai/v1",
+          "api_key_env": "MOONSHOT_API_KEY"
+        }
+      ]
+    },
+    {
+      "public_model": "kimi-k2.6",
+      "backends": [
+        {
+          "provider_id": "moonshot-kimi-k2-6",
+          "provider_kind": "moonshot_openai",
+          "upstream_model": "kimi-k2.6",
           "api_base": "https://api.moonshot.ai/v1",
           "api_key_env": "MOONSHOT_API_KEY"
         }

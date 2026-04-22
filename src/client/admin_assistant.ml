@@ -224,9 +224,11 @@ let prepare_plan store ~authorization ~model ~config_path goal =
   let messages : Openai_types.message list =
     [ { Openai_types.role = "system"
       ; content = Admin_assistant_constants.Prompt.system_instruction
+      ; extra = []
       }
     ; { Openai_types.role = "user"
       ; content = plan_user_message store ~config_path ~goal
+      ; extra = []
       }
     ]
   in

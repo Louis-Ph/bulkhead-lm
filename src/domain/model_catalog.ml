@@ -471,6 +471,16 @@ let provider_families =
           ; capabilities = [ "chat" ]
           ; docs_url = Some "https://platform.moonshot.ai/docs"
           }
+        ; { key = "kimi-k2.6"
+          ; public_model = "kimi-k2.6"
+          ; upstream_model = "kimi-k2.6"
+          ; family_label = "Kimi"
+          ; version_label = Some "K2.6"
+          ; mode_label = Some "standard"
+          ; lifecycle = Stable
+          ; capabilities = [ "chat" ]
+          ; docs_url = Some "https://platform.moonshot.ai/docs"
+          }
         ]
     }
   ]

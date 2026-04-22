@@ -189,17 +189,19 @@ let build_chat_request store ?model ?max_tokens ?(stream = false) messages =
     ; messages
     ; stream
     ; max_tokens
+    ; extra = []
     })
 ;;
 
 let build_ask_request store ?model ?system ?max_tokens ?(stream = false) prompt =
   let base_messages : Openai_types.message list =
-    [ { Openai_types.role = "user"; content = prompt } ]
+    [ { Openai_types.role = "user"; content = prompt; extra = [] } ]
   in
   let messages =
     match system with
     | Some content when String.trim content <> "" ->
-      ({ Openai_types.role = "system"; content } : Openai_types.message) :: base_messages
+      ({ Openai_types.role = "system"; content; extra = [] } : Openai_types.message)
+      :: base_messages
     | _ -> base_messages
   in
   build_chat_request store ?model ?max_tokens ~stream messages
@@ -210,6 +212,23 @@ let run_ask store ~authorization request =
   >|= Result.map (fun response -> Chat_response response)
 ;;
 
+let response_with_streamed_text (response : Openai_types.chat_response) streamed_text =
+  if streamed_text = ""
+  then response
+  else
+    match response.choices with
+    | [] -> response
+    | first_choice :: remaining_choices ->
+      { response with
+        choices =
+          { first_choice with
+            message =
+              { first_choice.message with content = streamed_text }
+          }
+          :: remaining_choices
+      }
+;;
+
 let run_ask_stream store ~authorization request ~on_delta =
   Router.dispatch_chat_stream store ~authorization { request with Openai_types.stream = true }
   >>= function
@@ -217,11 +236,19 @@ let run_ask_stream store ~authorization request ~on_delta =
   | Ok stream ->
     Lwt.finalize
       (fun () ->
+        let streamed_text = Buffer.create 256 in
         let rec drain () =
           Lwt_stream.get stream.Provider_client.events
           >>= function
-          | None -> Lwt.return (Ok (Chat_response stream.response))
-          | Some (Provider_client.Text_delta text) -> on_delta text >>= drain
+          | None ->
+            let response =
+              response_with_streamed_text stream.response (Buffer.contents streamed_text)
+            in
+            Lwt.return (Ok (Chat_response response))
+          | Some (Provider_client.Text_delta text) ->
+            Buffer.add_string streamed_text text;
+            on_delta text >>= drain
+          | Some (Provider_client.Reasoning_delta _) -> drain ()
         in
         drain ())
       stream.close

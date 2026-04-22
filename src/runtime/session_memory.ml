@@ -43,6 +43,12 @@ let normalize_text text =
   |> String.concat " "
 ;;
 
+let has_content text = String.trim text <> ""
+
+let turn_if_non_empty role content =
+  if has_content content then Some { role; content } else None
+;;
+
 let abbreviate_text limits text =
   let normalized = normalize_text text in
   if String.length normalized <= limits.turn_excerpt_chars
@@ -113,11 +119,13 @@ let maybe_compress limits conversation =
 ;;
 
 let commit_exchange limits conversation ~user ~assistant =
+  let committed_turns =
+    [ turn_if_non_empty User user; turn_if_non_empty Assistant assistant ]
+    |> List.filter_map Fun.id
+  in
   let updated =
     { conversation with
-      recent_turns =
-        conversation.recent_turns
-        @ [ { role = User; content = user }; { role = Assistant; content = assistant } ]
+      recent_turns = conversation.recent_turns @ committed_turns
     }
   in
   maybe_compress limits updated
@@ -126,16 +134,24 @@ let commit_exchange limits conversation ~user ~assistant =
 let clear () = empty
 
 let system_summary_message limits summary : Openai_types.message =
-  { Openai_types.role = "system"; content = limits.summary_intro ^ "\n\n" ^ summary }
+  { Openai_types.role = "system"
+  ; content = limits.summary_intro ^ "\n\n" ^ summary
+  ; extra = []
+  }
 ;;
 
-let turn_to_message (turn : turn) : Openai_types.message =
-  { Openai_types.role =
-      (match turn.role with
-       | User -> "user"
-       | Assistant -> "assistant")
-  ; content = turn.content
-  }
+let turn_to_message (turn : turn) : Openai_types.message option =
+  if not (has_content turn.content)
+  then None
+  else
+    Some
+      { Openai_types.role =
+          (match turn.role with
+           | User -> "user"
+           | Assistant -> "assistant")
+      ; content = turn.content
+      ; extra = []
+      }
 ;;
 
 let request_messages limits conversation ~pending_user : Openai_types.message list =
@@ -145,8 +161,10 @@ let request_messages limits conversation ~pending_user : Openai_types.message li
     | Some summary -> [ system_summary_message limits summary ]
   in
   summary_messages
-  @ List.map turn_to_message conversation.recent_turns
-  @ [ ({ Openai_types.role = "user"; content = pending_user } : Openai_types.message) ]
+  @ List.filter_map turn_to_message conversation.recent_turns
+  @ [ ({ Openai_types.role = "user"; content = pending_user; extra = [] }
+        : Openai_types.message)
+    ]
 ;;
 
 let stats conversation =

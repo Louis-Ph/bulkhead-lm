@@ -3,7 +3,11 @@ let sample_chat_response ~model ~content () =
   ; created = 1_700_000_000
   ; model
   ; choices =
-      [ { index = 0; message = { role = "assistant"; content }; finish_reason = "stop" } ]
+      [ { index = 0
+        ; message = { role = "assistant"; content; extra = [] }
+        ; finish_reason = "stop"
+        }
+      ]
   ; usage = { prompt_tokens = 1; completion_tokens = 1; total_tokens = 2 }
   }
 ;;

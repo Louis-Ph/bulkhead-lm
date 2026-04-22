@@ -388,6 +388,41 @@ let starter_conversation_replace_with_summary_test _switch () =
   | [] -> Alcotest.fail "expected replacement summary message"
 ;;
 
+let starter_conversation_skips_empty_assistant_turns_test _switch () =
+  let conversation, _ =
+    Bulkhead_lm.Starter_conversation.commit_exchange
+      Bulkhead_lm.Starter_conversation.empty
+      ~user:"hello"
+      ~assistant:"   "
+  in
+  let stats = Bulkhead_lm.Starter_conversation.stats conversation in
+  Alcotest.(check int)
+    "empty assistant turn is not committed"
+    1
+    stats.recent_turn_count;
+  let recovered_messages =
+    Bulkhead_lm.Starter_conversation.request_messages
+      { conversation with
+        recent_turns =
+          conversation.recent_turns
+          @ [ { Bulkhead_lm.Starter_conversation.role = Bulkhead_lm.Starter_conversation.Assistant
+              ; content = ""
+              }
+            ]
+      }
+      ~pending_user:"follow-up"
+  in
+  Alcotest.(check (list string))
+    "request replay skips empty historical turns"
+    [ "user"; "user" ]
+    (List.map (fun (message : Bulkhead_lm.Openai_types.message) -> message.role) recovered_messages);
+  Alcotest.(check (list string))
+    "request replay keeps only meaningful content"
+    [ "hello"; "follow-up" ]
+    (List.map (fun (message : Bulkhead_lm.Openai_types.message) -> message.content) recovered_messages);
+  Lwt.return_unit
+;;
+
 let starter_terminal_history_file_prefers_override_test _switch () =
   let file =
     Bulkhead_lm.Starter_terminal.history_file
@@ -419,6 +454,7 @@ let tests =
   ; Alcotest_lwt.test_case "starter conversation compresses old turns" `Quick starter_conversation_compresses_old_turns_test
   ; Alcotest_lwt.test_case "starter conversation request messages include summary" `Quick starter_conversation_request_messages_include_summary_test
   ; Alcotest_lwt.test_case "starter conversation replace with summary" `Quick starter_conversation_replace_with_summary_test
+  ; Alcotest_lwt.test_case "starter conversation skips empty assistant turns" `Quick starter_conversation_skips_empty_assistant_turns_test
   ; Alcotest_lwt.test_case "starter terminal history file prefers override" `Quick starter_terminal_history_file_prefers_override_test
   ]
 ;;

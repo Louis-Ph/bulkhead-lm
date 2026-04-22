@@ -198,7 +198,7 @@ let rec
                 with
                 | Error err -> stream.close () >|= fun () -> Error err
                 | Ok response ->
-                  stream.close () >|= fun () -> Ok (Provider_stream.of_chat_response response))
+                  Lwt.return (Ok { stream with Provider_client.response = response }))
              | Error err -> stream.close () >|= fun () -> Error err)
           | Error err ->
             if Domain_error.is_retryable err

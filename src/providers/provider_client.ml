@@ -7,6 +7,7 @@ type upstream_context =
 
 type chat_stream_event =
   | Text_delta of string
+  | Reasoning_delta of string
 
 type chat_stream =
   { response : Openai_types.chat_response
