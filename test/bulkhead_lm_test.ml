@@ -1,5 +1,6 @@
 open Lwt.Infix
 open Bulkhead_lm_test_foundation_security
+open Bulkhead_lm_test_paths
 open Bulkhead_lm_test_persistence_control_bootstrap
 
 let starter_terminal_completes_commands_and_models_test _switch () =
@@ -300,7 +301,7 @@ let admin_assistant_applies_config_edits_test _switch () =
     Yojson.Safe.to_file
       security_path
       (Yojson.Safe.from_file
-         (Filename.concat (repo_root ()) "config/defaults/security_policy.json"));
+         (config_path "config/defaults/security_policy.json"));
     Yojson.Safe.to_file
       gateway_path
       (`Assoc

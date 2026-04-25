@@ -385,18 +385,6 @@ let with_temp_dir prefix f =
       Lwt.return_unit)
 ;;
 
-let repo_root () =
-  let marker = "config/defaults/security_policy.json" in
-  let rec search path =
-    if Sys.file_exists (Filename.concat path marker)
-    then path
-    else
-      let parent = Filename.dirname path in
-      if String.equal parent path then failwith "unable to locate repository root" else search parent
-  in
-  search (Sys.getcwd ())
-;;
-
 let write_fixture_file path content =
   let channel = open_out_bin path in
   Fun.protect

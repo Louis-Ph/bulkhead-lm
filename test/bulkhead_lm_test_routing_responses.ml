@@ -1,5 +1,6 @@
 open Lwt.Infix
 open Bulkhead_lm_test_foundation_security
+open Bulkhead_lm_test_paths
 
 let output_guard_blocks_secret_material_test _switch () =
   let cfg =
@@ -255,9 +256,7 @@ let egress_blocks_localhost_test _switch () =
 ;;
 
 let ollama_local_security_overlay_allows_private_egress_test _switch () =
-  let policy_path =
-    Filename.concat (Sys.getcwd ()) "config/defaults/security_policy.ollama_local.json"
-  in
+  let policy_path = config_path "config/defaults/security_policy.ollama_local.json" in
   let policy = Bulkhead_lm.Security_policy.load_file policy_path in
   Alcotest.(check bool)
     "overlay allows loopback ollama"

@@ -1,5 +1,6 @@
 open Lwt.Infix
 open Bulkhead_lm_test_foundation_security
+open Bulkhead_lm_test_paths
 open Bulkhead_lm_test_persistence_control_bootstrap
 
 let worker_rejects_malformed_json_lines_test _switch () =
@@ -240,7 +241,7 @@ let starter_saved_config_derives_local_only_catalog_references_test _switch () =
 
 let starter_saved_config_bootstraps_first_run_file_test _switch () =
   let repo = repo_root () in
-  let base_config_path = Filename.concat repo "config/example.gateway.json" in
+  let base_config_path = config_path "config/example.gateway.json" in
   let output_path =
     Filename.concat repo "config/local_only/starter.bootstrap.test.gateway.json"
   in
@@ -275,7 +276,7 @@ let starter_saved_config_bootstraps_first_run_file_test _switch () =
 
 let starter_saved_config_migrates_legacy_catalog_references_test _switch () =
   let repo = repo_root () in
-  let base_config_path = Filename.concat repo "config/example.gateway.json" in
+  let base_config_path = config_path "config/example.gateway.json" in
   let output_path =
     Filename.concat repo "config/local_only/starter.migrate.test.gateway.json"
   in
@@ -375,7 +376,7 @@ let starter_profile_exposes_multiple_models_per_provider_test _switch () =
 ;;
 
 let example_gateway_exposes_multiple_models_per_provider_test _switch () =
-  let example_path = Filename.concat (Sys.getcwd ()) "config/example.gateway.json" in
+  let example_path = config_path "config/example.gateway.json" in
   match Bulkhead_lm.Config.load example_path with
   | Error err -> Alcotest.failf "failed to load example config: %s" err
   | Ok config ->
@@ -430,9 +431,7 @@ let example_gateway_exposes_multiple_models_per_provider_test _switch () =
 ;;
 
 let example_ollama_swarm_gateway_loads_test _switch () =
-  let example_path =
-    Filename.concat (Sys.getcwd ()) "config/example.ollama_swarm.gateway.json"
-  in
+  let example_path = config_path "config/example.ollama_swarm.gateway.json" in
   match Bulkhead_lm.Config.load example_path with
   | Error err -> Alcotest.failf "failed to load ollama swarm config: %s" err
   | Ok config ->
