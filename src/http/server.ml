@@ -109,8 +109,7 @@ let route_with_catalog_json (route : Config.route) =
 
 (* Read the cached on-disk discovery for a provider (no live fetch). The
    /v1/models endpoint must respond promptly, so we only surface what /discover
-   has already populated; clients can call /discover from the wizard or
-   trigger /v1/providers/refresh-models to refresh. *)
+   or /refresh-models has already populated from the starter. *)
 let discovered_section_for_family (family : Model_catalog.provider_family) =
   match Model_listing_cache.load_cached ~provider_key:family.key () with
   | None -> None

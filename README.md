@@ -8,7 +8,7 @@ In other words: it looks like a hardened bulkhead, but it behaves like a high-tr
 
 New here? Start with the very simple guide: [readme_for_dummies.md](readme_for_dummies.md)
 
-BulkheadLM is a security-first LLM gateway written in OCaml. It exposes an OpenAI-compatible API, routes requests across explicit provider backends, and keeps routing, security policy, and error behavior in hierarchical JSON instead of ad-hoc runtime discovery.
+BulkheadLM is a security-first LLM gateway written in OCaml. It exposes an OpenAI-compatible API, routes requests across explicit provider backends, and keeps routing, security policy, and error behavior in hierarchical JSON. Optional provider model discovery is read-only, bounded, and cached; it never replaces explicit route configuration.
 
 It targets multi-provider LLM gateway routing with a stricter design bias: explicit module boundaries, explicit provider registration, bounded fallback, fail-closed egress, and auditable request controls.
 
@@ -36,6 +36,7 @@ It targets multi-provider LLM gateway routing with a stricter design bias: expli
 - request body limits and upstream request timeouts
 - retry-aware fallback that avoids failing over on permanent upstream errors
 - multicore-safe budget and rate-limit state with a `Domain.spawn` test
+- read-only provider model discovery through configured `/models` endpoints, with a 24-hour on-disk cache and stale fallback
 - Telegram, WhatsApp Cloud API, Facebook Messenger, Instagram Direct, LINE, Viber, WeChat Service Account, Discord Interactions, and Google Chat user connectors over webhook, with per-conversation memory routed through normal BulkheadLM virtual-key auth
 
 ## Connector rollout roadmap
@@ -354,7 +355,8 @@ The starter:
 - can expose a browser-based admin control plane with live route status and hot config reload under `security_policy.control_plane`
 - includes a guided packaging flow that can build a distributable package for macOS, Ubuntu, or FreeBSD from the same assistant terminal
 - shows masked environment and provider readiness state from inside the REPL
-- drops you into a simple terminal session with `/tools`, `/file PATH`, `/files`, `/clearfiles`, `/explore PATH`, `/open PATH`, `/run CMD`, `/admin TEXT`, `/control`, `/package`, `/plan`, `/apply`, `/discard`, `/model`, `/models`, `/swap`, `/memory`, `/memory replace TEXT`, `/forget`, `/thread on|off`, `/providers`, `/env`, `/config`, `/help`, and `/quit`
+- can list live or cached upstream model inventories with `/discover` and force a refetch with `/refresh-models`
+- drops you into a simple terminal session with `/tools`, `/file PATH`, `/files`, `/clearfiles`, `/explore PATH`, `/open PATH`, `/run CMD`, `/admin TEXT`, `/control`, `/package`, `/plan`, `/apply`, `/discard`, `/model`, `/models`, `/swap`, `/memory`, `/memory replace TEXT`, `/forget`, `/thread on|off`, `/providers`, `/discover`, `/refresh-models`, `/env`, `/config`, `/help`, and `/quit`
 
 Admin assistant flow inside the starter:
 
@@ -599,6 +601,11 @@ Each `/v1/models` item now keeps the route alias explicit and also includes
 `configured_backends` so you can see the actual upstream mapping without
 guessing from short aliases alone.
 
+The same response also includes a top-level `providers` array. Each provider
+group keeps its credential environment variable, API base URL, curated route
+models, and any cached `discovered_models` previously populated by the starter
+with `/discover` or `/refresh-models`.
+
 Then call a routed model once at least one upstream provider key is exported in your shell:
 
 ```bash
@@ -673,6 +680,40 @@ Vertex example routes keep `YOUR_PROJECT` as an explicit placeholder in the Open
 Meta's Llama API entries reflect the public preview announced on `2025-04-29`, so tenant access and exact upstream IDs can still evolve.
 
 These curated route families were last aligned with official provider docs on `2026-04-14`. They are not a claim that BulkheadLM enumerates every upstream model a provider may ever expose.
+
+### Provider model discovery
+
+Curated routes remain the production routing source of truth. Discovery is a
+separate inspection layer that helps you see what each configured provider key
+can currently access:
+
+```text
+/discover
+/refresh-models
+```
+
+`/discover` checks providers that have a detected API key, prefers fresh cached
+listings, and prints the provider hierarchy as provider -> upstream models.
+`/refresh-models` skips the cache and asks each provider API again.
+
+The cache lives under `$BULKHEAD_LM_MODEL_CACHE_DIR` when set. Otherwise it uses
+`$XDG_CACHE_HOME/bulkhead-lm/models`, falling back to
+`~/.cache/bulkhead-lm/models`. Cache files are per provider, written with
+restrictive permissions, and are considered fresh for 24 hours. If a refresh
+fails but an older cache exists, the starter shows the cached listing as stale
+with the last fetch error.
+
+Discovery uses only the provider family already known to BulkheadLM:
+
+- OpenAI-compatible providers call `{api_base}/models` with bearer auth.
+- Anthropic uses its `x-api-key` and `anthropic-version` headers and follows
+  `has_more` / `last_id` pagination.
+- Bulkhead peer and SSH peer providers are reported as unsupported for public
+  model listing.
+
+The gateway's `/v1/models` endpoint never performs a live network refresh. It
+only exposes configured route metadata plus whatever discovery cache is already
+present, so model listing stays fast and route selection stays explicit.
 
 Ollama is also supported through its OpenAI-compatible interface, for example on `http://127.0.0.1:11434/v1` with a local model such as `llama3.2`.
 
@@ -767,9 +808,13 @@ docs/
   SECURITY.md
 
 scripts/
+  build_dist_package.sh
   integration_matrix.sh
+  linux_starter.sh
   macos_starter.sh
+  smoke_ollama.sh
   starter_common.sh
+  toolchain_env.sh
   ubuntu_starter.sh
   freebsd_starter.sh
   remote_common.sh
@@ -783,11 +828,14 @@ src/
   security/
   runtime/
   providers/
+    provider_models_listing.ml
   http/
   persistence/
+    model_listing_cache.ml
 
 test/
   bulkhead_lm_test.ml
+  bulkhead_lm_test_paths.ml
 ```
 
 See [Architecture](docs/ARCHITECTURE.md) for the layer-by-layer design.
@@ -798,12 +846,13 @@ BulkheadLM is a hardening-oriented gateway, not a certification claim.
 
 Current built-in controls include:
 
-- explicit upstream allow/deny decisions instead of runtime discovery
+- explicit upstream allow/deny decisions instead of runtime route discovery
 - no implicit forwarding of client `authorization` or `x-api-key` headers upstream
 - bounded fallback routing
 - request size and timeout enforcement
 - persistent audit logging
 - request and token budget enforcement before uncontrolled fan-out
+- provider model discovery is bounded to configured provider API bases and cached on disk; it does not rewrite routes
 - bounded worker concurrency with per-request output isolation on stdio
 
 Detailed references:
@@ -834,6 +883,7 @@ The current suite covers:
 - SSE framing for `chat/completions` and `responses`
 - persistence survival across restart
 - audit-log persistence
+- config fixture path resolution from any test working directory
 
 Run the full suite with:
 
@@ -847,7 +897,8 @@ dune build @runtest
 - provider coverage is intentionally narrow and explicit
 - Moonshot is currently modeled as chat-only in the provider schema
 - the worker protocol is currently JSONL over stdio rather than a binary IPC protocol
-- the guided local starter currently targets macOS, Ubuntu, and FreeBSD; other systems should use `bulkhead-lm-client starter` directly
+- provider model discovery is an inspection/cache feature, not a guarantee that every upstream model is routable through the current config
+- the guided local starter targets any Linux distro with a supported package manager, macOS, and FreeBSD
 - military or sovereign-environment compliance still requires deployment hardening, supply-chain evidence, identity integration, and formal assessment artifacts
 
 ## License

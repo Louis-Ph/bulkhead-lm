@@ -4,6 +4,13 @@
 
 ### Added
 
+- **Provider model discovery** for the starter:
+  - New `/discover` command lists upstream models exposed by detected provider API keys
+  - New `/refresh-models` command bypasses the cache and refetches provider listings
+  - OpenAI-compatible providers use `{api_base}/models`; Anthropic uses its native headers and pagination
+  - Provider listings are cached per provider under the XDG cache path or `BULKHEAD_LM_MODEL_CACHE_DIR`
+  - `/v1/models` now includes provider groups and cached `discovered_models` when present, without doing live network refreshes
+
 - **6 new direct provider kinds**: `deepseek_openai`, `groq_openai`, `perplexity_openai`, `together_openai`, `cerebras_openai`, `cohere_openai`
   - All six dispatch through the existing OpenAI-compatible adapter (`Openai_compat_provider`)
   - New env vars: `DEEPSEEK_API_KEY`, `GROQ_API_KEY`, `PERPLEXITY_API_KEY`, `TOGETHER_API_KEY`, `CEREBRAS_API_KEY`, `COHERE_API_KEY`
@@ -24,3 +31,5 @@
 
 - `README.md`: expanded provider table to 19 kinds with key env vars, API base URLs, and route counts
 - `readme_for_dummies.md`: added DeepSeek, Groq, Cerebras, Perplexity, Together AI, Cohere to cheapest-path guide and key-variable reference
+- `scripts/smoke_ollama.sh`: switched from zsh-specific syntax to POSIX `sh` so CI and minimal Unix environments can run the smoke wrapper
+- test fixture path handling now resolves config files from the repository root instead of assuming the current working directory

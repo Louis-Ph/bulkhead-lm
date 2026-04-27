@@ -26,9 +26,10 @@ BulkheadLM is not just a locked-down gateway. Architecturally, it is a secure AI
 - `src/runtime/`: in-memory state, budget ledger, rate limiting, routing
 - `src/connectors/`: user-facing chat connectors that translate external chat platforms into normal BulkheadLM requests
 - `src/providers/`: upstream adapters by provider family
+- `src/providers/provider_models_listing.ml`: bounded read-only fetcher for provider `/models` inventories
 - `src/providers/ssh_peer_protocol.ml`: JSONL-over-SSH envelope used by `bulkhead_ssh_peer`
 - `src/http/`: HTTP handlers and SSE serialization
-- `src/persistence/`: SQLite-backed persistence for keys, budgets, and audit events
+- `src/persistence/`: SQLite-backed persistence for keys, budgets, and audit events, plus file-backed provider model listing caches
 - `test/`: behavior, security, and concurrency invariants
 
 ## Request flow for `/v1/chat/completions`
@@ -53,6 +54,16 @@ BulkheadLM is not just a locked-down gateway. Architecturally, it is a secure AI
 - it then emits a consistent `text/event-stream` format to the client
 - this keeps the external contract stable even though provider-native streaming is not yet wired per backend
 
+## Provider Model Discovery
+
+- production routing still comes from explicit JSON routes; discovered models do not auto-create or rewrite routes
+- `Provider_models_listing` fetches model inventories only from known provider `api_base` values and normalizes OpenAI-compatible and Anthropic response shapes
+- unsupported provider families such as `bulkhead_peer` and `bulkhead_ssh_peer` return a typed unsupported result instead of a synthetic listing
+- `Model_listing_cache` stores one JSON file per provider under `$BULKHEAD_LM_MODEL_CACHE_DIR`, `$XDG_CACHE_HOME/bulkhead-lm/models`, or `~/.cache/bulkhead-lm/models`
+- cache freshness is explicit: live, fresh cached, or stale fallback with the last fetch error
+- `/discover` and `/refresh-models` are starter commands that populate or refresh the cache for providers with detected API keys
+- `/v1/models` exposes configured route metadata plus cached `providers[].discovered_models` when present; it does not perform live provider network calls
+
 ## Terminal client and worker mode
 
 - `bulkhead-lm-client ask` dispatches directly against the shared runtime without starting the HTTP server
@@ -68,10 +79,11 @@ BulkheadLM is not just a locked-down gateway. Architecturally, it is a secure AI
 - `Starter_conversation` keeps a compressed local transcript and converts older turns into a shorter summary message
 - `Starter_saved_config` owns first-run bootstrap and safe migration of the git-ignored local starter config under `config/local_only/`
 - `Starter_runtime` isolates mutable starter session data, such as conversation memory and pending admin plans, from the finite-state command parser
-- `Starter_session` models the starter REPL as a finite-state machine with explicit `Ready`, `Streaming`, and `Closed` states plus explicit admin-plan effects
+- `Starter_session` models the starter REPL as a finite-state machine with explicit `Ready`, `Streaming`, and `Closed` states plus explicit admin-plan and discovery effects
 - `Starter_terminal` owns human-facing line editing, persistent history, and slash-command/model completion
 - `/control` is a factual starter command that renders the current HTTP control-plane status and exact URLs from the active config instead of delegating that answer to model guesswork
 - `/package` is a guided starter flow that builds a distributable OS-native package from either a source checkout or an installed BulkheadLM tree
+- `/discover` and `/refresh-models` render provider -> model inventories from the cache/discovery layer without mixing that concern into route selection
 - `ask` and `call` are isolated per-process invocations, while `worker` is the mode intended to coordinate many concurrent local jobs through one runtime instance
 - worker outputs are serialized under a dedicated stdout lock so parallel jobs do not interleave their JSON lines
 - shared rate-limit, budget, and persistence state remain protected by the existing `Mutex` and SQLite locking strategy
@@ -108,12 +120,14 @@ BulkheadLM is not just a locked-down gateway. Architecturally, it is a secure AI
 - `virtual_keys` stores hashed virtual keys, budgets, request ceilings, and route allowlists
 - `budget_usage` persists daily consumption across restarts
 - `audit_log` persists security-relevant gateway events and statuses
+- provider model listings are file-backed JSON cache entries outside the gateway database because they are provider metadata, not security audit state
 
 ## Intentional design choices
 
 - hierarchical JSON configuration instead of scattered literals
 - a dedicated client layer instead of burying terminal and worker behavior inside the HTTP server
 - explicit separation between security policy, runtime state, and provider adapters
+- explicit separation between curated routing config and provider model discovery cache
 - fail-closed egress defaults
 - no implicit propagation of client secrets to upstream providers
 - reflexive BulkheadLM peering is explicit as `bulkhead_peer`, with bounded hop count by policy

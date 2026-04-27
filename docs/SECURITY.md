@@ -25,12 +25,14 @@ technical control set and current gaps.
 - threat detection blocks prompt-injection, credential-exfiltration, and tool-abuse signals before provider execution
 - output guard blocks private-key material and other configured secret markers before responses are returned
 - upstream provider calls are time-boxed by configured request timeout policy
+- provider model discovery is limited to configured provider API bases, clamps response size, uses timeouts, and writes only provider-scoped cache files
 - audit events are durably stored when SQLite persistence is enabled
 
 ## Safety decisions
 
 - the gateway does not implicitly forward client `authorization` or `x-api-key` headers upstream
-- upstream URLs are not discovered dynamically
+- upstream routing URLs are not discovered dynamically; optional model discovery only reads `/models` from already configured provider bases
+- cached provider listings are inspection metadata and do not authorize or create routable models
 - there is no mandatory telemetry pipeline
 - smoke tests read provider credentials from the local environment, never from the repository
 

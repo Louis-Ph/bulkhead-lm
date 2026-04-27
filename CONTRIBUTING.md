@@ -61,6 +61,7 @@ dune exec bulkhead-lm -- --config config/example.gateway.json
 - beginner entrypoints under `scripts/` and `.command` launchers should stay thin wrappers around the library-backed client flow
 - starter command names, defaults, and help text should stay centralized in `src/client/starter_constants.ml`
 - starter REPL changes should preserve the explicit state machine in `src/client/starter_session.ml`
+- provider model discovery changes should keep route configuration explicit, update both `Provider_models_listing` and `Model_listing_cache` tests/docs when behavior changes, and document cache/security impacts
 - provider additions should update the config schema, example config, and smoke or integration scripts when appropriate
 
 ## Pull requests

@@ -639,12 +639,22 @@ It can:
 2. Show which models are ready.
    `/models` now also shows the provider family, the upstream model id, and the
    version or mode when BulkheadLM knows them, so short aliases are less opaque.
-3. Let you choose a model.
-4. Open a simple chat.
-5. Let you attach a local text file with `/file PATH`.
-6. Let you explore folders with `/explore`, open a text file with `/open`, and run one safe local command with `/run`.
-7. Help configure BulkheadLM with `/admin`.
-8. Help build a distributable package with `/package`.
+3. Show the bigger model list that each provider account exposes with
+   `/discover`.
+4. Refresh that provider model list with `/refresh-models` when you want to ask
+   the provider again instead of using the cache.
+5. Let you choose a model.
+6. Open a simple chat.
+7. Let you attach a local text file with `/file PATH`.
+8. Let you explore folders with `/explore`, open a text file with `/open`, and run one safe local command with `/run`.
+9. Help configure BulkheadLM with `/admin`.
+10. Help build a distributable package with `/package`.
+
+Important:
+`/models` means "models BulkheadLM can route through this config."
+`/discover` means "models your provider account says exist right now."
+Discovery helps you inspect providers, but it does not secretly change your
+routes.
 
 ## Your first chat
 
@@ -667,6 +677,8 @@ what can you do for me?
 /tools
 /models
 /providers
+/discover
+/refresh-models
 /env
 /file README.md
 /files
