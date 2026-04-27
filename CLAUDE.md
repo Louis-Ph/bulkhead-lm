@@ -122,3 +122,11 @@ non-Claude-Code IDEs (Cursor, ChatGPT, Copilot Chat).
 Update `docs/SECURITY.md`, add a test in `test/`, and call out the change
 in the PR description. Default permission expansions need an explicit
 opt-in flag.
+
+## Why OCaml (project philosophy)
+
+This project follows an "anti-slop" stance: when code builds, it works.
+The argument and the trajectory toward demonstrative programming with
+Rocq (formerly Coq) live in [docs/MANIFESTO_OCAML.md](docs/MANIFESTO_OCAML.md).
+Read it once if you are about to write a non-trivial patch or to argue
+about technical direction in a PR.

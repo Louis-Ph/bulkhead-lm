@@ -4,6 +4,27 @@
 
 ### Added
 
+- **Windows install path** with a fault-tolerant decision tree
+  (`INSTALL_PROMPT.md` Step 1b): the LLM operator probes WSL, Docker
+  Desktop and admin rights in PowerShell and routes the user to one
+  of three branches — WSL2 + Ubuntu (path A, recommended), Docker
+  Desktop (path B, no admin needed), or cloud Ubuntu via SSH (path C,
+  fully locked-down machines). Each path includes the exact failing-mode
+  fixes (DISM enable WSL/VirtualMachinePlatform, `wsl --shutdown` after
+  resolv.conf, OpenSSH client install). README and readme_for_dummies
+  updated with the same three-path summary.
+
+- **Anti-slop OCaml manifesto** at `docs/MANIFESTO_OCAML.md`: the
+  philosophical case for OCaml as the on-ramp toward demonstrative
+  programming with Rocq (the OCaml-ecosystem proof assistant formerly
+  known as Coq), given AI-assisted code generation at scale. The case
+  is grounded in concrete BulkheadLM examples (sum types,
+  `unavailable_reason` in the pool selector, exhaustive match on
+  `provider_kind`, no implicit secret propagation) and includes the
+  multi-year trajectory from "if it builds, it works" toward
+  proof-carrying critical paths. Referenced from README's Security
+  and compliance section and from CLAUDE.md.
+
 - **Multi-persona Telegram bots** for "group chat where each member is a
   different model or pool":
   - `Config.user_connectors.telegram` is now a list, so several Telegram

@@ -38,11 +38,20 @@ Then BulkheadLM asks you simple questions and opens a chat.
 | --- | --- |
 | macOS MacBook | `curl -fsSL .../install.sh \| sh` in Terminal |
 | Any Linux (Ubuntu, Debian, Fedora, Arch, Alpine ...) | `curl -fsSL .../install.sh \| sh` |
-| Windows computer | Use WSL Ubuntu, then run the one-liner inside WSL |
+| Windows 10/11 with admin rights | `wsl --install -d Ubuntu` in PowerShell, then the one-liner inside Ubuntu |
+| Windows without admin rights | Docker Desktop OR SSH to a small cloud Ubuntu VM |
 | Chromebook / ChromeOS | Use the Linux Terminal if available, or SSH to a cloud machine |
 | FreeBSD machine | `curl -fsSL .../install.sh \| sh` |
 | Android phone | SSH to a cloud machine already running BulkheadLM |
 | Tablet or iPad | SSH to a cloud machine already running BulkheadLM |
+
+> **Windows tip.** The full Windows decision tree (probe what is
+> already there, pick WSL or Docker or cloud, exact PowerShell
+> commands, fallback for "WSL won't install") lives in
+> [INSTALL_PROMPT.md](INSTALL_PROMPT.md). Open Claude, Cursor or
+> ChatGPT, paste that file, and the LLM walks you through the
+> branches in plain English. Estimated time on a fresh Windows box: 8
+> to 12 minutes the first run.
 
 ## Fastest free first success: OpenRouter
 
@@ -494,22 +503,84 @@ curl -fsSL https://raw.githubusercontent.com/Louis-Ph/bulkhead-lm/main/install.s
 
 The installer detects your package manager (apt, dnf, pacman, apk, zypper) and installs everything automatically.
 
-## Windows with WSL: easiest local start
+## Windows: three easy paths
 
-1. Open PowerShell as Administrator.
-2. Install WSL Ubuntu:
+Windows does not run OCaml well on its own, so BulkheadLM hides on top
+of a small Linux helper. Pick the FIRST path that works.
+
+### Path A — WSL (best if you have admin rights)
+
+1. Open PowerShell as Administrator (right-click PowerShell, "Run as
+   administrator").
+2. Install WSL Ubuntu in one command:
 
 ```powershell
 wsl --install -d Ubuntu
 ```
 
-3. Restart if Windows asks, then open the Ubuntu app.
-4. Inside WSL, run:
+3. Restart if Windows asks. Ubuntu opens by itself, asks for a
+   username and password (any value, this is local).
+4. Inside the Ubuntu prompt:
 
 ```bash
 printf '%s\n' 'export GOOGLE_API_KEY="paste-your-key-here"' >> ~/.bashrc.secret
 curl -fsSL https://raw.githubusercontent.com/Louis-Ph/bulkhead-lm/main/install.sh | sh
 ```
+
+5. From a Windows browser, the gateway is at `http://localhost:4100`
+   (WSL forwards the port automatically).
+
+### Path B — Docker Desktop (works without admin)
+
+1. Install Docker Desktop from `https://www.docker.com/products/docker-desktop`.
+   It does not require admin on most modern Windows installs (the
+   first-run flag asks once).
+2. In PowerShell, start an Ubuntu container with the gateway port
+   exposed:
+
+```powershell
+docker run -it --name bulkhead-lm `
+  -p 4100:4100 `
+  -v "${HOME}\bulkhead-lm-data:/root/bulkhead-lm" `
+  ubuntu:24.04
+```
+
+3. Inside the container shell:
+
+```bash
+apt-get update && apt-get install -y curl ca-certificates git sudo
+curl -fsSL https://raw.githubusercontent.com/Louis-Ph/bulkhead-lm/main/install.sh | sh
+```
+
+4. From a Windows browser, `http://localhost:4100` works the same way.
+
+### Path C — Tiny cloud Ubuntu (works on locked-down machines)
+
+If your Windows account cannot install WSL nor Docker, rent a free or
+cheap Ubuntu VM (Oracle Cloud Free Tier, AWS Free Tier, Azure free
+account, Alibaba Cloud) and SSH into it from PowerShell:
+
+```powershell
+ssh ubuntu@your-cloud-host
+```
+
+Modern Windows already ships an OpenSSH client; if it is missing, go
+to `Settings > Apps > Optional features > Add a feature > OpenSSH
+Client` (no admin rights needed for that). Then on the cloud VM, run
+the same `curl -fsSL ... | sh` one-liner.
+
+To call the gateway from Windows, open an SSH tunnel:
+
+```powershell
+ssh -L 4100:127.0.0.1:4100 ubuntu@your-cloud-host
+```
+
+and curl `http://localhost:4100` from your Windows side.
+
+> **Stuck?** Open Claude, Cursor, or ChatGPT and paste
+> [INSTALL_PROMPT.md](INSTALL_PROMPT.md) — the LLM probes what is
+> already on your Windows machine, picks the right path automatically,
+> and walks you through the rest.
 
 ## FreeBSD: easiest local start
 

@@ -25,7 +25,7 @@ It targets multi-provider LLM gateway routing with a stricter design bias: expli
 - stable gateway-level SSE contract even when providers differ
 - programmable terminal client with a human-facing `ask` mode and a JSONL worker mode
 - programmable terminal client ops for bounded file browsing, file writes, and command execution
-- one-line install on any Linux (Debian, Fedora, Arch, Alpine, openSUSE ...), macOS, and FreeBSD
+- one-line install on any Linux (Debian, Fedora, Arch, Alpine, openSUSE ...), macOS, FreeBSD, and Windows (WSL2 / Docker Desktop / cloud SSH, with a guided fault-tolerant decision tree)
 - OCaml codebase with clear separation between domain, runtime, security, providers, HTTP, and persistence layers
 
 ## Current capabilities
@@ -1036,6 +1036,7 @@ Detailed references:
 - [Security Posture](docs/SECURITY.md)
 - [Security Policy](SECURITY.md)
 - [US and China Compliance Study](docs/COMPLIANCE_US_CN.md)
+- [Why OCaml — anti-slop manifesto](docs/MANIFESTO_OCAML.md): the philosophical case for OCaml as the on-ramp toward demonstrative programming with Rocq, given AI-assisted code generation at scale
 
 ## Contributing and support
 

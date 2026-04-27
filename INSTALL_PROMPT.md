@@ -34,10 +34,12 @@ Ask the user for these three things, in order. Stop and wait for each
 answer before proceeding.
 
 1. **Operating system.** Acceptable answers: macOS, Linux (any distro:
-   Debian, Ubuntu, Fedora, Arch, Alpine, openSUSE...), FreeBSD, or WSL on
-   Windows. If the user says "I don't know", ask them to run
-   `uname -s` in a terminal and report the result. If the result is
-   `Darwin` it's macOS, `Linux` is Linux, `FreeBSD` is FreeBSD.
+   Debian, Ubuntu, Fedora, Arch, Alpine, openSUSE...), FreeBSD, or
+   Windows (WSL, Docker Desktop, or "I don't have admin"). If the user
+   says "I don't know", ask them to run `uname -s` in a terminal: result
+   `Darwin` is macOS, `Linux` is Linux, `FreeBSD` is FreeBSD. If they
+   cannot open a terminal because they are on Windows, jump to the
+   Windows decision tree in Step 1b before continuing with Step 0.2.
 
 2. **Network constraint.** Will the user accept `curl ... | sh` style
    installation, or do they need to inspect the script first? If they
@@ -54,6 +56,188 @@ answer before proceeding.
    `DASHSCOPE_API_KEY`. The free path is OpenRouter — direct the user to
    `https://openrouter.ai/keys` to create an account and a key (free plan
    gives 50 requests/day on 25+ free models).
+
+## Step 1b — Windows decision tree (skip if not on Windows)
+
+Windows does not have a native OCaml-friendly shell, so BulkheadLM runs
+through one of three Linux-shaped layers. Pick the FIRST one that works
+on the user's machine; never recommend a less-friendly path before
+checking the friendlier ones.
+
+The full Windows path takes 8 to 12 minutes the first time (3 to 5 of
+which are Windows downloading WSL or Docker Desktop in the background)
+and 2 to 4 minutes on subsequent runs.
+
+### Step 1b.1 — Probe what is already there
+
+Ask the user to open **PowerShell** (Start menu → "PowerShell" → click
+"Windows PowerShell"; the Admin variant is not required for the probe).
+Have them paste this single block and report the output verbatim:
+
+```powershell
+"=== probe ==="
+wsl --status 2>$null
+"--- docker ---"
+docker --version 2>$null
+"--- admin ---"
+[Security.Principal.WindowsPrincipal]::new(
+  [Security.Principal.WindowsIdentity]::GetCurrent()
+).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
+"=== probe end ==="
+```
+
+Read the output carefully. You are looking for three signals:
+
+- `Default Distribution: Ubuntu` (or any Linux distro) under the WSL
+  block → WSL is installed and ready, jump to **path A**.
+- `Docker version 2x.y.z` under the docker line → Docker Desktop is
+  installed, **path B** is available even if WSL is missing.
+- `True` on the admin line → the user can install WSL themselves;
+  `False` means they cannot install Windows features and must use
+  **path B** or **path C**.
+- Any error or empty WSL block + `False` on admin → no WSL, no admin
+  rights, possibly no Docker → **path C** (cloud SSH).
+
+If two paths are available, prefer A over B over C. WSL is the smoothest
+and gets all the same one-line install commands the rest of this prompt
+documents.
+
+### Path A — WSL2 + Ubuntu (recommended)
+
+If WSL is not yet installed but the user has admin rights, this single
+command installs WSL2 and Ubuntu in one go:
+
+```powershell
+wsl --install -d Ubuntu
+```
+
+Tell the user that Windows may ask them to restart. After the restart,
+Ubuntu auto-launches, asks them to pick a Linux username and password
+(any value is fine; this is local), then drops them at a `$ ` prompt.
+
+If WSL is already installed but Ubuntu is not the default, switch to
+Ubuntu without reinstalling:
+
+```powershell
+wsl --set-default Ubuntu
+wsl
+```
+
+Once they are inside the Ubuntu prompt (the prompt no longer says
+`PS C:\>`), they are on a fully POSIX shell. Continue with **Step 2 of
+the main install path** as if they were on Linux: the same secrets file,
+the same `install.sh`, the same `./run.sh`. The only difference is one
+networking detail in Step 3: when the user wants to call the gateway
+from a *Windows* application (browser, native app), they must use
+`localhost:4100` because WSL2 forwards that port to the Linux side
+automatically. From inside WSL itself, `127.0.0.1:4100` works as
+documented.
+
+Common path-A failure modes and the exact fix:
+
+- "WslRegisterDistribution failed with error: 0x80370102" or "Virtual
+  Machine Platform feature is not enabled". Fix:
+  ```powershell
+  dism.exe /online /enable-feature /featurename:Microsoft-Windows-Subsystem-Linux /all /norestart
+  dism.exe /online /enable-feature /featurename:VirtualMachinePlatform /all /norestart
+  ```
+  Then restart, then `wsl --install -d Ubuntu` again.
+- "There is no distribution with the supplied name" after install — try
+  `wsl --list --online` and pick `Ubuntu-22.04` or `Ubuntu-24.04`
+  explicitly.
+- Internet at the Windows layer works, but `apt update` inside WSL
+  hangs. Fix: `sudo nano /etc/wsl.conf`, add
+  ```
+  [network]
+  generateResolvConf = true
+  ```
+  then in PowerShell run `wsl --shutdown` and start Ubuntu again.
+
+### Path B — Docker Desktop (no WSL or no admin)
+
+If Docker Desktop is installed (or the user has admin rights and
+prefers a container), pull a Linux image and bootstrap the same
+installer inside it:
+
+```powershell
+docker run -it --name bulkhead-lm `
+  -p 4100:4100 `
+  -v "${HOME}\bulkhead-lm-data:/root/bulkhead-lm" `
+  ubuntu:24.04
+```
+
+(The backticks at the end of each line are PowerShell line
+continuations.) Inside the container shell, run:
+
+```bash
+apt-get update && apt-get install -y curl ca-certificates git sudo
+curl -fsSL https://raw.githubusercontent.com/Louis-Ph/bulkhead-lm/main/install.sh | sh
+```
+
+Then the rest of this prompt applies normally (Step 2 onwards). Two
+container caveats to mention to the user:
+
+- The gateway listens on `0.0.0.0:4100` inside the container; the
+  `-p 4100:4100` flag bridges it to the Windows host so they can curl
+  it from PowerShell or from a Windows browser at
+  `http://localhost:4100/...`.
+- Stopping Docker Desktop or `docker stop bulkhead-lm` shuts the
+  gateway down. Reopen with `docker start -ai bulkhead-lm`.
+
+If Docker Desktop is *not* installed and the user has admin rights, the
+fastest path is still **path A** (WSL). Suggest Docker Desktop only if
+the user explicitly says they want containers, or if path A failed
+twice for them.
+
+### Path C — Cloud Ubuntu via SSH (last resort)
+
+If the user has neither WSL, nor Docker Desktop, nor admin rights, the
+only smooth answer is to run BulkheadLM on a small remote Ubuntu
+machine and SSH to it from Windows. Walk them through:
+
+1. Create a small Ubuntu VM. Free-tier-friendly options checked at
+   project time: Oracle Cloud Free Tier, AWS Free Tier (EC2 t2.micro),
+   Azure free account, Alibaba Cloud Start for Free. Any 1 vCPU /
+   1 GB RAM Ubuntu instance is enough for cloud-routed providers
+   (where the model itself runs in the provider, not on the VM).
+
+2. SSH into the VM from Windows. Modern Windows 10/11 ships an OpenSSH
+   client built in:
+
+   ```powershell
+   ssh ubuntu@your-cloud-host
+   ```
+
+   If `ssh` is not found, install OpenSSH Client from
+   `Settings > Apps > Optional features > Add a feature > OpenSSH
+   Client`, no admin needed.
+
+3. On the VM, run the standard installer:
+
+   ```bash
+   curl -fsSL https://raw.githubusercontent.com/Louis-Ph/bulkhead-lm/main/install.sh | sh
+   ```
+
+   Then continue with Step 2 onwards on the *VM*, not on Windows.
+
+4. Tell the user that to call the gateway from their Windows machine
+   they have two options:
+   - Open an SSH tunnel:
+     ```powershell
+     ssh -L 4100:127.0.0.1:4100 ubuntu@your-cloud-host
+     ```
+     and then curl `http://localhost:4100` from Windows.
+   - Make the gateway listen on the public interface and harden auth
+     (out of scope for the 5-minute install; defer to the README).
+
+### Windows path summary the LLM should hold in mind
+
+After the user reports their probe output, you should have already
+chosen path A, B, or C and announced it. From that point onward, the
+rest of this prompt's Step 1, 2, 3, 4, 5 work unchanged: the user is
+either inside Ubuntu (WSL or VM) or inside an Ubuntu container. Do not
+ask them to pick again, do not re-explain the three paths in the same
+session.
 
 ## Step 1 — install BulkheadLM
 
@@ -201,7 +385,12 @@ ONE of these flows. Do not run all of them.
 If something goes wrong, the user is most likely to hit one of these.
 Diagnose in this order:
 
-1. **`install.sh` failed at toolchain bootstrap.** Tell them to run
+1. **(Windows) The PowerShell window closed during `wsl --install`.**
+   Reopen PowerShell as Administrator, run `wsl --install -d Ubuntu`
+   again. Windows is idempotent here; it picks up where it left off.
+   If the second attempt also fails, fall back to **path B** (Docker
+   Desktop) or **path C** (cloud SSH) from Step 1b.
+2. **`install.sh` failed at toolchain bootstrap.** Tell them to run
    `cd ~/bulkhead-lm && ./scripts/bootstrap_local_toolchain.sh` and
    report the last 30 lines of output.
 2. **Build succeeds but starter says "no model is ready".** They have
