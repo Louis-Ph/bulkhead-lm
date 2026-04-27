@@ -26,3 +26,6 @@ _opam/
 dist/
 var/
 config/var/
+
+# Strategic analyses kept locally
+docs/MARKET_PENETRATION_TREE.md
