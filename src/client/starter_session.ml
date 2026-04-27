@@ -18,6 +18,13 @@ type command =
   | Discover_provider_models
   | Refresh_provider_models
   | Show_env
+  | Pool_list
+  | Pool_show of string
+  | Pool_create of string
+  | Pool_drop of string
+  | Pool_add of { name : string; route : string; budget : int option }
+  | Pool_remove of { name : string; route : string }
+  | Pool_global_set of bool
   | Attach_file of string
   | Show_pending_files
   | Clear_pending_files
@@ -61,6 +68,13 @@ type effect =
   | List_discovered_models
   | Refresh_discovered_models
   | List_env
+  | Show_pool_list
+  | Show_pool of string
+  | Create_pool of string
+  | Drop_pool of string
+  | Add_pool_member of { name : string; route : string; budget : int option }
+  | Remove_pool_member of { name : string; route : string }
+  | Set_global_pool of bool
   | Attach_local_file of string
   | List_pending_files
   | Reset_pending_files
@@ -128,6 +142,91 @@ let parse_command input =
   then Discover_provider_models
   else if String.equal trimmed Starter_constants.Command.refresh_models
   then Refresh_provider_models
+  else if String.equal trimmed Starter_constants.Command.pool_list
+       || String.equal trimmed Starter_constants.Command.pool
+  then Pool_list
+  else if String.starts_with
+            ~prefix:(Starter_constants.Command.pool_show ^ " ")
+            trimmed
+  then (
+    let offset = String.length Starter_constants.Command.pool_show + 1 in
+    let name = String.sub trimmed offset (String.length trimmed - offset) |> String.trim in
+    if name = ""
+    then Invalid "/pool show expects a pool name, e.g. /pool show pool-01"
+    else Pool_show name)
+  else if String.starts_with
+            ~prefix:(Starter_constants.Command.pool_create ^ " ")
+            trimmed
+  then (
+    let offset = String.length Starter_constants.Command.pool_create + 1 in
+    let name = String.sub trimmed offset (String.length trimmed - offset) |> String.trim in
+    if name = ""
+    then Invalid "/pool create expects a pool name, e.g. /pool create pool-01"
+    else Pool_create name)
+  else if String.starts_with
+            ~prefix:(Starter_constants.Command.pool_drop ^ " ")
+            trimmed
+  then (
+    let offset = String.length Starter_constants.Command.pool_drop + 1 in
+    let name = String.sub trimmed offset (String.length trimmed - offset) |> String.trim in
+    if name = ""
+    then Invalid "/pool drop expects a pool name, e.g. /pool drop pool-01"
+    else Pool_drop name)
+  else if String.starts_with
+            ~prefix:(Starter_constants.Command.pool_add ^ " ")
+            trimmed
+  then (
+    let offset = String.length Starter_constants.Command.pool_add + 1 in
+    let payload =
+      String.sub trimmed offset (String.length trimmed - offset) |> String.trim
+    in
+    let parts =
+      String.split_on_char ' ' payload |> List.filter (fun s -> s <> "")
+    in
+    match parts with
+    | [ name; route ] -> Pool_add { name; route; budget = None }
+    | [ name; route; raw_budget ] ->
+      (match int_of_string_opt raw_budget with
+       | Some budget when budget >= 0 ->
+         Pool_add { name; route; budget = Some budget }
+       | _ ->
+         Invalid
+           "/pool add: BUDGET must be a non-negative integer (tokens per day)")
+    | _ ->
+      Invalid
+        "/pool add expects: /pool add NAME ROUTE [BUDGET], e.g. /pool add pool-01 \
+         claude-haiku 5000")
+  else if String.starts_with
+            ~prefix:(Starter_constants.Command.pool_remove ^ " ")
+            trimmed
+  then (
+    let offset = String.length Starter_constants.Command.pool_remove + 1 in
+    let payload =
+      String.sub trimmed offset (String.length trimmed - offset) |> String.trim
+    in
+    let parts =
+      String.split_on_char ' ' payload |> List.filter (fun s -> s <> "")
+    in
+    match parts with
+    | [ name; route ] -> Pool_remove { name; route }
+    | _ ->
+      Invalid
+        "/pool remove expects: /pool remove NAME ROUTE, e.g. /pool remove pool-01 \
+         claude-haiku")
+  else if String.starts_with
+            ~prefix:(Starter_constants.Command.pool_global ^ " ")
+            trimmed
+  then (
+    let offset = String.length Starter_constants.Command.pool_global + 1 in
+    let value =
+      String.sub trimmed offset (String.length trimmed - offset)
+      |> String.trim
+      |> String.lowercase_ascii
+    in
+    match value with
+    | "on" | "true" | "yes" -> Pool_global_set true
+    | "off" | "false" | "no" -> Pool_global_set false
+    | _ -> Invalid "/pool global expects on or off")
   else if String.equal trimmed Starter_constants.Command.env
   then Show_env
   else if String.equal trimmed Starter_constants.Command.files
@@ -223,6 +322,15 @@ let step state input =
   | Ready context, Refresh_provider_models ->
     Ready context, Refresh_discovered_models
   | Ready context, Show_env -> Ready context, List_env
+  | Ready context, Pool_list -> Ready context, Show_pool_list
+  | Ready context, Pool_show name -> Ready context, Show_pool name
+  | Ready context, Pool_create name -> Ready context, Create_pool name
+  | Ready context, Pool_drop name -> Ready context, Drop_pool name
+  | Ready context, Pool_add { name; route; budget } ->
+    Ready context, Add_pool_member { name; route; budget }
+  | Ready context, Pool_remove { name; route } ->
+    Ready context, Remove_pool_member { name; route }
+  | Ready context, Pool_global_set enabled -> Ready context, Set_global_pool enabled
   | Ready context, Attach_file path -> Ready context, Attach_local_file path
   | Ready context, Show_pending_files -> Ready context, List_pending_files
   | Ready context, Clear_pending_files -> Ready context, Reset_pending_files

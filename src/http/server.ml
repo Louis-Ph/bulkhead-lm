@@ -224,12 +224,47 @@ let providers_json config =
   `List (in_catalog @ custom_section)
 ;;
 
+(* Pools are exposed both inline within [data] (so OpenAI clients see them as
+   plain models they can target with chat completions) and as a dedicated
+   [pools] section that surfaces members, latency, and remaining budget. *)
+let pool_member_json (pool : Config.pool) (member : Config.pool_member) =
+  let _ = pool in
+  assoc_fields
+    [ string_field "route_model" member.route_model
+    ; Some ("daily_token_budget", `Int member.daily_token_budget)
+    ]
+;;
+
+let pool_json (pool : Config.pool) =
+  assoc_fields
+    [ string_field "name" pool.name
+    ; Some ("is_global", `Bool pool.is_global)
+    ; Some ("member_count", `Int (List.length pool.members))
+    ; Some ("members", `List (List.map (pool_member_json pool) pool.members))
+    ]
+;;
+
+(* Each pool also surfaces in [data] so a vanilla OpenAI SDK can list and
+   target it without knowing about pools at all. *)
+let pool_in_data_json (pool : Config.pool) =
+  assoc_fields
+    [ Some ("id", `String pool.name)
+    ; Some ("object", `String "model")
+    ; Some ("public_model", `String pool.name)
+    ; Some ("model_kind", `String "pool")
+    ; Some ("is_global", `Bool pool.is_global)
+    ; Some ("member_count", `Int (List.length pool.members))
+    ]
+;;
+
 let models_json config =
+  let route_entries = List.map route_with_catalog_json config.Config.routes in
+  let pool_entries = List.map pool_in_data_json config.Config.pools in
   `Assoc
-    [ ( "data"
-      , `List (List.map route_with_catalog_json config.Config.routes) )
+    [ "data", `List (route_entries @ pool_entries)
     ; "object", `String "list"
     ; "providers", providers_json config
+    ; "pools", `List (List.map pool_json config.Config.pools)
     ]
 ;;
 

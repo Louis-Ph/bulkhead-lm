@@ -187,6 +187,24 @@ type virtual_key =
   ; allowed_routes : string list
   }
 
+(* Each pool member references an existing route by [route_model] (the public
+   model name) and reserves its own daily token budget. The router picks the
+   member with the lowest observed latency that still has budget left and a
+   closed circuit; this lets you pile many tightly-budgeted models behind one
+   pool name and let the gateway fan-out automatically. *)
+type pool_member =
+  { route_model : string
+  ; daily_token_budget : int
+  }
+
+type pool =
+  { name : string
+  ; members : pool_member list
+  ; is_global : bool
+      (** When [is_global = true] the [members] field is ignored at lookup time;
+          the effective member list is recomputed as every configured route. *)
+  }
+
 type t =
   { security_policy : Security_policy.t
   ; persistence : persistence
@@ -194,6 +212,7 @@ type t =
   ; providers_schema : Yojson.Safe.t
   ; user_connectors : user_connectors
   ; routes : route list
+  ; pools : pool list
   ; virtual_keys : virtual_key list
   }
 
@@ -486,6 +505,94 @@ let parse_route json =
       backend_values
   in
   Ok { public_model; backends }
+;;
+
+let parse_pool_member json =
+  string_member "route_model" json
+  >>= fun route_model ->
+  let daily_token_budget =
+    int_member_with_default "daily_token_budget" json ~default:10_000
+  in
+  if daily_token_budget < 0
+  then Error (Fmt.str "pool member %s has negative daily_token_budget" route_model)
+  else Ok { route_model; daily_token_budget }
+;;
+
+let parse_pool json =
+  string_member "name" json
+  >>= fun name ->
+  if String.trim name = ""
+  then Error "pool name cannot be empty"
+  else (
+    let is_global = bool_member_with_default "is_global" json ~default:false in
+    let member_values = list_member "members" json in
+    let members =
+      List.filter_map
+        (fun item ->
+          match parse_pool_member item with
+          | Ok member -> Some member
+          | Error _ -> None)
+        member_values
+    in
+    Ok { name; members; is_global })
+;;
+
+(* Pool names share the public_model namespace, so a pool that collides with
+   an existing route would shadow it ambiguously; we drop the offender (with
+   a tolerant log path) rather than refuse to start. *)
+let route_models_of (routes : route list) =
+  routes |> List.map (fun route -> route.public_model)
+;;
+
+let validate_pool ~routes (pool : pool) =
+  let route_set = route_models_of routes in
+  if List.mem pool.name route_set
+  then
+    Error
+      (Fmt.str
+         "pool %S collides with an existing route public_model"
+         pool.name)
+  else if pool.is_global
+  then Ok pool
+  else (
+    let valid_members =
+      pool.members
+      |> List.filter (fun (member : pool_member) ->
+        List.mem member.route_model route_set)
+    in
+    Ok { pool with members = valid_members })
+;;
+
+let dedupe_pools_by_name pools =
+  let seen = Hashtbl.create 8 in
+  List.filter
+    (fun pool ->
+      if Hashtbl.mem seen pool.name
+      then false
+      else (
+        Hashtbl.add seen pool.name ();
+        true))
+    pools
+;;
+
+(** Look up a pool by its [name]; the pool name is what the client sends as
+    [model] when calling chat completions. *)
+let find_pool config name =
+  List.find_opt (fun (pool : pool) -> String.equal pool.name name) config.pools
+;;
+
+(** Returns the effective member list for a pool, expanding [is_global = true]
+    to all configured routes at call time so that adding a new route makes it
+    immediately reachable through the global pool with no reconfiguration. *)
+let effective_pool_members config (pool : pool) =
+  if pool.is_global
+  then
+    config.routes
+    |> List.map (fun (route : route) ->
+      { route_model = route.public_model
+      ; daily_token_budget = max_int (* global pool delegates budget to virtual keys *)
+      })
+  else pool.members
 ;;
 
 let parse_virtual_key defaults json =
@@ -1106,6 +1213,20 @@ let load path =
      | Error err -> Error err
      | Ok () ->
        let routes = parse_routes_tolerant route_values in
+       (* Tolerant: a pool that fails to parse or collides with a route is
+          dropped silently so the rest of the gateway still starts. *)
+       let pool_values = list_member "pools" json in
+       let pools =
+         pool_values
+         |> List.filter_map (fun item ->
+           match parse_pool item with
+           | Ok pool ->
+             (match validate_pool ~routes pool with
+              | Ok pool -> Some pool
+              | Error _ -> None)
+           | Error _ -> None)
+         |> dedupe_pools_by_name
+       in
        (match parse_all_strict (parse_virtual_key security_policy) [] virtual_key_values with
         | Error err -> Error err
         | Ok virtual_keys ->
@@ -1127,6 +1248,7 @@ let load path =
             ; providers_schema
             ; user_connectors
             ; routes
+            ; pools
             ; virtual_keys
             }))
 ;;

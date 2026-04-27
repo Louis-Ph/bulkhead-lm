@@ -190,7 +190,12 @@ let load_store path =
   | Ok config ->
     (match Runtime_state.create_result config with
      | Error err -> Error ("Runtime initialization error: " ^ err)
-     | Ok store -> Ok { path; store })
+     | Ok store ->
+       (* Apply any persisted pool overrides written by previous /pool
+          commands. The hydration is best-effort: a corrupt blob falls back
+          silently to the declarative config rather than failing startup. *)
+       Pool_runtime.load_overrides_into store;
+       Ok { path; store })
 ;;
 
 let choose_config_source ~base_config_path ~starter_output_path =
@@ -916,6 +921,225 @@ let discover_provider_models ?(force_refresh = false) () =
            "Re-run /discover or /refresh-models to continue."))
 ;;
 
+(* ---- Pool helpers --------------------------------------------------------- *)
+
+let format_latency_score sample =
+  match sample with
+  | None -> Starter_constants.Ansi.dim "no sample yet"
+  | Some score ->
+    if score < 1.
+    then Fmt.str "%.1f ms" score
+    else if score < 10000.
+    then Fmt.str "%.0f ms" score
+    else Fmt.str "%.1f s" (score /. 1000.)
+;;
+
+let format_remaining_tokens budget consumed =
+  if budget = max_int
+  then "unlimited"
+  else
+    let remaining = max 0 (budget - consumed) in
+    Fmt.str "%d / %d tokens left" remaining budget
+;;
+
+let pool_member_status store (pool : Config.pool) (member : Config.pool_member) =
+  let usage_day = Pool_selector.current_day () in
+  let consumed =
+    Pool_selector.consumption
+      store
+      ~usage_day
+      ~pool_name:pool.name
+      ~route_model:member.route_model
+  in
+  let latency =
+    Pool_latency.score
+      store.Runtime_state.pool_latency
+      ~pool_name:pool.name
+      ~route_model:member.route_model
+  in
+  member, consumed, latency
+;;
+
+let render_pool_summary store (pool : Config.pool) =
+  let effective_members =
+    Config.effective_pool_members store.Runtime_state.config pool
+  in
+  let routes_in_config =
+    store.Runtime_state.config.Config.routes
+    |> List.map (fun (route : Config.route) -> route.public_model)
+  in
+  let valid_members =
+    List.filter
+      (fun (m : Config.pool_member) -> List.mem m.route_model routes_in_config)
+      effective_members
+  in
+  let label =
+    if pool.is_global
+    then Fmt.str "%s [global, %d routes]" pool.name (List.length valid_members)
+    else
+      Fmt.str "%s [%d member%s]"
+        pool.name
+        (List.length valid_members)
+        (if List.length valid_members = 1 then "" else "s")
+  in
+  print_line (Starter_constants.Ansi.bold label);
+  if valid_members = []
+  then
+    print_line
+      (Starter_constants.Ansi.dim
+         "  (no member yet — add one with /pool add NAME ROUTE [BUDGET])")
+  else (
+    let ranking = Pool_selector.rank store pool in
+    let pool_name = pool.name in
+    let _ = pool_name in
+    List.iter
+      (fun (member : Config.pool_member) ->
+        let _, consumed, latency = pool_member_status store pool member in
+        let viable =
+          List.exists
+            (fun (r : Pool_selector.ranked_member) ->
+              String.equal r.member.route_model member.route_model)
+            ranking.ranked
+        in
+        let marker =
+          if viable
+          then Starter_constants.Ansi.green "\xe2\x9c\x93"
+          else Starter_constants.Ansi.yellow "!"
+        in
+        let line =
+          Fmt.str
+            "  %s %s — %s, %s"
+            marker
+            member.route_model
+            (format_latency_score latency)
+            (format_remaining_tokens member.daily_token_budget consumed)
+        in
+        print_line line)
+      effective_members;
+    if ranking.rejected <> []
+    then (
+      print_line
+        (Starter_constants.Ansi.dim "  rejected right now:");
+      List.iter
+        (fun (rej : Pool_selector.rejected_member) ->
+          let reason =
+            match rej.reason with
+            | Pool_selector.Route_missing -> "route not configured"
+            | Budget_exhausted -> "daily budget exhausted"
+            | All_circuits_open -> "all backends circuit-open"
+          in
+          print_line
+            (Starter_constants.Ansi.dim
+               (Fmt.str "    %s (%s)" rej.route_model reason)))
+        ranking.rejected))
+;;
+
+let print_pool_list store =
+  let pools = Pool_runtime.snapshot store in
+  print_line "";
+  if pools = []
+  then (
+    print_wrapped
+      "No pool defined. Use /pool create NAME to start one, or /pool global on \
+       to expose every configured route as a single 'global' model.";
+    print_line
+      (Starter_constants.Ansi.dim "Pools route requests to whichever member is \
+                                   fastest with budget remaining."))
+  else (
+    print_wrapped "Pools — green check = ready, ! = unavailable right now:";
+    List.iter
+      (fun pool ->
+        print_line "";
+        render_pool_summary store pool)
+      pools;
+    print_line "";
+    print_line
+      (Starter_constants.Ansi.dim
+         "Tip: send a chat completion with model=POOL_NAME and the gateway \
+          picks the lowest-latency healthy member."))
+;;
+
+let print_pool_show store name =
+  match Pool_runtime.find_pool (Pool_runtime.snapshot store) name with
+  | None ->
+    print_wrapped
+      (Fmt.str "Pool %s does not exist. Use /pool list to see available pools." name)
+  | Some pool ->
+    print_line "";
+    render_pool_summary store pool
+;;
+
+let report_pool_result label = function
+  | Ok () ->
+    print_wrapped_styled ~style:Starter_constants.Ansi.green label
+  | Error message ->
+    print_wrapped_styled ~style:Starter_constants.Ansi.yellow message
+;;
+
+let handle_pool_create store name =
+  print_line "";
+  match Pool_runtime.create_pool store ~name with
+  | Ok () ->
+    report_pool_result
+      (Fmt.str
+         "Pool %s created. Add members with /pool add %s ROUTE [BUDGET]."
+         name
+         name)
+      (Ok ())
+  | Error message -> report_pool_result message (Error message)
+;;
+
+let handle_pool_drop store name =
+  print_line "";
+  match Pool_runtime.drop_pool store ~name with
+  | Ok () -> report_pool_result (Fmt.str "Pool %s dropped." name) (Ok ())
+  | Error message -> report_pool_result message (Error message)
+;;
+
+let default_member_budget = 10_000
+
+let handle_pool_add store ~name ~route ~budget =
+  let budget = Option.value budget ~default:default_member_budget in
+  print_line "";
+  match Pool_runtime.add_member store ~pool_name:name ~route_model:route ~daily_token_budget:budget with
+  | Ok () ->
+    report_pool_result
+      (Fmt.str
+         "Added %s to pool %s with %d tokens/day."
+         route
+         name
+         budget)
+      (Ok ())
+  | Error message -> report_pool_result message (Error message)
+;;
+
+let handle_pool_remove store ~name ~route =
+  print_line "";
+  match Pool_runtime.remove_member store ~pool_name:name ~route_model:route with
+  | Ok () ->
+    report_pool_result
+      (Fmt.str "Removed %s from pool %s." route name)
+      (Ok ())
+  | Error message -> report_pool_result message (Error message)
+;;
+
+let handle_pool_global store enabled =
+  print_line "";
+  match Pool_runtime.set_global store ~enabled with
+  | Ok () ->
+    if enabled
+    then
+      report_pool_result
+        "Global pool enabled. Send model=global to route through every \
+         configured route, picking the fastest one with budget."
+        (Ok ())
+    else
+      report_pool_result "Global pool disabled." (Ok ())
+  | Error message -> report_pool_result message (Error message)
+;;
+
+(* ---- /env display --------------------------------------------------------- *)
+
 let print_env_statuses () =
   let statuses = Starter_profile.env_statuses () in
   print_line "";
@@ -1394,6 +1618,27 @@ let rec repl store ~authorization state runtime =
     repl store ~authorization next_state runtime
   | Starter_session.Refresh_discovered_models ->
     discover_provider_models ~force_refresh:true ();
+    repl store ~authorization next_state runtime
+  | Starter_session.Show_pool_list ->
+    print_pool_list store;
+    repl store ~authorization next_state runtime
+  | Starter_session.Show_pool name ->
+    print_pool_show store name;
+    repl store ~authorization next_state runtime
+  | Starter_session.Create_pool name ->
+    handle_pool_create store name;
+    repl store ~authorization next_state runtime
+  | Starter_session.Drop_pool name ->
+    handle_pool_drop store name;
+    repl store ~authorization next_state runtime
+  | Starter_session.Add_pool_member { name; route; budget } ->
+    handle_pool_add store ~name ~route ~budget;
+    repl store ~authorization next_state runtime
+  | Starter_session.Remove_pool_member { name; route } ->
+    handle_pool_remove store ~name ~route;
+    repl store ~authorization next_state runtime
+  | Starter_session.Set_global_pool enabled ->
+    handle_pool_global store enabled;
     repl store ~authorization next_state runtime
   | Starter_session.List_env ->
     print_env_statuses ();

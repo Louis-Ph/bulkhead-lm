@@ -24,6 +24,12 @@ type t =
   ; backend_circuit : Backend_circuit.t
   ; inflight : int ref
   ; inflight_lock : Mutex.t
+  ; pool_latency : Pool_latency.t
+  ; pools : Config.pool list ref
+  ; pools_lock : Mutex.t
+  ; in_memory_pool_usage : (string, int) Hashtbl.t
+      (** Fallback for budget tracking when no SQLite store is configured;
+          keyed as ["{usage_day}|{pool_name}|{route_model}"]. *)
   }
 
 let hash_token token = Digestif.SHA256.digest_string token |> Digestif.SHA256.to_hex
@@ -183,6 +189,10 @@ let create_result ?provider_factory config =
             ~cooldown_s:config.Config.security_policy.routing.circuit_cooldown_s
       ; inflight = ref 0
       ; inflight_lock = Mutex.create ()
+      ; pool_latency = Pool_latency.create ()
+      ; pools = ref config.Config.pools
+      ; pools_lock = Mutex.create ()
+      ; in_memory_pool_usage = Hashtbl.create 32
       }
 ;;
 

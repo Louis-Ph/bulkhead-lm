@@ -57,7 +57,14 @@ let load_store_result ?provider_factory ~config_path ~port_override () =
     let config = override_port config port_override in
     (match validate_control_plane_runtime config with
      | Error err -> Error err
-     | Ok () -> Runtime_state.create_result ~provider_factory config)
+     | Ok () ->
+       (match Runtime_state.create_result ~provider_factory config with
+        | Error err -> Error err
+        | Ok store ->
+          (* Restore wizard-driven pool changes from SQLite so a /pool create
+             survives a gateway reload. *)
+          Pool_runtime.load_overrides_into store;
+          Ok store))
 ;;
 
 let create_result ?provider_factory ~config_path ~port_override () =

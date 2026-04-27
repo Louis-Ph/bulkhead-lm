@@ -436,6 +436,7 @@ let suites =
   ; Bulkhead_lm_test_starter_session_conversation.suite
   ; suite
   ; Bulkhead_lm_test_ollama_reasoning.suite
+  ; Bulkhead_lm_test_pools.suite
   ]
 ;;
 

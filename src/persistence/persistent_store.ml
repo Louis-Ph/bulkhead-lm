@@ -134,6 +134,32 @@ let setup_schema db =
          recent_turns_json TEXT NOT NULL,
          compressed_turn_count INTEGER NOT NULL,
          updated_at TEXT NOT NULL
+       )|};
+  (* Tracks the daily token consumption per pool member so a pool with many
+     tightly-budgeted models can enforce its limits across restarts. The key
+     mirrors [budget_usage] but is keyed by (pool_name, route_model) so the
+     same route used in multiple pools tracks budgets independently. *)
+  exec
+    db
+    "pool_member_usage schema"
+    {|CREATE TABLE IF NOT EXISTS pool_member_usage (
+         usage_day TEXT NOT NULL,
+         pool_name TEXT NOT NULL,
+         route_model TEXT NOT NULL,
+         consumed_tokens INTEGER NOT NULL,
+         updated_at TEXT NOT NULL,
+         PRIMARY KEY (usage_day, pool_name, route_model)
+       )|};
+  (* Stores wizard-driven mutations to pool definitions as a single JSON blob
+     so the runtime can survive a restart without forcing the user to edit
+     gateway.json. Keyed by [scope] for forward extensibility. *)
+  exec
+    db
+    "pool_overrides schema"
+    {|CREATE TABLE IF NOT EXISTS pool_overrides (
+         scope TEXT PRIMARY KEY,
+         payload_json TEXT NOT NULL,
+         updated_at TEXT NOT NULL
        )|}
 ;;
 
@@ -298,6 +324,148 @@ let consume_budget store ~principal_name ~daily_token_budget ~usage_day ~tokens 
     | exn ->
       ignore (Sqlite3.exec store.db "ROLLBACK");
       raise exn)
+;;
+
+(* Read the running consumption for one pool member without changing it; used
+   by the pool selector to filter out members that are already exhausted
+   today. Returns [0] when the row does not exist yet. *)
+let pool_member_consumption store ~usage_day ~pool_name ~route_model =
+  with_lock store (fun () ->
+    with_stmt
+      store.db
+      {|SELECT consumed_tokens
+        FROM pool_member_usage
+        WHERE usage_day = ? AND pool_name = ? AND route_model = ?|}
+      (fun stmt ->
+         expect_rc store.db "bind usage_day" (Sqlite3.bind_text stmt 1 usage_day);
+         expect_rc store.db "bind pool_name" (Sqlite3.bind_text stmt 2 pool_name);
+         expect_rc store.db "bind route_model" (Sqlite3.bind_text stmt 3 route_model);
+         match Sqlite3.step stmt with
+         | Sqlite3.Rc.ROW -> Sqlite3.column_int stmt 0
+         | Sqlite3.Rc.DONE -> 0
+         | rc ->
+           failwith
+             (Fmt.str
+                "SQLite error during pool member lookup: %s"
+                (Sqlite3.Rc.to_string rc))))
+;;
+
+(* Atomically charge tokens against a pool member's daily budget.
+   Returns [Ok ()] when the charge succeeds and [Error budget_exceeded] when
+   the increment would push past [daily_token_budget]. The transaction is
+   IMMEDIATE so two concurrent requests cannot both see a stale "below the
+   limit" snapshot. *)
+let consume_pool_member_budget
+  store
+  ~pool_name
+  ~route_model
+  ~daily_token_budget
+  ~usage_day
+  ~tokens
+  =
+  with_lock store (fun () ->
+    try
+      exec store.db "begin pool budget tx" "BEGIN IMMEDIATE";
+      let consumed =
+        with_stmt
+          store.db
+          {|SELECT consumed_tokens
+            FROM pool_member_usage
+            WHERE usage_day = ? AND pool_name = ? AND route_model = ?|}
+          (fun stmt ->
+             expect_rc store.db "bind usage_day" (Sqlite3.bind_text stmt 1 usage_day);
+             expect_rc store.db "bind pool_name" (Sqlite3.bind_text stmt 2 pool_name);
+             expect_rc store.db "bind route_model" (Sqlite3.bind_text stmt 3 route_model);
+             match Sqlite3.step stmt with
+             | Sqlite3.Rc.ROW -> Sqlite3.column_int stmt 0
+             | Sqlite3.Rc.DONE -> 0
+             | rc ->
+               failwith
+                 (Fmt.str
+                    "SQLite error during pool budget read: %s"
+                    (Sqlite3.Rc.to_string rc)))
+      in
+      if consumed + tokens > daily_token_budget
+      then (
+        exec store.db "rollback pool budget tx" "ROLLBACK";
+        Error (Domain_error.budget_exceeded ()))
+      else (
+        with_stmt
+          store.db
+          {|INSERT INTO pool_member_usage (
+               usage_day,
+               pool_name,
+               route_model,
+               consumed_tokens,
+               updated_at
+             ) VALUES (?, ?, ?, ?, ?)
+             ON CONFLICT(usage_day, pool_name, route_model) DO UPDATE SET
+               consumed_tokens = excluded.consumed_tokens,
+               updated_at = excluded.updated_at|}
+          (fun stmt ->
+             let updated = consumed + tokens in
+             let now = timestamp_now () in
+             expect_rc store.db "bind usage_day upsert" (Sqlite3.bind_text stmt 1 usage_day);
+             expect_rc store.db "bind pool_name upsert" (Sqlite3.bind_text stmt 2 pool_name);
+             expect_rc
+               store.db
+               "bind route_model upsert"
+               (Sqlite3.bind_text stmt 3 route_model);
+             expect_rc
+               store.db
+               "bind consumed_tokens"
+               (Sqlite3.bind_int stmt 4 updated);
+             expect_rc
+               store.db
+               "bind updated_at usage"
+               (Sqlite3.bind_text stmt 5 now);
+             expect_rc store.db "upsert pool budget" (Sqlite3.step stmt));
+        exec store.db "commit pool budget tx" "COMMIT";
+        Ok ())
+    with
+    | exn ->
+      ignore (Sqlite3.exec store.db "ROLLBACK");
+      raise exn)
+;;
+
+(* Pool override blob persistence. The wizard rewrites the entire blob on
+   every mutation so reads are atomic and we don't have to model partial
+   updates separately. *)
+let load_pool_overrides store =
+  with_lock store (fun () ->
+    with_stmt
+      store.db
+      "SELECT payload_json FROM pool_overrides WHERE scope = 'pools'"
+      (fun stmt ->
+         match Sqlite3.step stmt with
+         | Sqlite3.Rc.ROW ->
+           let raw = Sqlite3.column_text stmt 0 in
+           (match Yojson.Safe.from_string raw with
+            | exception Yojson.Json_error _ -> None
+            | json -> Some json)
+         | _ -> None))
+;;
+
+let save_pool_overrides store payload_json =
+  with_lock store (fun () ->
+    with_stmt
+      store.db
+      {|INSERT INTO pool_overrides (scope, payload_json, updated_at)
+        VALUES ('pools', ?, ?)
+        ON CONFLICT(scope) DO UPDATE SET
+          payload_json = excluded.payload_json,
+          updated_at = excluded.updated_at|}
+      (fun stmt ->
+         let now = timestamp_now () in
+         expect_rc
+           store.db
+           "bind pool_overrides payload"
+           (Sqlite3.bind_text stmt 1 (Yojson.Safe.to_string payload_json));
+         expect_rc
+           store.db
+           "bind pool_overrides updated_at"
+           (Sqlite3.bind_text stmt 2 now);
+         expect_rc store.db "upsert pool overrides" (Sqlite3.step stmt)))
 ;;
 
 let append_audit_event store (event : audit_event) =

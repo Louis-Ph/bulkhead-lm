@@ -294,6 +294,7 @@ let sample_config
     })
   ?(virtual_keys = [ virtual_key ~token_plaintext:"sk-test" ~name:"test" () ])
   ?(routes = [ route ~public_model:"gpt-4o-mini" ~backends:[] () ])
+  ?(pools = [])
   ()
   =
   { Config.security_policy =
@@ -303,6 +304,7 @@ let sample_config
   ; providers_schema = `Assoc []
   ; user_connectors
   ; routes
+  ; pools
   ; virtual_keys
   }
 ;;

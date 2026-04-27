@@ -113,6 +113,14 @@ module Command = struct
   let run = "/run"
   let discover = "/discover"
   let refresh_models = "/refresh-models"
+  let pool = "/pool"
+  let pool_list = pool ^ " list"
+  let pool_create = pool ^ " create"
+  let pool_drop = pool ^ " drop"
+  let pool_show = pool ^ " show"
+  let pool_add = pool ^ " add"
+  let pool_remove = pool ^ " remove"
+  let pool_global = pool ^ " global"
 
   let all =
     [ help
@@ -141,6 +149,7 @@ module Command = struct
     ; run
     ; discover
     ; refresh_models
+    ; pool
     ]
     |> List.sort_uniq String.compare
   ;;
@@ -246,6 +255,27 @@ module Text = struct
       }
     ; { usage = Command.refresh_models
       ; description = "force-refresh the cached provider model lists from each API"
+      }
+    ; { usage = Command.pool ^ " list"
+      ; description = "list configured pools, members, latency and remaining budget"
+      }
+    ; { usage = Command.pool ^ " show NAME"
+      ; description = "show one pool's members ranked by current latency"
+      }
+    ; { usage = Command.pool ^ " create NAME"
+      ; description = "create an empty pool routable as model NAME"
+      }
+    ; { usage = Command.pool ^ " drop NAME"
+      ; description = "delete a pool"
+      }
+    ; { usage = Command.pool ^ " add NAME ROUTE [BUDGET]"
+      ; description = "add a route to a pool with an optional daily token budget"
+      }
+    ; { usage = Command.pool ^ " remove NAME ROUTE"
+      ; description = "remove a route from a pool"
+      }
+    ; { usage = Command.pool ^ " global on|off"
+      ; description = "toggle the special 'global' pool that contains every route"
       }
     ; { usage = Command.env
       ; description = "show relevant environment variables in masked form"
