@@ -15,6 +15,8 @@ type command =
   | Replace_memory of string
   | Forget_memory
   | Show_providers
+  | Discover_provider_models
+  | Refresh_provider_models
   | Show_env
   | Attach_file of string
   | Show_pending_files
@@ -56,6 +58,8 @@ type effect =
   | Substitute_memory of string
   | Reset_memory
   | List_providers
+  | List_discovered_models
+  | Refresh_discovered_models
   | List_env
   | Attach_local_file of string
   | List_pending_files
@@ -120,6 +124,10 @@ let parse_command input =
   then Forget_memory
   else if String.equal trimmed Starter_constants.Command.providers
   then Show_providers
+  else if String.equal trimmed Starter_constants.Command.discover
+  then Discover_provider_models
+  else if String.equal trimmed Starter_constants.Command.refresh_models
+  then Refresh_provider_models
   else if String.equal trimmed Starter_constants.Command.env
   then Show_env
   else if String.equal trimmed Starter_constants.Command.files
@@ -210,6 +218,10 @@ let step state input =
   | Ready context, Replace_memory summary -> Ready context, Substitute_memory summary
   | Ready context, Forget_memory -> Ready context, Reset_memory
   | Ready context, Show_providers -> Ready context, List_providers
+  | Ready context, Discover_provider_models ->
+    Ready context, List_discovered_models
+  | Ready context, Refresh_provider_models ->
+    Ready context, Refresh_discovered_models
   | Ready context, Show_env -> Ready context, List_env
   | Ready context, Attach_file path -> Ready context, Attach_local_file path
   | Ready context, Show_pending_files -> Ready context, List_pending_files

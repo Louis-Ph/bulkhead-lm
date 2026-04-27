@@ -111,6 +111,8 @@ module Command = struct
   let explore = "/explore"
   let open_file = "/open"
   let run = "/run"
+  let discover = "/discover"
+  let refresh_models = "/refresh-models"
 
   let all =
     [ help
@@ -137,6 +139,8 @@ module Command = struct
     ; explore
     ; open_file
     ; run
+    ; discover
+    ; refresh_models
     ]
     |> List.sort_uniq String.compare
   ;;
@@ -236,6 +240,12 @@ module Text = struct
       }
     ; { usage = Command.providers
       ; description = "show ready and missing providers from the current config"
+      }
+    ; { usage = Command.discover
+      ; description = "list every model each provider exposes via its API (uses cached results)"
+      }
+    ; { usage = Command.refresh_models
+      ; description = "force-refresh the cached provider model lists from each API"
       }
     ; { usage = Command.env
       ; description = "show relevant environment variables in masked form"

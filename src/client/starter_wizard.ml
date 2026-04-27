@@ -479,13 +479,34 @@ let choose_model store =
   if statuses = []
   then Error "The selected configuration has no routes."
   else (
-    let index =
-      prompt_choice
-        "Which configured model do you want to use now?"
-        (List.map route_status_summary statuses)
+    let groups = Starter_profile.group_route_statuses_by_provider statuses in
+    let pick_within_group (group : Starter_profile.provider_group) =
+      let index =
+        prompt_choice
+          (Fmt.str "Which %s model do you want to use now?" group.provider_label)
+          (List.map route_status_summary group.statuses)
+      in
+      let selected = List.nth group.statuses index in
+      ensure_ready_model store selected.public_model
     in
-    let selected = List.nth statuses index in
-    ensure_ready_model store selected.public_model)
+    match groups with
+    | [] -> Error "The selected configuration has no routes."
+    | [ single ] -> pick_within_group single
+    | _ ->
+      let provider_index =
+        prompt_choice
+          "Which provider do you want to use now?"
+          (List.map
+             (fun (group : Starter_profile.provider_group) ->
+               let count = List.length group.statuses in
+               Fmt.str
+                 "%s (%d model%s)"
+                 group.provider_label
+                 count
+                 (if count = 1 then "" else "s"))
+             groups)
+      in
+      pick_within_group (List.nth groups provider_index))
 ;;
 
 let resolve_authorization store =
@@ -534,18 +555,22 @@ let print_help state =
 let print_lines lines = List.iter print_wrapped lines
 
 let print_models store =
-  let ready, missing =
-    configured_statuses store |> Starter_profile.split_route_statuses
-  in
+  let statuses = configured_statuses store in
+  let groups = Starter_profile.group_route_statuses_by_provider statuses in
   print_line "";
-  print_line "Ready:";
-  if ready = []
+  if groups = []
   then print_line "  (none)"
-  else List.iter (fun s -> print_line ("  " ^ route_status_summary s)) ready;
-  if missing <> [] then (
-    print_line "";
-    print_line "Not ready:";
-    List.iter (fun s -> print_line ("  " ^ route_status_summary s)) missing)
+  else
+    List.iter
+      (fun (group : Starter_profile.provider_group) ->
+        print_line group.provider_label;
+        let ready, missing = Starter_profile.split_route_statuses group.statuses in
+        if ready = [] && missing = []
+        then print_line "  (none)"
+        else (
+          List.iter (fun s -> print_line ("  " ^ route_status_summary s)) ready;
+          List.iter (fun s -> print_line ("  " ^ route_status_summary s)) missing))
+      groups
 ;;
 
 let control_plane_url ~host ~port ~path =
@@ -637,19 +662,258 @@ let update_terminal_context store =
 ;;
 
 let print_provider_matrix store =
-  let ready, missing =
-    configured_statuses store |> Starter_profile.split_route_statuses
-  in
-  let print_group title statuses =
+  let statuses = configured_statuses store in
+  let groups = Starter_profile.group_route_statuses_by_provider statuses in
+  print_line "";
+  if groups = []
+  then print_line "  (none)"
+  else (
+    List.iter
+      (fun (group : Starter_profile.provider_group) ->
+        let ready, missing = Starter_profile.split_route_statuses group.statuses in
+        let header =
+          match group.api_key_env with
+          | Some env -> Fmt.str "%s (via %s)" group.provider_label env
+          | None -> group.provider_label
+        in
+        print_line header;
+        if ready <> []
+        then (
+          print_line "  Ready now:";
+          List.iter
+            (fun status -> print_line ("    " ^ route_status_summary status))
+            ready);
+        if missing <> []
+        then (
+          print_line "  Configuration required:";
+          List.iter
+            (fun status -> print_line ("    " ^ route_status_summary status))
+            missing);
+        if ready = [] && missing = [] then print_line "  (none)")
+      groups;
     print_line "";
-    print_line title;
-    if statuses = []
-    then print_line "  (none)"
-    else
-      List.iter (fun status -> print_line ("  " ^ route_status_summary status)) statuses
+    print_line
+      (Starter_constants.Ansi.dim
+         "Run /discover to see every model each provider exposes."))
+;;
+
+let format_age_seconds age_seconds =
+  let minutes = int_of_float (age_seconds /. 60.) in
+  if minutes < 1 then "just now"
+  else if minutes < 60 then Fmt.str "%d min old" minutes
+  else if minutes < 1440 then Fmt.str "%d h old" (minutes / 60)
+  else Fmt.str "%d d old" (minutes / 1440)
+;;
+
+(* Translate a fetch error kind into one actionable line for the user. We
+   prefer concrete remediation hints over the raw upstream snippet so 401s
+   read as "your key is wrong" rather than as random JSON. *)
+let render_fetch_error
+  (family : Starter_model_catalog.provider_family)
+  (err : Provider_models_listing.fetch_error)
+  =
+  let env_hint = family.api_key_env in
+  match err.kind with
+  | Provider_models_listing.Unsupported ->
+    Starter_constants.Ansi.dim
+      (Fmt.str "  no public model listing endpoint for %s" family.label)
+  | Auth_error ->
+    Starter_constants.Ansi.yellow
+      (Fmt.str
+         "  API key rejected by %s; check $%s (HTTP 401)"
+         family.label
+         env_hint)
+  | Forbidden ->
+    Starter_constants.Ansi.yellow
+      (Fmt.str
+         "  $%s lacks access to /models on %s (HTTP 403)"
+         env_hint
+         family.label)
+  | Rate_limited ->
+    Starter_constants.Ansi.yellow
+      (Fmt.str "  rate-limited by %s; retry in a moment (HTTP 429)" family.label)
+  | Upstream_error code ->
+    Starter_constants.Ansi.yellow
+      (Fmt.str "  %s returned HTTP %d: %s" family.label code err.message)
+  | Network_error ->
+    Starter_constants.Ansi.yellow
+      (Fmt.str "  could not reach %s: %s" family.api_base err.message)
+  | Timeout ->
+    Starter_constants.Ansi.yellow
+      (Fmt.str "  %s did not respond within the timeout" family.label)
+  | Body_too_large ->
+    Starter_constants.Ansi.yellow
+      (Fmt.str "  %s returned an oversized body; aborted" family.label)
+  | Parse_error ->
+    Starter_constants.Ansi.yellow
+      (Fmt.str "  could not parse %s response: %s" family.label err.message)
+;;
+
+(* Cap absurdly long listings (OpenRouter, Together) so the wizard remains
+   navigable; the JSON view at /v1/models still exposes the full list. *)
+let max_inline_entries = 25
+
+let print_entries (entries : Provider_models_listing.model_entry list) =
+  let total = List.length entries in
+  let to_show =
+    if total > max_inline_entries
+    then List.filteri (fun index _ -> index < max_inline_entries) entries
+    else entries
   in
-  print_group "Ready now" ready;
-  print_group "Configuration required" missing
+  List.iter
+    (fun (entry : Provider_models_listing.model_entry) ->
+      let line =
+        match entry.display_name with
+        | Some name when String.trim name <> "" && not (String.equal name entry.id) ->
+          Fmt.str "%s \xe2\x80\x94 %s" entry.id name
+        | _ -> entry.id
+      in
+      print_line ("    " ^ line))
+    to_show;
+  if total > max_inline_entries
+  then
+    print_line
+      (Starter_constants.Ansi.dim
+         (Fmt.str
+            "    ... %d more (full list available via /v1/models JSON)"
+            (total - max_inline_entries)))
+;;
+
+(* Pretty-print one provider's API-discovered model list, including a hint
+   about whether the rendered listing is live, served from cache, or a stale
+   fallback after a fetch failure. *)
+let print_provider_discovery_lookup
+  (lookup : Model_listing_cache.lookup_result)
+  =
+  let entries = lookup.listing.entries in
+  let count = List.length entries in
+  let prefix, freshness_label =
+    match lookup.freshness with
+    | Model_listing_cache.Live ->
+      Starter_constants.Ansi.green "\xe2\x9c\x93", "live"
+    | Cached_fresh { age_seconds } ->
+      ( Starter_constants.Ansi.green "\xe2\x9c\x93"
+      , Fmt.str "cached, %s" (format_age_seconds age_seconds) )
+    | Stale_fallback { age_seconds; _ } ->
+      ( Starter_constants.Ansi.yellow "!"
+      , Fmt.str "stale, %s, fetch failed" (format_age_seconds age_seconds) )
+  in
+  print_line
+    (Fmt.str
+       "  %s %d model%s (%s)"
+       prefix
+       count
+       (if count = 1 then "" else "s")
+       freshness_label);
+  (match lookup.freshness with
+   | Stale_fallback { reason; _ } ->
+     (* In the fallback path, surface why the live fetch failed so the user
+        knows the cache is potentially out-of-date. *)
+     print_line
+       (Starter_constants.Ansi.dim
+          ("    last fetch error: " ^ reason.Provider_models_listing.message))
+   | _ -> ());
+  if count = 0
+  then print_line (Starter_constants.Ansi.dim "    (provider returned an empty list)")
+  else print_entries entries
+;;
+
+(* Drive the lookup synchronously inside the REPL. The wizard is a plain sync
+   loop, so each provider goes through Lwt_main.run; we print a "fetching..."
+   line BEFORE the call so the user has feedback during the network round-trip
+   instead of staring at a frozen prompt for several seconds. *)
+let discover_provider_models ?(force_refresh = false) () =
+  let families = Starter_profile.provider_families in
+  let with_keys =
+    families
+    |> List.filter (fun (family : Starter_model_catalog.provider_family) ->
+      Starter_profile.non_empty_env Sys.getenv_opt family.api_key_env)
+  in
+  print_line "";
+  if with_keys = []
+  then (
+    print_wrapped
+      "No provider has a detected API key. Set one of the *_API_KEY env vars \
+       and try again.";
+    print_line
+      (Starter_constants.Ansi.dim
+         "Tip: /providers shows which env vars are missing."))
+  else (
+    let cache_dir = Model_listing_cache.default_cache_dir () in
+    if force_refresh
+    then
+      print_wrapped
+        "Refreshing each provider's model listing from its API \
+         (skipping cache)..."
+    else
+      print_wrapped
+        "Listing the models each provider exposes (cached results preferred; \
+         use /refresh-models to force a refetch).";
+    print_line (Starter_constants.Ansi.dim ("Cache: " ^ cache_dir));
+    let store_warning_shown = ref false in
+    let on_store_error message =
+      if not !store_warning_shown
+      then (
+        store_warning_shown := true;
+        print_line
+          (Starter_constants.Ansi.yellow
+             ("Cache write failed (" ^ message ^ "); listings will not persist.")))
+    in
+    let interrupted = ref false in
+    List.iter
+      (fun (family : Starter_model_catalog.provider_family) ->
+        if !interrupted
+        then ()
+        else (
+          print_line "";
+          let header = Fmt.str "%s (via %s)" family.label family.api_key_env in
+          print_line (Starter_constants.Ansi.bold header);
+          let api_key =
+            Sys.getenv_opt family.api_key_env |> Option.value ~default:""
+          in
+          (* Print a "fetching..." line so the user sees progress while the
+             Lwt_main.run blocks. Without this the wizard looks frozen for
+             every provider that needs a real network round-trip. *)
+          let pending_label =
+            if force_refresh then "  fetching..." else "  checking..."
+          in
+          print_line (Starter_constants.Ansi.dim pending_label);
+          flush stdout;
+          let result =
+            try
+              Ok
+                (Lwt_main.run
+                   (Model_listing_cache.lookup
+                      ~force_refresh
+                      ~on_store_error
+                      ~provider_key:family.key
+                      ~provider_kind:family.provider_kind
+                      ~api_base:family.api_base
+                      ~api_key
+                      ()))
+            with
+            | Sys.Break ->
+              interrupted := true;
+              Error `Interrupted
+            | exn -> Error (`Exception exn)
+          in
+          match result with
+          | Ok (Ok lookup) -> print_provider_discovery_lookup lookup
+          | Ok (Error err) -> print_line (render_fetch_error family err)
+          | Error `Interrupted ->
+            print_line
+              (Starter_constants.Ansi.yellow
+                 "  interrupted; remaining providers were skipped.")
+          | Error (`Exception exn) ->
+            print_line
+              (Starter_constants.Ansi.yellow
+                 ("  unexpected error: " ^ Printexc.to_string exn))))
+      with_keys;
+    if !interrupted
+    then
+      print_line
+        (Starter_constants.Ansi.dim
+           "Re-run /discover or /refresh-models to continue."))
 ;;
 
 let print_env_statuses () =
@@ -1124,6 +1388,12 @@ let rec repl store ~authorization state runtime =
     repl store ~authorization next_state (Starter_runtime.clear_conversation runtime)
   | Starter_session.List_providers ->
     print_provider_matrix store;
+    repl store ~authorization next_state runtime
+  | Starter_session.List_discovered_models ->
+    discover_provider_models ();
+    repl store ~authorization next_state runtime
+  | Starter_session.Refresh_discovered_models ->
+    discover_provider_models ~force_refresh:true ();
     repl store ~authorization next_state runtime
   | Starter_session.List_env ->
     print_env_statuses ();

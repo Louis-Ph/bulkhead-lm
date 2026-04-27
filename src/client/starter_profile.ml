@@ -166,6 +166,62 @@ let route_statuses ?(lookup = Sys.getenv_opt) (config : Config.t) =
 
 let split_route_statuses statuses = List.partition (fun (status : route_status) -> status.ready) statuses
 
+type provider_group =
+  { provider_key : string
+  ; provider_label : string
+  ; provider_kind : Config.provider_kind option
+  ; api_key_env : string option
+  ; statuses : route_status list
+  }
+
+(* Group route statuses by their catalog provider family so the user sees the
+   list as a hierarchy (provider -> models). The order of catalogued providers
+   follows [Starter_model_catalog.provider_families]; routes that do not match
+   any catalog entry are gathered in a trailing "Custom routes" group. *)
+let group_route_statuses_by_provider statuses =
+  let in_catalog =
+    Starter_model_catalog.provider_families
+    |> List.filter_map (fun (family : Starter_model_catalog.provider_family) ->
+      let matching =
+        List.filter
+          (fun (status : route_status) ->
+            match status.catalog_entry with
+            | Some (entry_family, _) ->
+              String.equal entry_family.Starter_model_catalog.key family.key
+            | None -> false)
+          statuses
+      in
+      if matching = []
+      then None
+      else
+        Some
+          { provider_key = family.key
+          ; provider_label = family.label
+          ; provider_kind = Some family.provider_kind
+          ; api_key_env = Some family.api_key_env
+          ; statuses = matching
+          })
+  in
+  let custom =
+    List.filter
+      (fun (status : route_status) -> Option.is_none status.catalog_entry)
+      statuses
+  in
+  let custom_group =
+    if custom = []
+    then []
+    else
+      [ { provider_key = "custom"
+        ; provider_label = "Custom routes"
+        ; provider_kind = None
+        ; api_key_env = None
+        ; statuses = custom
+        }
+      ]
+  in
+  in_catalog @ custom_group
+;;
+
 let client_env_names = [ "BULKHEAD_LM_API_KEY"; "BULKHEAD_LM_AUTHORIZATION" ]
 
 let relevant_env_names () =

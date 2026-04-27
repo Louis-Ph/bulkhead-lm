@@ -86,36 +86,151 @@ let catalog_json (family, model) =
     ]
 ;;
 
+let route_with_catalog_json (route : Config.route) =
+  let base_fields =
+    [ Some ("id", `String route.public_model)
+    ; Some ("object", `String "model")
+    ; Some ("public_model", `String route.public_model)
+    ; Some
+        ( "configured_backends"
+        , `List (List.map backend_json route.backends) )
+    ; Some ("backend_count", `Int (List.length route.backends))
+    ]
+  in
+  match catalog_entry_of_route route with
+  | Some (family, model) ->
+    assoc_fields
+      (base_fields
+       @ [ Some ("display_name", `String (Model_catalog.model_label model))
+         ; Some ("catalog", catalog_json (family, model))
+         ])
+  | None -> assoc_fields base_fields
+;;
+
+(* Read the cached on-disk discovery for a provider (no live fetch). The
+   /v1/models endpoint must respond promptly, so we only surface what /discover
+   has already populated; clients can call /discover from the wizard or
+   trigger /v1/providers/refresh-models to refresh. *)
+let discovered_section_for_family (family : Model_catalog.provider_family) =
+  match Model_listing_cache.load_cached ~provider_key:family.key () with
+  | None -> None
+  | Some listing ->
+    let entries =
+      listing.entries
+      |> List.map (fun (entry : Provider_models_listing.model_entry) ->
+        assoc_fields
+          [ string_field "id" entry.id
+          ; string_field_opt "display_name" entry.display_name
+          ; string_field_opt "created" entry.created
+          ])
+    in
+    Some
+      ( "discovered_models"
+      , assoc_fields
+          [ Some ("count", `Int (List.length listing.entries))
+          ; Some ("fetched_at_unix", `Float listing.fetched_at)
+          ; Some ("entries", `List entries)
+          ] )
+;;
+
+let provider_group_json
+  (family : Model_catalog.provider_family)
+  (entries : (Config.route * Model_catalog.provider_model) list)
+  =
+  assoc_fields
+    [ string_field "key" family.key
+    ; string_field "label" family.label
+    ; string_field "provider_kind"
+        (Config.provider_kind_to_string family.provider_kind)
+    ; string_field "credential_env" family.api_key_env
+    ; string_field "api_base" family.api_base
+    ; string_field_opt "docs_url" family.docs_url
+    ; Some
+        ( "models"
+        , `List
+            (List.map
+               (fun ((route : Config.route), (model : Model_catalog.provider_model)) ->
+                 assoc_fields
+                   [ string_field "id" route.public_model
+                   ; string_field "label" (Model_catalog.model_label model)
+                   ; string_field "upstream_model" model.upstream_model
+                   ; string_field "lifecycle"
+                       (Model_catalog.lifecycle_to_string model.lifecycle)
+                   ; string_field_opt "version" model.version_label
+                   ; string_field_opt "mode" model.mode_label
+                   ; string_field_opt "docs_url" model.docs_url
+                   ; Some
+                       ( "capabilities"
+                       , `List
+                           (List.map
+                              (fun capability -> `String capability)
+                              model.capabilities) )
+                   ; Some
+                       ( "backend_count"
+                       , `Int (List.length route.backends) )
+                   ])
+               entries) )
+    ; discovered_section_for_family family
+    ]
+;;
+
+let custom_group_json (routes : Config.route list) =
+  assoc_fields
+    [ string_field "key" "custom"
+    ; string_field "label" "Custom routes"
+    ; Some
+        ( "models"
+        , `List
+            (List.map
+               (fun (route : Config.route) ->
+                 assoc_fields
+                   [ string_field "id" route.public_model
+                   ; Some
+                       ( "backend_count"
+                       , `Int (List.length route.backends) )
+                   ])
+               routes) )
+    ]
+;;
+
+let providers_json config =
+  let routes_with_entry =
+    List.map
+      (fun (route : Config.route) -> route, catalog_entry_of_route route)
+      config.Config.routes
+  in
+  let in_catalog =
+    Model_catalog.provider_families
+    |> List.filter_map (fun (family : Model_catalog.provider_family) ->
+      let matching =
+        List.filter_map
+          (fun (route, entry) ->
+            match entry with
+            | Some (entry_family, model)
+              when String.equal entry_family.Model_catalog.key family.key ->
+              Some (route, model)
+            | _ -> None)
+          routes_with_entry
+      in
+      if matching = [] then None else Some (provider_group_json family matching))
+  in
+  let custom =
+    List.filter_map
+      (fun (route, entry) -> if entry = None then Some route else None)
+      routes_with_entry
+  in
+  let custom_section =
+    if custom = [] then [] else [ custom_group_json custom ]
+  in
+  `List (in_catalog @ custom_section)
+;;
+
 let models_json config =
   `Assoc
     [ ( "data"
-      , `List
-          (List.map
-             (fun (route : Config.route) ->
-               let fields =
-                 [ Some ("id", `String route.public_model)
-                 ; Some ("object", `String "model")
-                 ; Some ("public_model", `String route.public_model)
-                 ; Some
-                     ( "configured_backends"
-                     , `List (List.map backend_json route.backends) )
-                 ; Some
-                     ( "backend_count"
-                     , `Int (List.length route.backends) )
-                 ]
-               in
-               let fields =
-                 match catalog_entry_of_route route with
-                 | Some (family, model) ->
-                   fields
-                   @ [ Some ("display_name", `String (Model_catalog.model_label model))
-                     ; Some ("catalog", catalog_json (family, model))
-                     ]
-                 | None -> fields
-               in
-               assoc_fields fields)
-             config.Config.routes) )
+      , `List (List.map route_with_catalog_json config.Config.routes) )
     ; "object", `String "list"
+    ; "providers", providers_json config
     ]
 ;;
 
