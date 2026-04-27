@@ -1138,6 +1138,79 @@ let handle_pool_global store enabled =
   | Error message -> report_pool_result message (Error message)
 ;;
 
+(* ---- Persona list (multi-bot connectors) -------------------------------- *)
+
+let render_room_memory_mode = function
+  | Config.Shared_room -> "shared (group memory across personas)"
+  | Config.Isolated_per_persona -> "isolated (private memory per persona)"
+;;
+
+let print_persona_list store =
+  let telegram = store.Runtime_state.config.Config.user_connectors.telegram in
+  print_line "";
+  if telegram = []
+  then (
+    print_wrapped
+      "No chat persona is configured. Add a Telegram bot via the gateway \
+       config:";
+    print_line
+      (Starter_constants.Ansi.dim
+         "  user_connectors.telegram = [{ persona_name, bot_token_env, \
+          route_model, ... }, ...]");
+    print_line
+      (Starter_constants.Ansi.dim
+         "Two bots in the same Telegram group with shared room memory = a \
+          group chat where each member is a different model or pool."))
+  else (
+    print_wrapped
+      "Telegram personas — point each bot's webhook to its webhook_path:";
+    List.iter
+      (fun (entry : Config.telegram_connector) ->
+        print_line "";
+        print_line (Starter_constants.Ansi.bold ("@" ^ entry.persona_name));
+        print_line
+          (Fmt.str
+             "  route        : %s"
+             entry.route_model);
+        print_line
+          (Fmt.str
+             "  bot token env: %s%s"
+             entry.bot_token_env
+             (if Starter_profile.non_empty_env Sys.getenv_opt entry.bot_token_env
+              then ""
+              else
+                " "
+                ^ Starter_constants.Ansi.yellow "(env var not set)"));
+        print_line
+          (Fmt.str
+             "  webhook path : %s"
+             entry.webhook_path);
+        print_line
+          (Fmt.str
+             "  room memory  : %s"
+             (render_room_memory_mode entry.room_memory_mode));
+        match entry.system_prompt with
+        | Some prompt when String.length prompt < 80 ->
+          print_line
+            (Starter_constants.Ansi.dim ("  system prompt: " ^ prompt))
+        | Some prompt ->
+          print_line
+            (Starter_constants.Ansi.dim
+               ("  system prompt: "
+                ^ String.sub prompt 0 76
+                ^ "..."))
+        | None ->
+          print_line
+            (Starter_constants.Ansi.dim
+               "  system prompt: (using channel default)"))
+      telegram;
+    print_line "";
+    print_line
+      (Starter_constants.Ansi.dim
+         "Tip: add several entries with shared room memory and the personas \
+          will see each other's replies in the same Telegram group."))
+;;
+
 (* ---- /env display --------------------------------------------------------- *)
 
 let print_env_statuses () =
@@ -1639,6 +1712,9 @@ let rec repl store ~authorization state runtime =
     repl store ~authorization next_state runtime
   | Starter_session.Set_global_pool enabled ->
     handle_pool_global store enabled;
+    repl store ~authorization next_state runtime
+  | Starter_session.Show_persona_list ->
+    print_persona_list store;
     repl store ~authorization next_state runtime
   | Starter_session.List_env ->
     print_env_statuses ();

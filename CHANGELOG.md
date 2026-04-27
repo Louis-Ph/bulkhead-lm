@@ -4,6 +4,27 @@
 
 ### Added
 
+- **Multi-persona Telegram bots** for "group chat where each member is a
+  different model or pool":
+  - `Config.user_connectors.telegram` is now a list, so several Telegram
+    bots can run on one gateway, each with its own `persona_name`,
+    `webhook_path`, and `route_model` (which can be a pool name)
+  - Each entry has a `room_memory_mode` of `"shared"` (default; every
+    persona on the same chat_id reads the same conversation history) or
+    `"isolated"` (each persona keeps its own thread)
+  - Assistant turns committed to a shared room are tagged
+    `[persona_name] ...` so other personas can tell who said what; the
+    system prompt is augmented automatically to make each persona aware
+    that other AI participants may be in the room
+  - Backward compatible: legacy single-bot config (the connector as a
+    JSON object instead of an array) parses to a one-element list with a
+    default persona name and shared room memory
+  - New starter command `/persona list` (alias `/persona`) shows every
+    configured persona, its route, env var status, webhook path, room
+    mode and short system prompt summary
+  - 6 new tests covering both config shapes, shared vs isolated session
+    keys, and assistant turn tagging (121/121 total)
+
 - **Named model pools** layered on top of routes:
   - Each pool is a named group of route members, each with its own
     per-day token budget; the pool name is itself a public model id, so

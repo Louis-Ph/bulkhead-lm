@@ -122,6 +122,8 @@ request time and falls through automatically on failure.
 - `Discord_connector` adds Discord Ed25519 request verification, slash-command parsing, and deferred interaction response editing without polluting the simpler synchronous connectors
 - `Google_chat_id_token` isolates Google Chat bearer-token verification from the higher-level Google Chat event bridge
 - user chat connectors reuse the same virtual-key auth path, route allowlists, budgets, and output guards instead of bypassing gateway policy
+- the Telegram connector list (`Config.user_connectors.telegram : telegram_connector list`) supports multi-persona deployments where several bots run on one gateway, each with its own `persona_name`, `webhook_path` and `route_model`; legacy single-bot configs (the connector as a JSON object) still parse to a one-element list for backward compatibility
+- per-room memory composition uses two modes: `Shared_room` (every persona on the same `chat_id` reads/writes the same conversation thread, with assistant turns tagged `[persona_name] ...` so personas can tell who said what) and `Isolated_per_persona` (each persona keeps a private thread per `chat_id`, used for parallel-bot setups that should not mingle context)
 - connector config is fail-closed on duplicate `webhook_path` values so one HTTP path cannot ambiguously match multiple enabled connectors
 - control-plane config is fail-closed on `path_prefix` collisions with `/health`, `/v1/*`, or enabled chat webhooks so the admin surface cannot shadow production endpoints
 - `docs/USER_CONNECTOR_ROADMAP.md` keeps the wave-based rollout order explicit, including implemented versus deferred platforms, instead of letting connector growth become opportunistic

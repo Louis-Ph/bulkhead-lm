@@ -25,6 +25,7 @@ type command =
   | Pool_add of { name : string; route : string; budget : int option }
   | Pool_remove of { name : string; route : string }
   | Pool_global_set of bool
+  | Persona_list
   | Attach_file of string
   | Show_pending_files
   | Clear_pending_files
@@ -75,6 +76,7 @@ type effect =
   | Add_pool_member of { name : string; route : string; budget : int option }
   | Remove_pool_member of { name : string; route : string }
   | Set_global_pool of bool
+  | Show_persona_list
   | Attach_local_file of string
   | List_pending_files
   | Reset_pending_files
@@ -227,6 +229,9 @@ let parse_command input =
     | "on" | "true" | "yes" -> Pool_global_set true
     | "off" | "false" | "no" -> Pool_global_set false
     | _ -> Invalid "/pool global expects on or off")
+  else if String.equal trimmed Starter_constants.Command.persona_list
+       || String.equal trimmed Starter_constants.Command.persona
+  then Persona_list
   else if String.equal trimmed Starter_constants.Command.env
   then Show_env
   else if String.equal trimmed Starter_constants.Command.files
@@ -331,6 +336,7 @@ let step state input =
   | Ready context, Pool_remove { name; route } ->
     Ready context, Remove_pool_member { name; route }
   | Ready context, Pool_global_set enabled -> Ready context, Set_global_pool enabled
+  | Ready context, Persona_list -> Ready context, Show_persona_list
   | Ready context, Attach_file path -> Ready context, Attach_local_file path
   | Ready context, Show_pending_files -> Ready context, List_pending_files
   | Ready context, Clear_pending_files -> Ready context, Reset_pending_files

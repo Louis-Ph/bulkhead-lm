@@ -388,7 +388,7 @@ let messenger_connector_handles_verification_test _switch () =
     Bulkhead_lm.Runtime_state.create
       (Bulkhead_lm.Config_test_support.sample_config
          ~user_connectors:
-           { Bulkhead_lm.Config.telegram = None
+           { Bulkhead_lm.Config.telegram = []
            ; whatsapp = None
            ; messenger = Some connector
            ; instagram = None

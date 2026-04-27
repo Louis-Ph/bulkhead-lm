@@ -40,14 +40,30 @@ type persistence =
   ; busy_timeout_ms : int
   }
 
+(* How a connector entry composes the conversation memory key.
+
+   - [Shared] : every persona that shares the same room_id (chat_id, group id)
+     reads and writes the SAME conversation history. This is what produces a
+     "true group chat" feel because persona A sees what persona B answered.
+   - [Isolated] : each persona keeps its own thread per room, so personas
+     never see each other's replies. Useful for parallel-bots set-ups. *)
+type room_memory_mode =
+  | Shared_room
+  | Isolated_per_persona
+
 type telegram_connector =
-  { webhook_path : string
+  { persona_name : string
+      (** Short identifier for this bot. Tagged into assistant turns so
+          other personas reading shared memory know who said what. Defaults
+          to "default" for legacy single-bot configs. *)
+  ; webhook_path : string
   ; bot_token_env : string
   ; secret_token_env : string option
   ; authorization_env : string
   ; route_model : string
   ; system_prompt : string option
   ; allowed_chat_ids : string list
+  ; room_memory_mode : room_memory_mode
   }
 
 type whatsapp_connector =
@@ -154,7 +170,11 @@ type google_chat_connector =
   }
 
 type user_connectors =
-  { telegram : telegram_connector option
+  { telegram : telegram_connector list
+      (** Multiple Telegram bots may run on one gateway, each with its own
+          persona, route_model and webhook_path. Used for "group chat with N
+          AI participants" set-ups; legacy single-bot configs are still
+          accepted and become a one-element list. *)
   ; whatsapp : whatsapp_connector option
   ; messenger : messenger_connector option
   ; instagram : instagram_connector option
@@ -632,7 +652,22 @@ let parse_virtual_key defaults json =
     }
 ;;
 
-let parse_telegram_connector json =
+let room_memory_mode_of_string = function
+  | "shared" | "shared_room" | "room" -> Ok Shared_room
+  | "isolated" | "per_persona" | "isolated_per_persona" -> Ok Isolated_per_persona
+  | other -> Error (Fmt.str "unknown room_memory_mode: %s" other)
+;;
+
+let room_memory_mode_to_string = function
+  | Shared_room -> "shared"
+  | Isolated_per_persona -> "isolated"
+;;
+
+(** Parse one telegram connector entry. Returns [Ok None] when the entry has
+    [enabled = false]. The legacy single-bot config (no persona_name, no
+    [room_memory_mode]) still parses to a one-bot list with a default persona
+    name and shared-room memory. *)
+let parse_telegram_connector_entry json =
   if not (bool_member_with_default "enabled" json ~default:true)
   then Ok None
   else
@@ -642,9 +677,23 @@ let parse_telegram_connector json =
     >>= fun authorization_env ->
     string_member "route_model" json
     >>= fun route_model ->
+    let persona_name =
+      match optional_non_empty_string_member "persona_name" json with
+      | Some name -> String.trim name
+      | None -> "default"
+    in
+    let room_memory_mode =
+      match optional_non_empty_string_member "room_memory_mode" json with
+      | Some raw ->
+        (match room_memory_mode_of_string (String.lowercase_ascii (String.trim raw)) with
+         | Ok mode -> mode
+         | Error _ -> Shared_room)
+      | None -> Shared_room
+    in
     Ok
       (Some
-         { webhook_path =
+         { persona_name
+         ; webhook_path =
              normalize_http_path
                (string_member_with_default
                   "webhook_path"
@@ -656,7 +705,34 @@ let parse_telegram_connector json =
          ; route_model = String.trim route_model
          ; system_prompt = optional_non_empty_string_member "system_prompt" json
          ; allowed_chat_ids = string_or_int_list_member "allowed_chat_ids" json
+         ; room_memory_mode
          })
+;;
+
+(** Parse the [telegram] connector section. Accepts both shapes:
+
+    - Legacy single-bot object: ["telegram": { ... }]
+    - Multi-bot array: ["telegram": [ { persona_name = "marie", ... }, ... ]]
+
+    A bad entry inside an array is dropped tolerantly so the rest of the
+    personas still come up. An array with no usable entry returns the empty
+    list (the section behaves as disabled). *)
+let parse_telegram_connector json =
+  match json with
+  | `List items ->
+    Ok
+      (List.filter_map
+         (fun item ->
+           match parse_telegram_connector_entry item with
+           | Ok (Some entry) -> Some entry
+           | _ -> None)
+         items)
+  | `Assoc _ as object_json ->
+    (match parse_telegram_connector_entry object_json with
+     | Ok (Some entry) -> Ok [ entry ]
+     | Ok None -> Ok []
+     | Error err -> Error err)
+  | _ -> Ok []
 ;;
 
 let parse_whatsapp_connector json =
@@ -984,10 +1060,15 @@ let resolve_related_paths path =
 ;;
 
 let configured_user_connector_webhook_paths (user_connectors : user_connectors) =
-  [ Option.map
-      (fun (connector : telegram_connector) -> "telegram", connector.webhook_path)
-      user_connectors.telegram
-  ; Option.map
+  let telegram_paths =
+    user_connectors.telegram
+    |> List.map (fun (connector : telegram_connector) ->
+      Some
+        ( Fmt.str "telegram[%s]" connector.persona_name
+        , connector.webhook_path ))
+  in
+  telegram_paths
+  @ [ Option.map
       (fun (connector : whatsapp_connector) -> "whatsapp", connector.webhook_path)
       user_connectors.whatsapp
   ; Option.map
@@ -1101,8 +1182,8 @@ let load path =
   let user_connectors =
     let telegram_result =
       match object_member "telegram" connector_json with
-      | `Assoc _ as telegram_json -> parse_telegram_connector telegram_json
-      | _ -> Ok None
+      | `Null -> Ok []
+      | telegram_json -> parse_telegram_connector telegram_json
     in
     let whatsapp_result =
       match object_member "whatsapp" connector_json with

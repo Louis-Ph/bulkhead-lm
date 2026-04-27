@@ -74,7 +74,7 @@ let google_chat_connector_handles_text_event_test _switch () =
       ~provider_factory:(fun _ -> provider)
       (Bulkhead_lm.Config_test_support.sample_config
          ~user_connectors:
-           { Bulkhead_lm.Config.telegram = None
+           { Bulkhead_lm.Config.telegram = []
            ; whatsapp = None
            ; messenger = None
            ; instagram = None

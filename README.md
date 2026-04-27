@@ -174,6 +174,98 @@ curl -sS "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/setWebhook" \
 
 6. Open Telegram. Send a message to your bot. Done.
 
+### Group chat with multiple personas (multi-bot Telegram)
+
+You can run several Telegram bots on the same BulkheadLM gateway, each
+backed by a different model or pool, and add them all to the same Telegram
+group. From the user's point of view it looks like a chat group whose
+members are AI; each persona stays in character and (with shared room
+memory) sees what the others have said.
+
+Setup:
+
+1. Open Telegram and talk to [@BotFather](https://t.me/BotFather) once per
+   persona. Send `/newbot`, pick a display name and username, copy the
+   token. Repeat for as many personas as you want.
+2. Save every token in your secrets file:
+
+```bash
+cat >> ~/.bashrc.secrets << 'EOF'
+export TELEGRAM_TOKEN_MARIE="paste-marie-token"
+export TELEGRAM_TOKEN_PAUL="paste-paul-token"
+EOF
+```
+
+3. Replace the `telegram` section of your gateway config with an array, one
+   entry per persona:
+
+```json
+{
+  "user_connectors": {
+    "telegram": [
+      {
+        "persona_name": "marie",
+        "webhook_path": "/connectors/telegram/marie",
+        "bot_token_env": "TELEGRAM_TOKEN_MARIE",
+        "authorization_env": "BULKHEAD_LM_API_KEY",
+        "route_model": "claude-opus",
+        "system_prompt": "Tu es Marie, l'experte technique. Réponse courte, précise.",
+        "room_memory_mode": "shared"
+      },
+      {
+        "persona_name": "paul",
+        "webhook_path": "/connectors/telegram/paul",
+        "bot_token_env": "TELEGRAM_TOKEN_PAUL",
+        "authorization_env": "BULKHEAD_LM_API_KEY",
+        "route_model": "pool-cheap",
+        "system_prompt": "Tu es Paul, l'éditeur. Tu reformules pour rendre les choses claires.",
+        "room_memory_mode": "shared"
+      }
+    ]
+  }
+}
+```
+
+4. Start the gateway. Inside the starter, `/persona list` confirms both
+   personas are loaded. Point each bot's webhook at the matching
+   `webhook_path`:
+
+```bash
+curl -sS "https://api.telegram.org/bot${TELEGRAM_TOKEN_MARIE}/setWebhook" \
+  -H 'content-type: application/json' \
+  -d '{"url": "https://your-public-host/connectors/telegram/marie"}'
+
+curl -sS "https://api.telegram.org/bot${TELEGRAM_TOKEN_PAUL}/setWebhook" \
+  -H 'content-type: application/json' \
+  -d '{"url": "https://your-public-host/connectors/telegram/paul"}'
+```
+
+5. Create a Telegram group, invite both bots, and (in BotFather, with
+   `/setprivacy`) consider disabling privacy mode on each bot if you want
+   them to see every message instead of only those that mention them.
+
+How shared room memory works:
+
+- Both bots share the same conversation thread keyed by the Telegram
+  `chat_id`. When `marie` answers, her reply is committed to memory tagged
+  `[marie] ...`. The next time someone @mentions `paul`, his bot reads the
+  same thread and sees marie's reply.
+- Each persona's system prompt is automatically augmented with a hint
+  explaining that other participants may be AI personas and that lines
+  prefixed `[name]` belong to them.
+- A group with `pool-cheap` as one persona and `claude-opus` as another
+  combines latency-aware routing with multi-persona dialogue: the cheap
+  persona auto-falls back across its members while the expensive persona
+  always answers as itself.
+
+Set `room_memory_mode` to `"isolated"` instead of `"shared"` to give each
+persona its own private thread per chat (parallel bots in the same group
+that never see each other's replies).
+
+The same pattern works for the legacy single-bot setup: a JSON object
+under `telegram` (instead of an array) is still accepted and parses to a
+one-element list with a default persona name and shared room memory.
+
 ### WhatsApp Cloud API
 
 1. Create a Meta app at [developers.facebook.com](https://developers.facebook.com)
@@ -359,7 +451,8 @@ The starter:
 - shows masked environment and provider readiness state from inside the REPL
 - can list live or cached upstream model inventories with `/discover` and force a refetch with `/refresh-models`
 - can create, inspect and mutate named model pools with `/pool list|show|create|drop|add|remove|global on|off`; pool definitions persist across restarts in SQLite
-- drops you into a simple terminal session with `/tools`, `/file PATH`, `/files`, `/clearfiles`, `/explore PATH`, `/open PATH`, `/run CMD`, `/admin TEXT`, `/control`, `/package`, `/plan`, `/apply`, `/discard`, `/model`, `/models`, `/swap`, `/memory`, `/memory replace TEXT`, `/forget`, `/thread on|off`, `/providers`, `/discover`, `/refresh-models`, `/pool list|show|create|drop|add|remove|global`, `/env`, `/config`, `/help`, and `/quit`
+- can run several Telegram bots on the same gateway as distinct personas, each backed by its own model or pool; with shared room memory the personas behave like real participants in the same group chat, viewable through `/persona list`
+- drops you into a simple terminal session with `/tools`, `/file PATH`, `/files`, `/clearfiles`, `/explore PATH`, `/open PATH`, `/run CMD`, `/admin TEXT`, `/control`, `/package`, `/plan`, `/apply`, `/discard`, `/model`, `/models`, `/swap`, `/memory`, `/memory replace TEXT`, `/forget`, `/thread on|off`, `/providers`, `/discover`, `/refresh-models`, `/pool list|show|create|drop|add|remove|global`, `/persona list`, `/env`, `/config`, `/help`, and `/quit`
 
 Admin assistant flow inside the starter:
 

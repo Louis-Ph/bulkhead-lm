@@ -709,6 +709,92 @@ Why this is nice:
    anything.
 4. If you add a new model later, the global pool picks it up automatically.
 
+## "A chat group where each member is a different AI"
+
+If you have several models or several pools, you can ask BulkheadLM to make
+each of them appear as a different person in a Telegram group. You and your
+friends can then chat with all of them at once like a real group.
+
+What you need:
+
+1. A Telegram account.
+2. One BotFather token per persona. BotFather is free.
+3. One line per persona in your secrets file.
+
+Steps:
+
+1. Open Telegram, message `@BotFather`, send `/newbot`. Pick a name like
+   "Marie" and a username like "marie_helper_bot". Copy the token. Do the
+   same for `@BotFather` again to make a second bot called "Paul".
+2. Add the tokens to your secrets:
+
+```bash
+cat >> ~/.bashrc.secrets << 'EOF'
+export TELEGRAM_TOKEN_MARIE="paste-marie-token"
+export TELEGRAM_TOKEN_PAUL="paste-paul-token"
+EOF
+```
+
+3. In your `config/local_only/starter.gateway.json`, replace the
+   `telegram` section with this list of two personas:
+
+```json
+{
+  "user_connectors": {
+    "telegram": [
+      {
+        "persona_name": "marie",
+        "webhook_path": "/connectors/telegram/marie",
+        "bot_token_env": "TELEGRAM_TOKEN_MARIE",
+        "authorization_env": "BULKHEAD_LM_API_KEY",
+        "route_model": "claude-opus",
+        "system_prompt": "Tu es Marie, l'experte. Sois directe.",
+        "room_memory_mode": "shared"
+      },
+      {
+        "persona_name": "paul",
+        "webhook_path": "/connectors/telegram/paul",
+        "bot_token_env": "TELEGRAM_TOKEN_PAUL",
+        "authorization_env": "BULKHEAD_LM_API_KEY",
+        "route_model": "pool-cheap",
+        "system_prompt": "Tu es Paul, le relecteur. Tu simplifies les phrases.",
+        "room_memory_mode": "shared"
+      }
+    ]
+  }
+}
+```
+
+4. Start BulkheadLM. Inside the starter, type `/persona list`. You should
+   see both `marie` and `paul`.
+5. Tell Telegram where each bot lives (replace `your-public-host` with your
+   server):
+
+```bash
+curl -sS "https://api.telegram.org/bot${TELEGRAM_TOKEN_MARIE}/setWebhook" \
+  -d '{"url": "https://your-public-host/connectors/telegram/marie"}'
+
+curl -sS "https://api.telegram.org/bot${TELEGRAM_TOKEN_PAUL}/setWebhook" \
+  -d '{"url": "https://your-public-host/connectors/telegram/paul"}'
+```
+
+6. Open Telegram, create a group, invite Marie and Paul (and your friends if
+   you want).
+7. Talk in the group. When you mention `@marie_helper_bot`, Marie answers.
+   When you mention `@paul_helper_bot`, Paul answers — and Paul has read
+   Marie's reply, so he can refer to it.
+
+Why this is fun:
+
+1. Each persona has its own Telegram name and avatar, like a real group.
+2. They share memory, so they can answer each other naturally.
+3. One persona can be expensive (Claude Opus), another can be cheap (a pool
+   of small models). Your wallet stays happy.
+4. You can keep adding personas with more BotFather tokens.
+
+If you don't want them to read each other (parallel bots in one group), set
+`"room_memory_mode": "isolated"` on each entry instead of `"shared"`.
+
 ## Your first chat
 
 After the starter opens, type something like:
@@ -734,6 +820,7 @@ what can you do for me?
 /refresh-models
 /pool list
 /pool global on
+/persona list
 /env
 /file README.md
 /files

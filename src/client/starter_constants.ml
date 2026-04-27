@@ -121,6 +121,8 @@ module Command = struct
   let pool_add = pool ^ " add"
   let pool_remove = pool ^ " remove"
   let pool_global = pool ^ " global"
+  let persona = "/persona"
+  let persona_list = persona ^ " list"
 
   let all =
     [ help
@@ -150,6 +152,7 @@ module Command = struct
     ; discover
     ; refresh_models
     ; pool
+    ; persona
     ]
     |> List.sort_uniq String.compare
   ;;
@@ -276,6 +279,9 @@ module Text = struct
       }
     ; { usage = Command.pool ^ " global on|off"
       ; description = "toggle the special 'global' pool that contains every route"
+      }
+    ; { usage = Command.persona ^ " list"
+      ; description = "list configured chat personas (multi-bot setups) with their route, room mode and webhook"
       }
     ; { usage = Command.env
       ; description = "show relevant environment variables in masked form"

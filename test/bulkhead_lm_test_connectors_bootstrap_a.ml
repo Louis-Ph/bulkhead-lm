@@ -28,8 +28,8 @@ let config_load_parses_telegram_connector_test _switch () =
    | Error err -> Alcotest.failf "expected telegram connector config load success: %s" err
    | Ok config ->
      (match config.Bulkhead_lm.Config.user_connectors.telegram with
-      | None -> Alcotest.fail "expected telegram connector config"
-      | Some connector ->
+      | [] -> Alcotest.fail "expected telegram connector config"
+      | connector :: _ ->
         Alcotest.(check string)
           "telegram webhook path normalized"
           "/telegram/webhook"
@@ -102,7 +102,7 @@ let telegram_connector_handles_text_webhook_test _switch () =
       ~provider_factory:(fun _ -> provider)
       (Bulkhead_lm.Config_test_support.sample_config
          ~user_connectors:
-           { Bulkhead_lm.Config.telegram = Some connector
+           { Bulkhead_lm.Config.telegram = [ connector ]
            ; whatsapp = None
            ; messenger = None
            ; instagram = None
@@ -213,10 +213,14 @@ let telegram_connector_handles_text_webhook_test _switch () =
             | _ -> None)
        | _ :: _ -> Alcotest.fail "expected telegram sendMessage payload object"
        | [] -> Alcotest.fail "expected telegram sendMessage request");
+      (* Telegram connector now uses shared-room session keys by default so
+         multiple personas in the same chat see the same conversation. The
+         key for chat_id=42 is therefore [telegram:room:42], not the legacy
+         [telegram:42]. *)
       let session =
         Bulkhead_lm.Runtime_state.get_user_connector_session
           store
-          ~session_key:"telegram:42"
+          ~session_key:"telegram:room:42"
       in
       Alcotest.(check int)
         "telegram connector remembers one exchange"
@@ -348,7 +352,7 @@ let whatsapp_connector_handles_verification_test _switch () =
     Bulkhead_lm.Runtime_state.create
       (Bulkhead_lm.Config_test_support.sample_config
          ~user_connectors:
-           { Bulkhead_lm.Config.telegram = None
+           { Bulkhead_lm.Config.telegram = []
            ; whatsapp = Some connector
            ; messenger = None
            ; instagram = None

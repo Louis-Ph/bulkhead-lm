@@ -40,7 +40,7 @@ let wechat_connector_handles_text_webhook_test _switch () =
       ~provider_factory:(fun _ -> provider)
       (Bulkhead_lm.Config_test_support.sample_config
          ~user_connectors:
-           { Bulkhead_lm.Config.telegram = None
+           { Bulkhead_lm.Config.telegram = []
            ; whatsapp = None
            ; messenger = None
            ; instagram = None
@@ -178,7 +178,7 @@ let wechat_connector_handles_encrypted_text_webhook_test _switch () =
       ~provider_factory:(fun _ -> provider)
       (Bulkhead_lm.Config_test_support.sample_config
          ~user_connectors:
-           { Bulkhead_lm.Config.telegram = None
+           { Bulkhead_lm.Config.telegram = []
            ; whatsapp = None
            ; messenger = None
            ; instagram = None
@@ -364,7 +364,7 @@ let discord_connector_handles_ping_test _switch () =
     Bulkhead_lm.Runtime_state.create
       (Bulkhead_lm.Config_test_support.sample_config
          ~user_connectors:
-           { Bulkhead_lm.Config.telegram = None
+           { Bulkhead_lm.Config.telegram = []
            ; whatsapp = None
            ; messenger = None
            ; instagram = None

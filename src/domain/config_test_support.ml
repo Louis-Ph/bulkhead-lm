@@ -56,22 +56,26 @@ let backend
 let route ~public_model ~backends () = { Config.public_model; backends }
 
 let telegram_connector
+  ?(persona_name = "default")
   ?(webhook_path = "/connectors/telegram/webhook")
   ?secret_token_env
   ?system_prompt
   ?(allowed_chat_ids = [])
+  ?(room_memory_mode = Config.Shared_room)
   ~bot_token_env
   ~authorization_env
   ~route_model
   ()
   =
-  { Config.webhook_path
+  { Config.persona_name
+  ; webhook_path
   ; bot_token_env
   ; secret_token_env
   ; authorization_env
   ; route_model
   ; system_prompt
   ; allowed_chat_ids
+  ; room_memory_mode
   }
 ;;
 
@@ -282,7 +286,7 @@ let google_chat_connector
 let sample_config
   ?security_policy
   ?(user_connectors =
-    { Config.telegram = None
+    { Config.telegram = []
     ; whatsapp = None
     ; messenger = None
     ; instagram = None

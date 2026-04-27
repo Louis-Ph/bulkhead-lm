@@ -42,7 +42,7 @@ let whatsapp_connector_handles_text_webhook_test _switch () =
       ~provider_factory:(fun _ -> provider)
       (Bulkhead_lm.Config_test_support.sample_config
          ~user_connectors:
-           { Bulkhead_lm.Config.telegram = None
+           { Bulkhead_lm.Config.telegram = []
            ; whatsapp = Some connector
            ; messenger = None
            ; instagram = None
@@ -225,7 +225,7 @@ let messenger_connector_handles_text_webhook_test _switch () =
       ~provider_factory:(fun _ -> provider)
       (Bulkhead_lm.Config_test_support.sample_config
          ~user_connectors:
-           { Bulkhead_lm.Config.telegram = None
+           { Bulkhead_lm.Config.telegram = []
            ; whatsapp = None
            ; messenger = Some connector
            ; instagram = None

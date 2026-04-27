@@ -41,10 +41,52 @@ let help_message =
 let reset_message = "Conversation memory cleared for this Telegram chat."
 let text_only_message = "Send a text message for now. Media and files are not handled by this connector yet."
 
+(** Find the connector entry whose webhook_path matches the inbound HTTP
+    path. With multi-bot configurations there can be several Telegram entries
+    on the same gateway, each registered against a distinct webhook_path; the
+    first match wins. *)
 let find_webhook_config (config : Config.t) ~path =
-  match config.user_connectors.telegram with
-  | Some connector when String.equal connector.webhook_path path -> Some connector
-  | _ -> None
+  List.find_opt
+    (fun (connector : Config.telegram_connector) ->
+      String.equal connector.webhook_path path)
+    config.user_connectors.telegram
+;;
+
+(** Compose the conversation memory key.
+
+    - [Shared_room] : every persona on the same chat_id reads and writes the
+      SAME thread, so a group chat with two personas behaves as a real group:
+      persona B sees what persona A just answered.
+    - [Isolated_per_persona] : each persona keeps its own thread per chat_id;
+      personas never see each other's replies (useful for parallel-bot setups
+      that should NOT mingle context). *)
+let session_key_for_message
+  (connector_config : Config.telegram_connector)
+  message
+  =
+  match connector_config.Config.room_memory_mode with
+  | Config.Shared_room ->
+    (* Reserved subject prefix [room:...] avoids clashing with the
+       legacy single-bot [telegram:{chat_id}] key. *)
+    User_connector_common.build_session_key connector ("room:" ^ message.chat_id)
+  | Config.Isolated_per_persona ->
+    User_connector_common.build_session_key
+      connector
+      (message.chat_id ^ ":" ^ connector_config.persona_name)
+;;
+
+(** When an assistant turn is committed to a SHARED room thread, we tag it
+    with the persona's name so the next persona reading the history can tell
+    who said what. The tag is invisible to the human user (it lives only in
+    memory storage) but it gives every persona a clear "who said what" view. *)
+let tag_assistant_turn_for_persona
+  (connector_config : Config.telegram_connector)
+  text
+  =
+  match connector_config.Config.room_memory_mode with
+  | Config.Shared_room ->
+    Fmt.str "[%s] %s" connector_config.persona_name text
+  | Config.Isolated_per_persona -> text
 ;;
 
 let telegram_api_uri bot_token method_name =
@@ -179,9 +221,22 @@ let send_telegram_message
 ;;
 
 let connector_system_messages (connector_config : Config.telegram_connector) message =
+  let group_context_lines =
+    match connector_config.Config.room_memory_mode with
+    | Config.Shared_room ->
+      [ Fmt.str
+          "You are participating in a shared Telegram chat as the persona named %s. \
+           Other participants may also be AI personas; when you see history lines \
+           prefixed by [name], that is another participant speaking, not you. Stay \
+           in your own role and refer to other participants by name when relevant."
+          connector_config.persona_name
+      ]
+    | Config.Isolated_per_persona -> []
+  in
   let metadata_lines =
     [ Option.map (fun chat_type -> "Chat type: " ^ chat_type) message.chat_type
     ; Option.map (fun name -> "User: " ^ name) message.user_display_name
+    ; Some (Fmt.str "Persona: %s" connector_config.persona_name)
     ]
     |> List.filter_map Fun.id
   in
@@ -189,7 +244,7 @@ let connector_system_messages (connector_config : Config.telegram_connector) mes
     ~channel_name:connector.User_connector_common.channel_name
     ~default_system_prompt
     ?system_prompt:connector_config.Config.system_prompt
-    metadata_lines
+    (group_context_lines @ metadata_lines)
 ;;
 
 let user_text_from_message message =
@@ -230,7 +285,7 @@ let handle_command
   message
   command
   =
-  let session_key = User_connector_common.build_session_key connector message.chat_id in
+  let session_key = session_key_for_message connector_config message in
   let reply_text =
     match command with
     | "/reset" ->
@@ -264,7 +319,7 @@ let handle_text_message
   message
   text
   =
-  let session_key = User_connector_common.build_session_key connector message.chat_id in
+  let session_key = session_key_for_message connector_config message in
   let conversation = Runtime_state.get_user_connector_session store ~session_key in
   let request : Openai_types.chat_request =
     { Openai_types.model = connector_config.Config.route_model
@@ -285,8 +340,17 @@ let handle_text_message
       then "The assistant returned an empty reply."
       else assistant_text
     in
+    (* When the room is shared, tag the assistant turn so the next persona
+       reading shared memory can tell who answered. *)
+    let assistant_for_memory =
+      tag_assistant_turn_for_persona connector_config assistant_text
+    in
     let updated_conversation, _ =
-      Session_memory.commit_exchange session_limits conversation ~user:text ~assistant:assistant_text
+      Session_memory.commit_exchange
+        session_limits
+        conversation
+        ~user:text
+        ~assistant:assistant_for_memory
     in
     Runtime_state.set_user_connector_session store ~session_key updated_conversation;
     User_connector_common.append_audit
