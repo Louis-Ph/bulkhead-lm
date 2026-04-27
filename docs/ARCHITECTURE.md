@@ -23,7 +23,7 @@ BulkheadLM is not just a locked-down gateway. Architecturally, it is a secure AI
 - `scripts/build_dist_package.sh`: native package builder for macOS, Linux, and FreeBSD
 - `src/domain/`: business types, OpenAI-compatible JSON parsing, normalized errors
 - `src/security/`: authentication, privacy filtering, threat detection, output guarding, secret redaction, egress policy, and peer mesh hop control
-- `src/runtime/`: in-memory state, budget ledger, rate limiting, routing
+- `src/runtime/`: in-memory state, budget ledger, rate limiting, routing, named-pool selector and latency tracker
 - `src/connectors/`: user-facing chat connectors that translate external chat platforms into normal BulkheadLM requests
 - `src/providers/`: upstream adapters by provider family
 - `src/providers/provider_models_listing.ml`: bounded read-only fetcher for provider `/models` inventories
@@ -40,12 +40,12 @@ BulkheadLM is not just a locked-down gateway. Architecturally, it is a secure AI
 4. `Rate_limiter` enforces a per-minute ceiling.
 5. `Threat_detector` blocks prompt-injection, credential-exfiltration, and tool-abuse signals before upstream execution.
 6. `Privacy_filter` redacts configured sensitive content from prompt text before provider dispatch.
-7. `Router` resolves the public model to an explicit backend list.
+7. `Router.resolve_target` first checks whether the requested public model is a pool name; if so, `Pool_selector.rank` picks ordered candidates and the router cascades through them, otherwise the existing direct-route fallback flow runs unchanged.
 8. `Egress_policy` blocks loopback and private destinations before any upstream call.
 9. `Peer_mesh` validates inbound BulkheadLM hop headers before reflexive forwarding is allowed.
 10. Each upstream attempt is time-boxed by configured request timeout policy.
 11. The selected provider adapter rewrites the request for the upstream API or the SSH worker protocol.
-12. `Budget_ledger` debits token usage after a successful response.
+12. `Budget_ledger` debits token usage after a successful response. When the request was routed through a pool, `Pool_routing.consume_member_budget` also charges the per-pool-member daily budget atomically and `Pool_latency` records the wall-clock latency for the next ranking.
 13. `Privacy_filter` and `Output_guard` sanitize and validate model output before it is serialized back to the client.
 
 ## SSE
@@ -63,6 +63,23 @@ BulkheadLM is not just a locked-down gateway. Architecturally, it is a secure AI
 - cache freshness is explicit: live, fresh cached, or stale fallback with the last fetch error
 - `/discover` and `/refresh-models` are starter commands that populate or refresh the cache for providers with detected API keys
 - `/v1/models` exposes configured route metadata plus cached `providers[].discovered_models` when present; it does not perform live provider network calls
+
+## Named pools
+
+Pools are a thin orchestration layer above the route table. Each pool is a
+named group of route members with per-member daily token budgets, exposed to
+clients as one OpenAI-compatible model id; the router picks the best member at
+request time and falls through automatically on failure.
+
+- `Config.pool_member` references an existing `route` by `route_model` and reserves a `daily_token_budget`; `Config.pool` carries the pool name, the member list, and an `is_global` flag
+- declarative pools live under the `pools` key in `gateway.json` and are validated tolerantly: an entry that collides with a route name, references a missing route, or fails to parse is dropped silently so the gateway still starts
+- `is_global = true` ignores the declared `members` field and recomputes the effective member list as every configured route at lookup time, so adding a route makes it immediately reachable through the global pool
+- `Pool_latency` is an in-memory EWMA tracker keyed by `(pool_name, route_model)`; it adds a configurable failure penalty per consecutive failure and exposes a `score` that is `None` for never-observed members so the selector can probe them before well-known slow ones
+- `Pool_selector.rank` filters out members whose route is missing, whose budget is exhausted, or whose every backend has its circuit open, and returns both the ranked candidates and the rejection reason for each excluded member; `exhaustion_error` turns an empty ranking into a structured `Domain_error` that lists exactly why every member was rejected
+- `Router.resolve_target` is the only public entry point that decides whether the requested model is a pool or a direct route; the existing `try_backends` ladder runs untouched inside each pool candidate, so pool routing inherits per-route fallback, the circuit breaker, and the request timeout
+- `Pool_routing.consume_member_budget` charges tokens against the member's daily budget atomically (SQLite `BEGIN IMMEDIATE` when persistence is configured, in-memory hash map otherwise) so two concurrent requests cannot both see a stale "below the limit" snapshot
+- `Pool_runtime` owns runtime mutations (`/pool create|drop|add|remove|global`); the entire pool list is serialized as a JSON blob in the `pool_overrides` SQLite table and replayed at startup via `Pool_runtime.load_overrides_into`, so wizard edits survive a gateway restart without forcing an edit to `gateway.json`
+- when a pool routes a request, `/v1/models` still surfaces the pool both as an entry in `data[]` (with `model_kind: "pool"` and the `is_global` flag, so vanilla OpenAI clients see it as a plain model) and inside the dedicated `pools[]` section that exposes member detail and per-member budgets
 
 ## Terminal client and worker mode
 
@@ -119,8 +136,11 @@ BulkheadLM is not just a locked-down gateway. Architecturally, it is a secure AI
 
 - `virtual_keys` stores hashed virtual keys, budgets, request ceilings, and route allowlists
 - `budget_usage` persists daily consumption across restarts
+- `pool_member_usage` persists daily token consumption per (pool_name, route_model) so per-member budgets reset cleanly at UTC midnight without losing already-charged usage
+- `pool_overrides` stores the wizard-driven pool definition snapshot as a JSON blob keyed by scope so `/pool create|add|remove|drop|global` survives a restart, with the declarative `gateway.json` pools acting as the seed
 - `audit_log` persists security-relevant gateway events and statuses
 - provider model listings are file-backed JSON cache entries outside the gateway database because they are provider metadata, not security audit state
+- pool latency samples are deliberately in-memory only because they are observability state that reconverges within a handful of requests; persisting them would buy little and would add an extra schema
 
 ## Intentional design choices
 
@@ -128,6 +148,7 @@ BulkheadLM is not just a locked-down gateway. Architecturally, it is a secure AI
 - a dedicated client layer instead of burying terminal and worker behavior inside the HTTP server
 - explicit separation between security policy, runtime state, and provider adapters
 - explicit separation between curated routing config and provider model discovery cache
+- pools are a thin orchestration layer above routes, never a substitute for them: every pool member references an existing route, so security policy, egress, and circuit breakers stay anchored at the route level
 - fail-closed egress defaults
 - no implicit propagation of client secrets to upstream providers
 - reflexive BulkheadLM peering is explicit as `bulkhead_peer`, with bounded hop count by policy

@@ -37,6 +37,8 @@ It targets multi-provider LLM gateway routing with a stricter design bias: expli
 - retry-aware fallback that avoids failing over on permanent upstream errors
 - multicore-safe budget and rate-limit state with a `Domain.spawn` test
 - read-only provider model discovery through configured `/models` endpoints, with a 24-hour on-disk cache and stale fallback
+- named model pools that group several routes behind a single public model id, each member with its own daily token budget; the gateway picks the lowest-latency healthy in-budget member and falls through automatically on failure
+- a `global` pool option that aggregates every configured route as one synthetic model so a vanilla OpenAI client can target the entire fleet with `model=global`
 - Telegram, WhatsApp Cloud API, Facebook Messenger, Instagram Direct, LINE, Viber, WeChat Service Account, Discord Interactions, and Google Chat user connectors over webhook, with per-conversation memory routed through normal BulkheadLM virtual-key auth
 
 ## Connector rollout roadmap
@@ -356,7 +358,8 @@ The starter:
 - includes a guided packaging flow that can build a distributable package for macOS, Ubuntu, or FreeBSD from the same assistant terminal
 - shows masked environment and provider readiness state from inside the REPL
 - can list live or cached upstream model inventories with `/discover` and force a refetch with `/refresh-models`
-- drops you into a simple terminal session with `/tools`, `/file PATH`, `/files`, `/clearfiles`, `/explore PATH`, `/open PATH`, `/run CMD`, `/admin TEXT`, `/control`, `/package`, `/plan`, `/apply`, `/discard`, `/model`, `/models`, `/swap`, `/memory`, `/memory replace TEXT`, `/forget`, `/thread on|off`, `/providers`, `/discover`, `/refresh-models`, `/env`, `/config`, `/help`, and `/quit`
+- can create, inspect and mutate named model pools with `/pool list|show|create|drop|add|remove|global on|off`; pool definitions persist across restarts in SQLite
+- drops you into a simple terminal session with `/tools`, `/file PATH`, `/files`, `/clearfiles`, `/explore PATH`, `/open PATH`, `/run CMD`, `/admin TEXT`, `/control`, `/package`, `/plan`, `/apply`, `/discard`, `/model`, `/models`, `/swap`, `/memory`, `/memory replace TEXT`, `/forget`, `/thread on|off`, `/providers`, `/discover`, `/refresh-models`, `/pool list|show|create|drop|add|remove|global`, `/env`, `/config`, `/help`, and `/quit`
 
 Admin assistant flow inside the starter:
 
@@ -714,6 +717,82 @@ Discovery uses only the provider family already known to BulkheadLM:
 The gateway's `/v1/models` endpoint never performs a live network refresh. It
 only exposes configured route metadata plus whatever discovery cache is already
 present, so model listing stays fast and route selection stays explicit.
+
+### Named model pools
+
+A pool is a named group of routes behind a single public model id. Each pool
+member declares its own daily token budget; on every request the gateway picks
+the member with the lowest observed latency that still has budget left and a
+closed circuit, then falls through to the next-best candidate on failure. This
+is useful when you want to fan out a stream of small jobs across many
+tightly-budgeted upstream models without picking one by hand.
+
+Declarative pools live in `gateway.json` next to `routes`:
+
+```json
+{
+  "pools": [
+    {
+      "name": "pool-cheap",
+      "members": [
+        { "route_model": "groq-llama-3.1-8b", "daily_token_budget": 50000 },
+        { "route_model": "cerebras-llama-3.1-8b", "daily_token_budget": 50000 },
+        { "route_model": "deepseek-v3", "daily_token_budget": 25000 }
+      ]
+    },
+    { "name": "global", "is_global": true }
+  ]
+}
+```
+
+Once defined, the pool name behaves exactly like a model id:
+
+```bash
+curl -s http://127.0.0.1:4100/v1/chat/completions \
+  -H "Authorization: Bearer sk-bulkhead-lm-dev" \
+  -H "Content-Type: application/json" \
+  -d '{
+    "model": "pool-cheap",
+    "messages": [
+      { "role": "user", "content": "Hello via the cheap pool." }
+    ]
+  }'
+```
+
+Selection logic, in order:
+
+1. drop members whose route is missing, whose daily token budget is exhausted,
+   or whose every backend has its circuit open
+2. sort the remainder by ascending observed latency (EWMA per pool member);
+   members never observed yet rank first so they always get one probe
+3. try each candidate in order; record latency on success or failure;
+   on success, charge the per-member budget atomically
+
+When `is_global` is true on a pool, the declared `members` list is ignored and
+recomputed at lookup time as every configured route. That gives you a "single
+magic model" called `global` that automatically picks up any route you add
+later, without reconfiguration.
+
+Pools can also be created and edited live from the starter without touching
+`gateway.json`:
+
+```text
+/pool list
+/pool create pool-cheap
+/pool add pool-cheap groq-llama-3.1-8b 50000
+/pool add pool-cheap cerebras-llama-3.1-8b 50000
+/pool show pool-cheap
+/pool global on
+```
+
+Wizard mutations are persisted in SQLite under `pool_overrides` and override
+the declarative pool list at the next restart. Per-member token consumption is
+tracked atomically in `pool_member_usage` so daily budgets survive restarts.
+
+`/v1/models` exposes pools both as ordinary entries in `data[]` (with
+`model_kind: "pool"` and `is_global` flag, so existing OpenAI SDKs see them as
+plain models) and in a dedicated `pools[]` section that lists each pool's
+members and per-member budgets.
 
 Ollama is also supported through its OpenAI-compatible interface, for example on `http://127.0.0.1:11434/v1` with a local model such as `llama3.2`.
 

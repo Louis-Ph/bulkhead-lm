@@ -4,6 +4,37 @@
 
 ### Added
 
+- **Named model pools** layered on top of routes:
+  - Each pool is a named group of route members, each with its own
+    per-day token budget; the pool name is itself a public model id, so
+    a vanilla OpenAI client can target it directly with `model=pool-01`
+  - The selector picks the member with the lowest observed latency that
+    still has budget remaining and a closed circuit breaker; failures
+    are penalised in the EWMA tracker and the request falls through to
+    the next candidate
+  - Members never observed yet rank BEFORE well-known slow members so
+    new entries always get at least one probe instead of being starved
+  - A reserved `is_global` pool ignores its declared members and
+    recomputes them as every configured route at lookup time, giving a
+    "one magic model" surface; toggle it with `/pool global on`
+  - New starter commands: `/pool list`, `/pool show NAME`,
+    `/pool create NAME`, `/pool drop NAME`,
+    `/pool add NAME ROUTE [BUDGET]`,
+    `/pool remove NAME ROUTE`, `/pool global on|off`
+  - New SQLite tables `pool_member_usage` (atomic per-day token
+    accounting) and `pool_overrides` (JSON snapshot so wizard mutations
+    survive a gateway restart); declarative `gateway.json` is the seed
+  - `/v1/models` exposes pools both inline in `data[]` (with
+    `model_kind: "pool"` and `is_global` flag) and as a dedicated
+    `pools[]` section listing members and per-member budgets
+  - New modules: `Pool_latency` (in-memory EWMA tracker),
+    `Pool_selector` (ranking + structured exhaustion error),
+    `Pool_routing` (router glue + budget charging),
+    `Pool_runtime` (mutations + persistence)
+  - 7 new tests covering ranking, anti-starvation probing, structured
+    exhaustion error, circuit-broken exclusion, global pool aggregate,
+    runtime mutations, and JSON exposure (115/115 total)
+
 - **Provider model discovery** for the starter:
   - New `/discover` command lists upstream models exposed by detected provider API keys
   - New `/refresh-models` command bypasses the cache and refetches provider listings

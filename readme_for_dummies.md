@@ -656,6 +656,59 @@ Important:
 Discovery helps you inspect providers, but it does not secretly change your
 routes.
 
+## The "one magic model" trick: pools
+
+If you have several models and you do not want to pick one each time, you can
+ask BulkheadLM to make a small group called a "pool" and give it one easy
+name. Then you just use that one name and BulkheadLM picks the best one for
+you.
+
+The simplest way is the global pool: it groups every model your config knows
+about into one model called `global`. Turn it on once:
+
+```text
+/pool global on
+```
+
+After that, you can chat as if there were only one model:
+
+```text
+/swap global
+```
+
+BulkheadLM will:
+
+1. send your message to the model that has been answering fastest lately,
+2. fall back to the next one if it fails,
+3. stop using a model that has used up its little daily budget.
+
+If you want a smaller, focused group instead of the full global pool, you can
+make your own:
+
+```text
+/pool create pool-cheap
+/pool add pool-cheap groq-llama-3.1-8b 50000
+/pool add pool-cheap cerebras-llama-3.1-8b 50000
+/pool show pool-cheap
+```
+
+`50000` is the daily token budget for each member. Once empty for the day,
+that member is skipped automatically until tomorrow.
+
+You can always inspect what is going on:
+
+```text
+/pool list
+```
+
+Why this is nice:
+
+1. You only have to remember one name like `global` or `pool-cheap`.
+2. Each member can have a small daily budget so you do not spend a lot.
+3. If one provider is slow or down, the next one takes over without you doing
+   anything.
+4. If you add a new model later, the global pool picks it up automatically.
+
 ## Your first chat
 
 After the starter opens, type something like:
@@ -679,6 +732,8 @@ what can you do for me?
 /providers
 /discover
 /refresh-models
+/pool list
+/pool global on
 /env
 /file README.md
 /files

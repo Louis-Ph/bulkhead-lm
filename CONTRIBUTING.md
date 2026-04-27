@@ -62,6 +62,8 @@ dune exec bulkhead-lm -- --config config/example.gateway.json
 - starter command names, defaults, and help text should stay centralized in `src/client/starter_constants.ml`
 - starter REPL changes should preserve the explicit state machine in `src/client/starter_session.ml`
 - provider model discovery changes should keep route configuration explicit, update both `Provider_models_listing` and `Model_listing_cache` tests/docs when behavior changes, and document cache/security impacts
+- pool changes should preserve the rule that every pool member references an existing route: the selector must keep deferring egress, circuit breaking, and request timeouts to the route layer, and any new ranking signal added to `Pool_selector` should come with tests that cover both the happy path and the structured exhaustion error
+- pool persistence changes should keep the SQLite `pool_overrides` blob and the declarative `gateway.json` `pools` list both usable, with the persistence layer winning on conflict so wizard mutations stay sticky across restarts
 - provider additions should update the config schema, example config, and smoke or integration scripts when appropriate
 
 ## Pull requests
