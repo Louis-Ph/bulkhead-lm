@@ -29,3 +29,7 @@ config/var/
 
 # Strategic analyses kept locally
 docs/MARKET_PENETRATION_TREE.md
+
+# Per-user Claude Code settings (the slash commands under
+# .claude/commands/ ARE tracked, but local settings are not)
+.claude/settings.local.json

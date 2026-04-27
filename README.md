@@ -6,7 +6,11 @@ BulkheadLM is a secure AI router, AI hyper-connector, and powerful AI agent prov
 
 In other words: it looks like a hardened bulkhead, but it behaves like a high-trust AI fabric for routing, peering, orchestration, and fast user access. It is meant to be used by agent-swarm platforms, not to replace them.
 
-New here? Start with the very simple guide: [readme_for_dummies.md](readme_for_dummies.md)
+New here? Three ways to install in 5 minutes:
+
+- **Paste a single prompt to your favorite LLM** (Claude, ChatGPT, Cursor, Copilot, Gemini): the file [INSTALL_PROMPT.md](INSTALL_PROMPT.md) is self-contained and walks the LLM through the full setup with you.
+- **Use Claude Code directly**: this repo ships custom slash commands under `.claude/commands/`. Type `/install-bulkhead` to start, then `/bulkhead-models`, `/bulkhead-chat`, `/bulkhead-pool`, `/bulkhead-persona`, `/bulkhead-discover`, `/bulkhead-health` for day-to-day operations. The hub for AI assistants is [CLAUDE.md](CLAUDE.md).
+- **Run the script yourself**: `curl -fsSL https://raw.githubusercontent.com/Louis-Ph/bulkhead-lm/main/install.sh | sh`. The very simple step-by-step is in [readme_for_dummies.md](readme_for_dummies.md).
 
 BulkheadLM is a security-first LLM gateway written in OCaml. It exposes an OpenAI-compatible API, routes requests across explicit provider backends, and keeps routing, security policy, and error behavior in hierarchical JSON. Optional provider model discovery is read-only, bounded, and cached; it never replaces explicit route configuration.
 
