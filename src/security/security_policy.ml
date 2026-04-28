@@ -17,6 +17,12 @@ type redaction =
   ; replacement : string
   }
 
+type privacy_pattern_rule =
+  { name : string
+  ; pattern : string
+  ; enabled : bool
+  }
+
 type privacy_filter =
   { enabled : bool
   ; replacement : string
@@ -27,6 +33,7 @@ type privacy_filter =
   ; redact_payment_cards : bool
   ; secret_prefixes : string list
   ; additional_literal_tokens : string list
+  ; pattern_rules : privacy_pattern_rule list
   }
 
 type threat_detector =
@@ -160,6 +167,25 @@ let default () =
           ; "github_pat_"
           ]
       ; additional_literal_tokens = []
+      ; pattern_rules =
+          [ { name = "ipv6_address"
+            ; pattern = "[0-9A-Fa-f:]+:[0-9A-Fa-f:]+"
+            ; enabled = true
+            }
+          ; { name = "iban"
+            ; pattern =
+                "[A-Z][A-Z][0-9][0-9][A-Z0-9 ][A-Z0-9 ][A-Z0-9 ][A-Z0-9 ][A-Z0-9 ][A-Z0-9 ][A-Z0-9 ][A-Z0-9 ][A-Z0-9 ][A-Z0-9 ]+"
+            ; enabled = true
+            }
+          ; { name = "jwt"
+            ; pattern = "[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+"
+            ; enabled = true
+            }
+          ; { name = "aws_access_key_id"
+            ; pattern = "AKIA[0-9A-Z]+"
+            ; enabled = true
+            }
+          ]
       }
   ; threat_detector =
       { enabled = true
@@ -282,6 +308,34 @@ let list_member name json =
   | _ -> []
 ;;
 
+let privacy_pattern_rule_member json =
+  match json with
+  | `Assoc fields ->
+    (match List.assoc_opt "name" fields, List.assoc_opt "pattern" fields with
+     | Some (`String name), Some (`String pattern) ->
+       let enabled =
+         match List.assoc_opt "enabled" fields with
+         | Some (`Bool value) -> value
+         | _ -> true
+       in
+       let name = String.trim name in
+       let pattern = String.trim pattern in
+       if name = "" || pattern = ""
+       then None
+       else Some ({ name; pattern; enabled } : privacy_pattern_rule)
+     | _ -> None)
+  | _ -> None
+;;
+
+let privacy_pattern_rules_member name json =
+  match json with
+  | `Assoc fields ->
+    (match List.assoc_opt name fields with
+     | Some (`List values) -> List.filter_map privacy_pattern_rule_member values
+     | _ -> [])
+  | _ -> []
+;;
+
 let float_member name json ~default =
   match json with
   | `Assoc fields ->
@@ -398,6 +452,10 @@ let of_yojson json =
       ; additional_literal_tokens =
           (match list_member "additional_literal_tokens" privacy_filter_json with
            | [] -> defaults.privacy_filter.additional_literal_tokens
+           | values -> values)
+      ; pattern_rules =
+          (match privacy_pattern_rules_member "pattern_rules" privacy_filter_json with
+           | [] -> defaults.privacy_filter.pattern_rules
            | values -> values)
       }
   ; threat_detector =

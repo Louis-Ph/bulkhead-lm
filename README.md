@@ -34,9 +34,9 @@ It targets multi-provider LLM gateway routing with a stricter design bias: expli
 - persistent virtual keys, budget usage, and audit events in SQLite
 - persistent connector conversation snapshots in SQLite, so scoped chat memory survives restarts
 - recursive secret redaction before log-oriented handling
-- prompt privacy filtering for common secrets, IDs, and contact data
+- privacy filtering for common secrets, IDs, contact data, configured pattern rules, and structured provider request fields
 - threat detection for prompt-injection, credential-exfiltration, and tool-abuse signals
-- output guard that blocks high-risk secret material before it leaves the gateway
+- output guard that blocks high-risk secret material before non-streaming or materialized streaming output leaves the gateway
 - request body limits and upstream request timeouts
 - retry-aware fallback that avoids failing over on permanent upstream errors
 - multicore-safe budget and rate-limit state with a `Domain.spawn` test
@@ -524,8 +524,14 @@ HTTP control plane for the running gateway:
 
 Set `BULKHEAD_ADMIN_TOKEN`, start the server normally, then open `http://127.0.0.1:4100/_bulkhead/control`. Inside the starter, `/control` prints the same derived URL set from the active config and makes the distinction explicit between the interactive starter client and the separate running gateway server. The UI shows the active config path, route readiness, enabled chat connectors, virtual-key inventory, and exposes a guarded `reload` action that swaps the runtime in place. Changes to `listen_host` and `listen_port` still require a restart because the listening socket is already bound.
 
-The same guarded control plane now exposes session-memory replacement for
-external orchestrators such as `ocaml-agent-graph`:
+The same guarded control plane exposes a privacy preview endpoint that returns
+the filtered text plus per-rule match counts without dispatching anything
+upstream:
+
+- `POST /_bulkhead/control/api/privacy/preview`
+
+It also exposes session-memory replacement for external orchestrators such as
+`ocaml-agent-graph`:
 
 - `GET /_bulkhead/control/api/memory/session?session_key=...`
 - `PUT /_bulkhead/control/api/memory/session`

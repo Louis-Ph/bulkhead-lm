@@ -39,20 +39,21 @@ BulkheadLM is not just a locked-down gateway. Architecturally, it is a secure AI
 3. `Auth` resolves the presented virtual key from its hashed form.
 4. `Rate_limiter` enforces a per-minute ceiling.
 5. `Threat_detector` blocks prompt-injection, credential-exfiltration, and tool-abuse signals before upstream execution.
-6. `Privacy_filter` redacts configured sensitive content from prompt text before provider dispatch.
+6. `Privacy_filter` redacts configured sensitive content from message text, structured request JSON, embeddings input, and provider-specific extra fields before provider dispatch.
 7. `Router.resolve_target` first checks whether the requested public model is a pool name; if so, `Pool_selector.rank` picks ordered candidates and the router cascades through them, otherwise the existing direct-route fallback flow runs unchanged.
 8. `Egress_policy` blocks loopback and private destinations before any upstream call.
 9. `Peer_mesh` validates inbound BulkheadLM hop headers before reflexive forwarding is allowed.
 10. Each upstream attempt is time-boxed by configured request timeout policy.
 11. The selected provider adapter rewrites the request for the upstream API or the SSH worker protocol.
 12. `Budget_ledger` debits token usage after a successful response. When the request was routed through a pool, `Pool_routing.consume_member_budget` also charges the per-pool-member daily budget atomically and `Pool_latency` records the wall-clock latency for the next ranking.
-13. `Privacy_filter` and `Output_guard` sanitize and validate model output before it is serialized back to the client.
+13. `Privacy_filter` and `Output_guard` sanitize and validate non-streaming output and materialized streaming output before it is serialized back to the client.
 
 ## SSE
 
-- when `stream=true`, the gateway first normalizes the upstream response
-- it then emits a consistent `text/event-stream` format to the client
-- this keeps the external contract stable even though provider-native streaming is not yet wired per backend
+- when `stream=true`, the gateway materializes the upstream stream before client emission
+- the materialized content passes through the same privacy filter and output guard as non-streaming responses
+- after that safety pass, the gateway emits a consistent `text/event-stream` format to the client
+- this prioritizes pre-response blocking over real-time provider passthrough
 
 ## Provider Model Discovery
 
@@ -140,7 +141,8 @@ request time and falls through automatically on failure.
 - `budget_usage` persists daily consumption across restarts
 - `pool_member_usage` persists daily token consumption per (pool_name, route_model) so per-member budgets reset cleanly at UTC midnight without losing already-charged usage
 - `pool_overrides` stores the wizard-driven pool definition snapshot as a JSON blob keyed by scope so `/pool create|add|remove|drop|global` survives a restart, with the declarative `gateway.json` pools acting as the seed
-- `audit_log` persists security-relevant gateway events and statuses
+- `audit_log` persists privacy-filtered security-relevant gateway events and statuses
+- `connector_sessions` persists privacy-filtered scoped chat memory snapshots for connector-backed conversations
 - provider model listings are file-backed JSON cache entries outside the gateway database because they are provider metadata, not security audit state
 - pool latency samples are deliberately in-memory only because they are observability state that reconverges within a handful of requests; persisting them would buy little and would add an extra schema
 

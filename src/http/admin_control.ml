@@ -24,6 +24,11 @@ let memory_session_path control_plane =
   ^ Admin_control_constants.Path.memory_session_suffix
 ;;
 
+let privacy_preview_path control_plane =
+  control_plane.Security_policy.path_prefix
+  ^ Admin_control_constants.Path.privacy_preview_suffix
+;;
+
 let current_store control = Runtime_control.current_store control
 
 let current_control_plane control =
@@ -71,6 +76,30 @@ let virtual_key_json (virtual_key : Config.virtual_key) =
     ]
 ;;
 
+let privacy_filter_json control_plane (policy : Security_policy.privacy_filter) =
+  `Assoc
+    [ "enabled", `Bool policy.enabled
+    ; "replacement", `String policy.replacement
+    ; "redact_email_addresses", `Bool policy.redact_email_addresses
+    ; "redact_phone_numbers", `Bool policy.redact_phone_numbers
+    ; "redact_ipv4_addresses", `Bool policy.redact_ipv4_addresses
+    ; "redact_national_ids", `Bool policy.redact_national_ids
+    ; "redact_payment_cards", `Bool policy.redact_payment_cards
+    ; "secret_prefix_count", `Int (List.length policy.secret_prefixes)
+    ; "additional_literal_token_count", `Int (List.length policy.additional_literal_tokens)
+    ; ( "pattern_rules"
+      , `List
+          (List.map
+             (fun (rule : Security_policy.privacy_pattern_rule) ->
+               `Assoc
+                 [ "name", `String rule.name
+                 ; "enabled", `Bool rule.enabled
+                 ])
+             policy.pattern_rules) )
+    ; "preview_path", `String (privacy_preview_path control_plane)
+    ]
+;;
+
 let iso8601_timestamp unix_time =
   let tm = Unix.gmtime unix_time in
   Printf.sprintf
@@ -103,6 +132,7 @@ let status_json control =
           ; "ui_enabled", `Bool control_plane.ui_enabled
           ; "allow_reload", `Bool control_plane.allow_reload
           ; "memory_session_path", `String (memory_session_path control_plane)
+          ; "privacy_preview_path", `String (privacy_preview_path control_plane)
           ; "admin_token_env",
             (match control_plane.admin_token_env with
              | Some env_name -> `String env_name
@@ -117,6 +147,8 @@ let status_json control =
            |> List.map user_connector_json) )
     ; ( "virtual_keys"
       , `List (List.map virtual_key_json config.virtual_keys) )
+    ; ( "privacy_filter"
+      , privacy_filter_json control_plane config.security_policy.privacy_filter )
     ]
 ;;
 
@@ -299,6 +331,37 @@ let handle_api_reload control req =
              ; "status", status_json control
              ])
        | Error err -> Json_response.respond_error (Domain_error.invalid_request err))
+;;
+
+let handle_api_privacy_preview control req body =
+  match require_authorization control req with
+  | Error err -> Json_response.respond_error err
+  | Ok store ->
+    Request_body.read_request_json store body
+    >>= function
+    | Error err -> Json_response.respond_error err
+    | Ok json ->
+      let text =
+        match json with
+        | `Assoc fields ->
+          (match List.assoc_opt "text" fields with
+           | Some (`String value) ->
+             let trimmed = String.trim value in
+             if trimmed = "" then None else Some trimmed
+           | _ -> None)
+        | _ -> None
+      in
+      (match text with
+       | None ->
+         Json_response.respond_error
+           (Domain_error.invalid_request "Privacy preview requires a non-empty text field.")
+       | Some text ->
+         let report =
+           Privacy_filter.filter_text_with_report
+             store.Runtime_state.config.security_policy.privacy_filter
+             text
+         in
+         Json_response.respond_json (Privacy_filter.report_to_yojson report))
 ;;
 
 let member name = function
@@ -516,6 +579,8 @@ let handle control req body =
   | `GET, path when path = memory_session_path control_plane ->
     handle_api_memory_get control req
   | `POST, path when path = reload_path control_plane -> handle_api_reload control req
+  | `POST, path when path = privacy_preview_path control_plane ->
+    handle_api_privacy_preview control req body
   | `PUT, path when path = memory_session_path control_plane ->
     handle_api_memory_put control req body
   | `DELETE, path when path = memory_session_path control_plane ->

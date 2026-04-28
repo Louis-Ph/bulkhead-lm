@@ -121,6 +121,11 @@ let get_user_connector_session store ~session_key =
 
 let set_user_connector_session store ~session_key conversation =
   with_lock store.user_connector_sessions_lock (fun () ->
+    let conversation =
+      Privacy_filter.filter_session
+        store.config.security_policy.privacy_filter
+        conversation
+    in
     Hashtbl.replace store.user_connector_sessions session_key conversation;
     match store.persistent_store with
     | None -> ()
@@ -140,10 +145,14 @@ let clear_user_connector_session store ~session_key =
       Persistent_store.delete_connector_session persistent_store ~session_key)
 ;;
 
-let append_audit_event store event =
+let append_audit_event store (event : Persistent_store.audit_event) =
   match store.persistent_store with
   | None -> ()
-  | Some persistent_store -> Persistent_store.append_audit_event persistent_store event
+  | Some persistent_store ->
+    let details =
+      Privacy_filter.filter_json store.config.security_policy.privacy_filter event.details
+    in
+    Persistent_store.append_audit_event persistent_store { event with details }
 ;;
 
 let create_result ?provider_factory config =

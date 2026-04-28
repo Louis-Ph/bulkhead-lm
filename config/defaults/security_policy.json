@@ -31,7 +31,29 @@
     "redact_national_ids": true,
     "redact_payment_cards": true,
     "secret_prefixes": ["sk-", "rk-", "pk-", "ghp_", "gho_", "github_pat_"],
-    "additional_literal_tokens": []
+    "additional_literal_tokens": [],
+    "pattern_rules": [
+      {
+        "name": "ipv6_address",
+        "pattern": "[0-9A-Fa-f:]+:[0-9A-Fa-f:]+",
+        "enabled": true
+      },
+      {
+        "name": "iban",
+        "pattern": "[A-Z][A-Z][0-9][0-9][A-Z0-9 ][A-Z0-9 ][A-Z0-9 ][A-Z0-9 ][A-Z0-9 ][A-Z0-9 ][A-Z0-9 ][A-Z0-9 ][A-Z0-9 ][A-Z0-9 ]+",
+        "enabled": true
+      },
+      {
+        "name": "jwt",
+        "pattern": "[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+\\.[A-Za-z0-9_-]+",
+        "enabled": true
+      },
+      {
+        "name": "aws_access_key_id",
+        "pattern": "AKIA[0-9A-Z]+",
+        "enabled": true
+      }
+    ]
   },
   "threat_detector": {
     "enabled": true,
