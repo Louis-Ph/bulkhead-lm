@@ -1411,11 +1411,13 @@ let reload_after_config_apply state config_path =
           Ok (loaded.store, authorization, Starter_session.set_model state model)))
 ;;
 
-let prompt_input model =
+let prompt_input store model =
   try
     match
       Starter_terminal.read_line
         ~record_history:true
+        ~history_sanitizer:
+          (Privacy_filter.filter_text store.Runtime_state.config.security_policy.privacy_filter)
         ~prompt:
           (* linenoise measures prompt width from the raw prompt string, so ANSI
              escapes shift the editing cursor to the right. Keep the input prompt plain. *)
@@ -1585,7 +1587,7 @@ let rec repl store ~authorization state runtime =
     | Some model -> model
     | None -> ""
   in
-  let input = prompt_input active_model in
+  let input = prompt_input store active_model in
   let next_state, effect = Starter_session.step state input in
   match effect with
   | Starter_session.Noop -> repl store ~authorization next_state runtime

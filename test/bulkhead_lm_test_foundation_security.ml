@@ -390,6 +390,334 @@ let privacy_filter_redacts_sensitive_prompt_before_provider_test _switch () =
     Lwt.return_unit
 ;;
 
+let privacy_filter_redacts_structured_request_fields_test _switch () =
+  let captured_request_json = ref None in
+  let base_security_policy = Bulkhead_lm.Security_policy.default () in
+  let security_policy =
+    { base_security_policy with
+      Bulkhead_lm.Security_policy.privacy_filter =
+        { base_security_policy.privacy_filter with replacement = "[MASKED]" }
+    }
+  in
+  let cfg =
+    Bulkhead_lm.Config_test_support.sample_config
+      ~security_policy
+      ~routes:
+        [ Bulkhead_lm.Config_test_support.route
+            ~public_model:"gpt-4o-mini"
+            ~backends:
+              [ Bulkhead_lm.Config_test_support.backend
+                  ~provider_id:"primary"
+                  ~provider_kind:Bulkhead_lm.Config.Openai_compat
+                  ~api_base:"https://api.example.test/v1"
+                  ~upstream_model:"good-model"
+                  ~api_key_env:"PRIMARY_KEY"
+                  ()
+              ]
+            ()
+        ]
+      ()
+  in
+  let invoke_chat _headers _backend request =
+    captured_request_json := Some (Bulkhead_lm.Openai_types.chat_request_to_yojson request);
+    Lwt.return
+      (Ok
+         (Bulkhead_lm.Provider_mock.sample_chat_response
+            ~model:"good-model"
+            ~content:"ok"
+            ()))
+  in
+  let provider =
+    { Bulkhead_lm.Provider_client.invoke_chat
+    ; invoke_chat_stream =
+        (fun headers backend request ->
+          invoke_chat headers backend request
+          >|= Result.map Bulkhead_lm.Provider_stream.of_chat_response)
+    ; invoke_embeddings =
+        (fun _headers _backend _request ->
+          Lwt.return
+            (Error
+               (Bulkhead_lm.Domain_error.unsupported_feature "embeddings not used here")))
+    }
+  in
+  let store =
+    Bulkhead_lm.Runtime_state.create ~provider_factory:(fun _ -> provider) cfg
+  in
+  let request =
+    Bulkhead_lm.Openai_types.chat_request_of_yojson
+      (`Assoc
+        [ "model", `String "gpt-4o-mini"
+        ; ( "messages"
+          , `List
+              [ `Assoc
+                  [ "role", `String "user"
+                  ; "content", `String "plain prompt"
+                  ; "metadata", `Assoc [ "email", `String "alice@example.com" ]
+                  ]
+              ] )
+        ; "metadata", `Assoc [ "owner", `String "bob@example.com" ]
+        ])
+    |> Result.get_ok
+  in
+  Bulkhead_lm.Router.dispatch_chat store ~authorization:"Bearer sk-test" request
+  >>= function
+  | Error err ->
+    Alcotest.failf
+      "expected structured privacy-filtered request to succeed, got %s"
+      (Bulkhead_lm.Domain_error.to_string err)
+  | Ok _response ->
+    let captured =
+      match !captured_request_json with
+      | Some json -> Yojson.Safe.to_string json
+      | None -> Alcotest.fail "provider was not invoked"
+    in
+    Alcotest.(check bool) "message extra email removed" false (string_contains captured "alice@example.com");
+    Alcotest.(check bool) "request extra email removed" false (string_contains captured "bob@example.com");
+    Alcotest.(check bool) "masked values present" true (string_contains captured "[MASKED]");
+    Lwt.return_unit
+;;
+
+let privacy_filter_redacts_stream_before_client_test _switch () =
+  let base_security_policy = Bulkhead_lm.Security_policy.default () in
+  let security_policy =
+    { base_security_policy with
+      Bulkhead_lm.Security_policy.privacy_filter =
+        { base_security_policy.privacy_filter with replacement = "[MASKED]" }
+    }
+  in
+  let cfg =
+    Bulkhead_lm.Config_test_support.sample_config
+      ~security_policy
+      ~routes:
+        [ Bulkhead_lm.Config_test_support.route
+            ~public_model:"gpt-4o-mini"
+            ~backends:
+              [ Bulkhead_lm.Config_test_support.backend
+                  ~provider_id:"primary"
+                  ~provider_kind:Bulkhead_lm.Config.Openai_compat
+                  ~api_base:"https://api.example.test/v1"
+                  ~upstream_model:"good-model"
+                  ~api_key_env:"PRIMARY_KEY"
+                  ()
+              ]
+            ()
+        ]
+      ()
+  in
+  let provider =
+    { Bulkhead_lm.Provider_client.invoke_chat =
+        (fun _headers _backend _request ->
+          Lwt.return
+            (Ok
+               (Bulkhead_lm.Provider_mock.sample_chat_response
+                  ~model:"good-model"
+                  ~content:"ok"
+                  ())))
+    ; invoke_chat_stream =
+        (fun _headers _backend _request ->
+          let response =
+            Bulkhead_lm.Provider_mock.sample_chat_response
+              ~model:"good-model"
+              ~content:""
+              ()
+          in
+          Lwt.return
+            (Ok
+               { Bulkhead_lm.Provider_client.response
+               ; events =
+                   Lwt_stream.of_list
+                     [ Bulkhead_lm.Provider_client.Text_delta "Contact alice@example.com" ]
+               ; close = (fun () -> Lwt.return_unit)
+               }))
+    ; invoke_embeddings =
+        (fun _headers _backend _request ->
+          Lwt.return
+            (Error
+               (Bulkhead_lm.Domain_error.unsupported_feature "embeddings not used here")))
+    }
+  in
+  let store =
+    Bulkhead_lm.Runtime_state.create ~provider_factory:(fun _ -> provider) cfg
+  in
+  let request =
+    Bulkhead_lm.Openai_types.chat_request_of_yojson
+      (`Assoc
+        [ "model", `String "gpt-4o-mini"
+        ; "stream", `Bool true
+        ; "messages", `List [ `Assoc [ "role", `String "user"; "content", `String "hi" ] ]
+        ])
+    |> Result.get_ok
+  in
+  Bulkhead_lm.Router.dispatch_chat_stream store ~authorization:"Bearer sk-test" request
+  >>= function
+  | Error err ->
+    Alcotest.failf
+      "expected privacy-filtered stream to succeed, got %s"
+      (Bulkhead_lm.Domain_error.to_string err)
+  | Ok stream ->
+    Lwt_stream.to_list stream.Bulkhead_lm.Provider_client.events
+    >>= fun events ->
+    let text =
+      events
+      |> List.filter_map (function
+        | Bulkhead_lm.Provider_client.Text_delta text -> Some text
+        | Bulkhead_lm.Provider_client.Reasoning_delta _ -> None)
+      |> String.concat ""
+    in
+    Alcotest.(check string) "stream text masked" "Contact [MASKED]" text;
+    Lwt.return_unit
+;;
+
+let output_guard_blocks_stream_before_client_test _switch () =
+  let cfg =
+    Bulkhead_lm.Config_test_support.sample_config
+      ~routes:
+        [ Bulkhead_lm.Config_test_support.route
+            ~public_model:"gpt-4o-mini"
+            ~backends:
+              [ Bulkhead_lm.Config_test_support.backend
+                  ~provider_id:"primary"
+                  ~provider_kind:Bulkhead_lm.Config.Openai_compat
+                  ~api_base:"https://api.example.test/v1"
+                  ~upstream_model:"unsafe-model"
+                  ~api_key_env:"PRIMARY_KEY"
+                  ()
+              ]
+            ()
+        ]
+      ()
+  in
+  let provider =
+    { Bulkhead_lm.Provider_client.invoke_chat =
+        (fun _headers _backend _request ->
+          Lwt.return
+            (Ok
+               (Bulkhead_lm.Provider_mock.sample_chat_response
+                  ~model:"unsafe-model"
+                  ~content:"ok"
+                  ())))
+    ; invoke_chat_stream =
+        (fun _headers _backend _request ->
+          let response =
+            Bulkhead_lm.Provider_mock.sample_chat_response
+              ~model:"unsafe-model"
+              ~content:""
+              ()
+          in
+          Lwt.return
+            (Ok
+               { Bulkhead_lm.Provider_client.response
+               ; events =
+                   Lwt_stream.of_list
+                     [ Bulkhead_lm.Provider_client.Text_delta
+                         "-----BEGIN PRIVATE KEY-----"
+                     ]
+               ; close = (fun () -> Lwt.return_unit)
+               }))
+    ; invoke_embeddings =
+        (fun _headers _backend _request ->
+          Lwt.return
+            (Error
+               (Bulkhead_lm.Domain_error.unsupported_feature "embeddings not used here")))
+    }
+  in
+  let store =
+    Bulkhead_lm.Runtime_state.create ~provider_factory:(fun _ -> provider) cfg
+  in
+  let request =
+    Bulkhead_lm.Openai_types.chat_request_of_yojson
+      (`Assoc
+        [ "model", `String "gpt-4o-mini"
+        ; "stream", `Bool true
+        ; "messages", `List [ `Assoc [ "role", `String "user"; "content", `String "hi" ] ]
+        ])
+    |> Result.get_ok
+  in
+  Bulkhead_lm.Router.dispatch_chat_stream store ~authorization:"Bearer sk-test" request
+  >>= function
+  | Ok _ -> Alcotest.fail "expected output guard to block the stream"
+  | Error err ->
+    Alcotest.(check string) "unsafe stream code" "unsafe_output_blocked" err.code;
+    Lwt.return_unit
+;;
+
+let persisted_connector_session_is_privacy_filtered_test _switch () =
+  let db_path = Filename.temp_file "bulkhead-lm-privacy-session" ".sqlite" in
+  let default_security_policy = Bulkhead_lm.Security_policy.default () in
+  let base_cfg =
+    Bulkhead_lm.Config_test_support.sample_config
+      ~security_policy:
+        { default_security_policy with
+          Bulkhead_lm.Security_policy.privacy_filter =
+            { default_security_policy.privacy_filter with
+              replacement = "[MASKED]"
+            }
+        }
+      ()
+  in
+  let cfg =
+    { base_cfg with
+      Bulkhead_lm.Config.persistence =
+        { sqlite_path = Some db_path; busy_timeout_ms = 5000 }
+    }
+  in
+  let store = Bulkhead_lm.Runtime_state.create cfg in
+  let conversation : Bulkhead_lm.Session_memory.t =
+    { summary = Some "Email alice@example.com"
+    ; recent_turns =
+        [ { role = Bulkhead_lm.Session_memory.User
+          ; content = "Call +1 202 555 0199"
+          }
+        ]
+    ; compressed_turn_count = 0
+    }
+  in
+  Bulkhead_lm.Runtime_state.set_user_connector_session
+    store
+    ~session_key:"telegram:privacy"
+    conversation;
+  let reloaded_store = Bulkhead_lm.Runtime_state.create cfg in
+  let reloaded =
+    Bulkhead_lm.Runtime_state.get_user_connector_session
+      reloaded_store
+      ~session_key:"telegram:privacy"
+  in
+  Alcotest.(check (option string))
+    "summary persisted masked"
+    (Some "Email [MASKED]")
+    reloaded.summary;
+  Alcotest.(check string)
+    "turn persisted masked"
+    "Call [MASKED]"
+    (match reloaded.recent_turns with
+     | turn :: _ -> turn.content
+     | [] -> Alcotest.fail "expected one persisted turn");
+  Lwt.return_unit
+;;
+
+let privacy_filter_reports_configured_patterns_test _switch () =
+  let policy =
+    { (Bulkhead_lm.Security_policy.default ()).privacy_filter with
+      replacement = "[MASKED]"
+    ; pattern_rules =
+        [ { Bulkhead_lm.Security_policy.name = "project_code"
+          ; pattern = "PROJECT-[A-Z0-9]+"
+          ; enabled = true
+          }
+        ]
+    }
+  in
+  let report =
+    Bulkhead_lm.Privacy_filter.filter_text_with_report
+      policy
+      "Review PROJECT-ALPHA42 before release"
+  in
+  let json = Bulkhead_lm.Privacy_filter.report_to_yojson report |> Yojson.Safe.to_string in
+  Alcotest.(check bool) "custom pattern masked" false (string_contains report.redacted_text "PROJECT-ALPHA42");
+  Alcotest.(check bool) "pattern name reported" true (string_contains json "pattern:project_code");
+  Lwt.return_unit
+;;
+
 let threat_detector_blocks_prompt_injection_test _switch () =
   let cfg = Bulkhead_lm.Config_test_support.sample_config () in
   let store = Bulkhead_lm.Runtime_state.create cfg in
@@ -423,6 +751,11 @@ let tests =
   ; Alcotest_lwt.test_case "enforces daily budget" `Quick budget_blocks_after_limit_test
   ; Alcotest_lwt.test_case "rate limiter rejects second request in minute window" `Quick rate_limiter_blocks_second_request_in_same_minute_test
   ; Alcotest_lwt.test_case "privacy filter redacts sensitive prompt before provider" `Quick privacy_filter_redacts_sensitive_prompt_before_provider_test
+  ; Alcotest_lwt.test_case "privacy filter redacts structured request fields" `Quick privacy_filter_redacts_structured_request_fields_test
+  ; Alcotest_lwt.test_case "privacy filter redacts streamed output before client" `Quick privacy_filter_redacts_stream_before_client_test
+  ; Alcotest_lwt.test_case "output guard blocks streamed secret material" `Quick output_guard_blocks_stream_before_client_test
+  ; Alcotest_lwt.test_case "persistent connector sessions are privacy-filtered" `Quick persisted_connector_session_is_privacy_filtered_test
+  ; Alcotest_lwt.test_case "privacy filter reports configured pattern matches" `Quick privacy_filter_reports_configured_patterns_test
   ; Alcotest_lwt.test_case "threat detector blocks prompt injection" `Quick threat_detector_blocks_prompt_injection_test
   ]
 ;;

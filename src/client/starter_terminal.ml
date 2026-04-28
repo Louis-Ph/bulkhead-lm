@@ -46,11 +46,12 @@ let history_load_once () =
       if Sys.file_exists filename then ignore (LNoise.history_load ~filename))
 ;;
 
-let save_history_entry line =
-  if trim line = ""
+let save_history_entry ?(sanitize = Fun.id) line =
+  let history_line = sanitize line in
+  if trim history_line = ""
   then ()
   else (
-    ignore (LNoise.history_add line);
+    ignore (LNoise.history_add history_line);
     match default_history_file () with
     | None -> ()
     | Some filename ->
@@ -147,12 +148,12 @@ let set_context ~commands ~models =
     }
 ;;
 
-let read_line ?(record_history = false) ~prompt () =
+let read_line ?(record_history = false) ?(history_sanitizer = Fun.id) ~prompt () =
   initialize ();
   history_load_once ();
   match LNoise.linenoise prompt with
   | None -> None
   | Some line ->
-    if record_history then save_history_entry line;
+    if record_history then save_history_entry ~sanitize:history_sanitizer line;
     Some line
 ;;

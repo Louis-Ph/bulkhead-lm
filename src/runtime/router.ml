@@ -105,6 +105,70 @@ let protect_chat_response security_policy response =
   | Ok () -> Ok filtered
 ;;
 
+let text_of_stream_events events =
+  events
+  |> List.filter_map (function
+    | Provider_client.Text_delta text | Provider_client.Reasoning_delta text ->
+      if text = "" then None else Some text)
+  |> String.concat "\n"
+;;
+
+let text_response_content events =
+  events
+  |> List.filter_map (function
+    | Provider_client.Text_delta text -> if text = "" then None else Some text
+    | Provider_client.Reasoning_delta _ -> None)
+  |> String.concat ""
+;;
+
+let response_with_stream_content response content =
+  let choices =
+    match response.Openai_types.choices with
+    | [] ->
+      [ { Openai_types.index = 0
+        ; message = { role = "assistant"; content; extra = [] }
+        ; finish_reason = "stop"
+        }
+      ]
+    | first :: rest ->
+      { first with
+        Openai_types.message = { first.message with content }
+      }
+      :: rest
+  in
+  { response with choices }
+;;
+
+let protect_chat_stream security_policy (stream : Provider_client.chat_stream) =
+  Lwt.finalize
+    (fun () ->
+      Lwt_stream.to_list stream.events
+      >|= fun raw_events ->
+      let filtered_events =
+        List.map
+          (Privacy_filter.filter_stream_event security_policy.Security_policy.privacy_filter)
+          raw_events
+      in
+      let combined_text = text_of_stream_events filtered_events in
+      match Output_guard.ensure_text_is_safe security_policy.output_guard combined_text with
+      | Error _ as error -> error
+      | Ok () ->
+        let response =
+          response_with_stream_content
+            stream.response
+            (text_response_content filtered_events)
+        in
+        (match protect_chat_response security_policy response with
+         | Error _ as error -> error
+         | Ok response ->
+           Ok
+             { Provider_client.response
+             ; events = Lwt_stream.of_list filtered_events
+             ; close = (fun () -> Lwt.return_unit)
+             }))
+    (fun () -> stream.close ())
+;;
+
 let rec
   try_backends
     store
@@ -209,14 +273,10 @@ let rec
             Backend_circuit.record_success circuit provider_id;
             (match consume_budget_if_possible store ~principal stream.Provider_client.response.usage with
              | Ok () ->
-               (match
-                  protect_chat_response
-                    store.Runtime_state.config.security_policy
-                    stream.Provider_client.response
-                with
-                | Error err -> stream.close () >|= fun () -> Error err
-                | Ok response ->
-                  Lwt.return (Ok { stream with Provider_client.response = response }))
+               with_upstream_timeout
+                 store
+                 ~provider_id
+                 (protect_chat_stream store.Runtime_state.config.security_policy stream)
              | Error err -> stream.close () >|= fun () -> Error err)
           | Error err ->
             if Domain_error.is_retryable err
